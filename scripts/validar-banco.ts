@@ -390,6 +390,27 @@ async function testarRegrasDeNegocio() {
     erro('cadastro de moto com dono', (e as Error).message)
   }
 
+  // Regressão: inserção em lote onde uma linha omite data_inicio. O PostgREST
+  // manda NULL nesse caso, e NULL não aciona o default da coluna — o lote
+  // inteiro caía com "violates not-null constraint". Ver migration 0015.
+  await comoAdministradorDoBanco()
+  try {
+    await db.exec(`
+      insert into public.moto_proprietarios (oficina_id, moto_id, cliente_id, data_inicio)
+      values ('${ID.oficinaA}', '${ID.motoA}', '${ID.clienteA}', null)
+      on conflict do nothing
+    `)
+    const n = await contar(`
+      select count(*) as n from public.moto_proprietarios
+      where moto_id = '${ID.motoA}' and data_inicio = current_date
+    `)
+    if (n >= 1) ok('linha sem data de início recebe a data de hoje, em vez de quebrar')
+    else erro('default resistente a lote', 'a data de início não foi preenchida')
+  } catch (e) {
+    erro('default resistente a lote', (e as Error).message)
+  }
+
+  await logarComo(ID.adminA)
   await esperaErro(
     'a oficina não pode ficar sem administrador ativo',
     `update public.usuarios set ativo = false where id = '${ID.adminA}'`,

@@ -99,6 +99,13 @@ indicadores, white-label, assinatura, IA e áudio.
 - **A `vw_produtos` roda como dono do banco**, ou seja, passa por cima do RLS de
   `produtos`. O isolamento dela depende do `WHERE` dentro da view — que está
   coberto pelos dois testes, justamente por isso.
+- **Inserção em lote pelo PostgREST não respeita o `DEFAULT` da coluna.** Quando
+  vários registros vão numa chamada só, ele monta um único INSERT com a união
+  das colunas; o registro que não traz uma coluna recebe `NULL` explícito, e
+  `NULL` não aciona o default — o lote inteiro falha com `23502`. **Regra: em
+  inserção em lote, todas as linhas mandam todas as colunas.** Isso vai importar
+  na Fase 2, que grava itens de orçamento e de OS em lote. A `moto_proprietarios`
+  já está protegida por gatilho (migration `0015`).
 - **Não existe transferência de moto entre donos** ainda. A estrutura suporta
   (`moto_proprietarios` com `data_fim`), mas não há tela. Entra na Fase 2.
 

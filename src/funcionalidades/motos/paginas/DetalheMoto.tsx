@@ -14,7 +14,7 @@ import { Carregando } from '@/componentes/ui/Carregando'
 import { EstadoErro } from '@/componentes/ui/EstadoVazio'
 import { useToast } from '@/componentes/ui/Toast'
 import { traduzirErro } from '@/lib/erros'
-import { exibirPlaca, quilometragem, data, telefone } from '@/lib/formato'
+import { exibirPlaca, quilometragem, data } from '@/lib/formato'
 import { usePermissoes } from '@/auth/usePermissoes'
 import { esquemaKm, type DadosFormularioKm } from '../esquemas'
 import { obterMoto, proprietariosDaMoto, atualizarKm } from '../api'
@@ -113,8 +113,8 @@ export function DetalheMoto() {
           </div>
           {p.editarMotos && (
             <Botao
-              variante="contorno"
-              className="h-toque border-borda-clara px-4 text-claro"
+              variante="contorno-no-card"
+              className="h-toque px-4"
               icone={<Gauge aria-hidden size={18} />}
               onClick={() => {
                 formularioKm.reset({ km_atual: String(moto.km_atual) })
@@ -166,9 +166,10 @@ export function DetalheMoto() {
               </IconeCirculo>
             }
             titulo={donoAtual.cliente?.nome ?? 'Cliente removido'}
-            descricao={`Desde ${data(donoAtual.data_inicio)}${
-              donoAtual.cliente?.telefone ? ` · ${telefone(donoAtual.cliente.telefone)}` : ''
-            }`}
+            // Só a data: ao lado do badge sobra pouca largura, e o telefone
+            // cortado pela metade não serve para ninguém. Ele aparece inteiro
+            // na tela do cliente, que é para onde esta linha leva.
+            descricao={`Desde ${data(donoAtual.data_inicio)}`}
             fim={<Badge tom="sucesso">Dono atual</Badge>}
             aoTocar={
               donoAtual.cliente && p.verClientes

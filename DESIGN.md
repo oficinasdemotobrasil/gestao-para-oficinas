@@ -132,11 +132,25 @@ amarelo (40px) ou a placa em destaque, no meio o nome e uma linha de apoio, à d
 badge de status. A linha inteira é tocável.
 
 **Badge.** Raio 10, padding 4/10, `text-apoio` peso 500, fundo suave e texto na cor forte
-do estado. Nunca só cor — sempre com a palavra ("Ativo", "Inativo").
+do estado. Nunca só cor — sempre com a palavra ("Inativo", "Repor").
+
+**Badge só quando ele tem o que dizer.** Numa lista onde quase tudo está ativo, um badge
+"Ativo" em cada linha não informa nada e ainda rouba a largura do nome do produto, que é o
+que a pessoa está procurando — na tela estreita isso vira "Pastilha de frei...". Marque a
+exceção (inativo, estoque para repor) e deixe o normal em silêncio. A exceção é a tela de
+colaboradores, onde quem tem e quem não tem acesso é justamente o assunto.
 
 **Botão principal.** Largura total, altura 56, fundo amarelo, texto `#111113` peso 600,
 raio 14. Um por tela. Ação secundária é botão de contorno; ação destrutiva é texto vermelho,
 nunca um botão vermelho cheio.
+
+**Nunca corrija a cor de um botão por `className`.** Entre duas classes de cor do
+Tailwind — `text-escuro` e `text-claro`, por exemplo — quem vence não é a que aparece
+depois no atributo, é a que aparece depois no CSS gerado. O resultado é imprevisível:
+já produziu um botão de texto branco dentro de card branco, invisível. Se um botão
+precisa de outra cor, ele precisa de outra **variante**. Por isso existem `contorno`
+(sobre o fundo preto) e `contorno-no-card` (dentro do card branco), em vez de um
+`contorno` remendado nos dois lugares.
 
 **Ícone ilustrativo.** Círculo de fundo `--cor-acento-suave` com o traço em `#111113`
 dentro do card branco; círculo `--cor-acento` com traço escuro sobre fundo preto.

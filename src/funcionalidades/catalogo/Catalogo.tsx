@@ -6,7 +6,7 @@ import { Tela, CabecalhoTela } from '@/componentes/layout/Tela'
 import { CampoBusca } from '@/componentes/ui/CampoBusca'
 import { ListaCard, LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
 import { Botao } from '@/componentes/ui/Botao'
-import { Badge, BadgeAtivo } from '@/componentes/ui/Badge'
+import { Badge } from '@/componentes/ui/Badge'
 import { EstadoVazio, EstadoErro } from '@/componentes/ui/EstadoVazio'
 import { EsqueletoLista } from '@/componentes/ui/Carregando'
 import { useDebounce } from '@/lib/useDebounce'
@@ -140,17 +140,20 @@ export function Catalogo() {
                     }
                     titulo={produto.nome}
                     descricao={`${moeda(produto.preco_venda)} · ${quantidade(produto.estoque_atual)} ${produto.unidade}`}
+                    // Badge só quando tem o que dizer. "Ativo" em quase toda
+                    // linha não informa nada e rouba a largura do nome do
+                    // produto, que é o que a pessoa procura.
                     fim={
-                      abaixoDoMinimo ? (
+                      !produto.ativo ? (
+                        <Badge>Inativo</Badge>
+                      ) : abaixoDoMinimo ? (
                         <Badge tom="atencao">
                           <span className="flex items-center gap-1">
                             <TriangleAlert aria-hidden size={13} />
-                            Estoque baixo
+                            Repor
                           </span>
                         </Badge>
-                      ) : (
-                        <BadgeAtivo ativo={produto.ativo} />
-                      )
+                      ) : undefined
                     }
                     aoTocar={
                       p.editarCatalogo
@@ -190,7 +193,7 @@ export function Catalogo() {
                     ? `${moeda(servico.preco)} · ${servico.tempo_estimado_minutos} min`
                     : moeda(servico.preco)
                 }
-                fim={<BadgeAtivo ativo={servico.ativo} />}
+                fim={servico.ativo ? undefined : <Badge>Inativo</Badge>}
                 aoTocar={
                   p.editarCatalogo ? () => navegar(`/catalogo/servicos/${servico.id}`) : undefined
                 }

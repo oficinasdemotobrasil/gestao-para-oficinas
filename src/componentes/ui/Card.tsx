@@ -53,8 +53,11 @@ export function LinhaLista({
       {inicio && <span className="shrink-0">{inicio}</span>}
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-corpo font-medium text-claro">{titulo}</span>
+        {/* O título trunca (nome de cliente pode ser longo), mas a descrição
+            quebra em até duas linhas: é onde mora o período de posse, a
+            quilometragem, o preço — cortar isso esvazia a linha. */}
         {descricao && (
-          <span className="truncate text-apoio text-claro-secundario">{descricao}</span>
+          <span className="line-clamp-2 text-apoio text-claro-secundario">{descricao}</span>
         )}
       </span>
       {fim}
