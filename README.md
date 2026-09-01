@@ -26,6 +26,7 @@ npm run dev
 | `npm run validar:banco` | Roda as migrations num Postgres local e testa o RLS. Não precisa de internet nem de projeto Supabase |
 | `npm run teste:isolamento` | Teste oficial de isolamento, contra o Supabase real. Precisa de `.env.test.local` |
 | `npm run checar-tipos` | TypeScript sem gerar arquivos |
+| `npm run migrations:juntar` | Regera `supabase/_todas_migrations_em_ordem.sql`, o arquivo colável no SQL Editor. Rode sempre que criar uma migration |
 
 ---
 
@@ -115,8 +116,10 @@ indicadores, white-label, assinatura, IA e áudio.
 
 ### Supabase
 
-1. **Migrations** — no SQL Editor, rode os arquivos de `supabase/migrations` na
-   ordem numérica. O `0014` para com erro se sobrar qualquer tabela sem RLS.
+1. **Migrations** — no SQL Editor, cole
+   `supabase/_todas_migrations_em_ordem.sql` (arquivo gerado, com todas na ordem)
+   ou rode um a um os arquivos de `supabase/migrations`. O `0014` para com erro
+   se sobrar qualquer tabela sem RLS.
 2. **Primeiro usuário** — Authentication › Users › Add user, com *Auto Confirm*.
 3. **Vincular à oficina** — edite `supabase/seed/oficina_inicial.sql` com o
    e-mail e o nome, e rode no SQL Editor.

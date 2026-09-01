@@ -1,6 +1,17 @@
 -- ============================================================
--- migrations/0001_extensoes_e_tipos.sql
+-- ARQUIVO GERADO — não edite aqui.
+--
+-- Junta as migrations de supabase/migrations na ordem, para colar de uma vez
+-- no SQL Editor do Supabase. A fonte da verdade são os arquivos numerados;
+-- este aqui é só a cópia colável. Para atualizar: npm run migrations:juntar
+--
+-- Migrations incluídas: 15
 -- ============================================================
+
+-- ============================================================
+-- 0001_extensoes_e_tipos.sql
+-- ============================================================
+
 -- 0001 — Extensões e tipos enumerados
 -- Todos os estados do sistema são enums do Postgres: um status inválido nem
 -- chega a ser gravado, em vez de virar texto livre que ninguém consegue mais limpar.
@@ -41,10 +52,10 @@ begin
 end;
 $$;
 
+-- ============================================================
+-- 0002_nucleo.sql
+-- ============================================================
 
--- ============================================================
--- migrations/0002_nucleo.sql
--- ============================================================
 -- 0002 — Núcleo: oficinas e usuários
 -- Vem antes das funções auxiliares (0003) porque elas leem public.usuarios e o
 -- Postgres valida o corpo de função SQL na hora de criar.
@@ -99,10 +110,10 @@ create trigger usuarios_atualizado_em
   before update on public.usuarios
   for each row execute function public.marcar_atualizacao();
 
+-- ============================================================
+-- 0003_funcoes_auxiliares.sql
+-- ============================================================
 
--- ============================================================
--- migrations/0003_funcoes_auxiliares.sql
--- ============================================================
 -- 0002 — Funções auxiliares de multi-tenant e perfil
 --
 -- Estas funções são a base de TODA política de RLS do sistema.
@@ -201,10 +212,10 @@ grant execute on function public.eh_vendedor() to authenticated;
 grant execute on function public.eh_mecanico() to authenticated;
 grant execute on function public.eh_atendimento() to authenticated;
 
+-- ============================================================
+-- 0004_clientes_motos.sql
+-- ============================================================
 
--- ============================================================
--- migrations/0004_clientes_motos.sql
--- ============================================================
 -- 0004 — Clientes, motos e histórico de proprietários
 --
 -- Regra de negócio central: a moto é uma entidade independente do cliente.
@@ -314,10 +325,10 @@ create trigger moto_proprietarios_atualizado_em
   before update on public.moto_proprietarios
   for each row execute function public.marcar_atualizacao();
 
+-- ============================================================
+-- 0005_catalogo_estoque.sql
+-- ============================================================
 
--- ============================================================
--- migrations/0005_catalogo_estoque.sql
--- ============================================================
 -- 0005 — Catálogo (produtos e serviços) e estoque
 -- A Fase 1 só cadastra produtos e serviços. Notas de entrada e movimentações
 -- nascem aqui para a estrutura não mudar depois, mas ficam sem tela até a Fase 2.
@@ -407,10 +418,10 @@ create trigger notas_fiscais_entrada_atualizado_em
   before update on public.notas_fiscais_entrada
   for each row execute function public.marcar_atualizacao();
 
+-- ============================================================
+-- 0006_orcamentos_os.sql
+-- ============================================================
 
--- ============================================================
--- migrations/0006_orcamentos_os.sql
--- ============================================================
 -- 0006 — Orçamentos e ordens de serviço
 -- Nenhuma tela na Fase 1. A estrutura nasce agora porque mudar o desenho de
 -- multi-tenant depois, com dados de cliente dentro, custa caro.
@@ -559,10 +570,10 @@ create trigger ordens_servico_atualizado_em
   before update on public.ordens_servico
   for each row execute function public.marcar_atualizacao();
 
+-- ============================================================
+-- 0007_financeiro.sql
+-- ============================================================
 
--- ============================================================
--- migrations/0007_financeiro.sql
--- ============================================================
 -- 0007 — Financeiro
 -- Sem tela na Fase 1. No RLS (0010) estas duas tabelas são exclusivas do admin:
 -- vendedor e mecânico não leem nem escrevem nada aqui.
@@ -614,10 +625,10 @@ create trigger contas_pagar_atualizado_em
   before update on public.contas_pagar
   for each row execute function public.marcar_atualizacao();
 
+-- ============================================================
+-- 0008_indices.sql
+-- ============================================================
 
--- ============================================================
--- migrations/0008_indices.sql
--- ============================================================
 -- 0008 — Índices
 -- oficina_id entra em toda política de RLS, ou seja, em toda consulta do sistema:
 -- sem índice nele, cada tela vira varredura de tabela inteira.
@@ -660,10 +671,10 @@ create index os_itens_os_idx on public.os_itens (ordem_servico_id);
 create index apontamentos_tempo_os_idx on public.apontamentos_tempo (ordem_servico_id);
 create index movimentacoes_estoque_produto_idx on public.movimentacoes_estoque (produto_id);
 
+-- ============================================================
+-- 0009_rls_nucleo.sql
+-- ============================================================
 
--- ============================================================
--- migrations/0009_rls_nucleo.sql
--- ============================================================
 -- 0009 — RLS do núcleo: oficinas e usuários
 --
 -- Regra do projeto: o frontend filtra por conveniência, o banco filtra por
@@ -792,10 +803,10 @@ create trigger usuarios_garantir_admin_ativo
   before update on public.usuarios
   for each row execute function public.garantir_admin_ativo();
 
+-- ============================================================
+-- 0010_rls_negocio.sql
+-- ============================================================
 
--- ============================================================
--- migrations/0010_rls_negocio.sql
--- ============================================================
 -- 0010 — RLS das tabelas de negócio (admin e vendedor)
 -- O recorte do mecânico vem na 0011, em políticas separadas, para ficar fácil
 -- de auditar o que exatamente aquele perfil alcança.
@@ -972,10 +983,10 @@ create policy "admin gerencia contas a pagar"
   using (oficina_id = public.oficina_do_usuario() and public.eh_admin())
   with check (oficina_id = public.oficina_do_usuario() and public.eh_admin());
 
+-- ============================================================
+-- 0011_rls_mecanico.sql
+-- ============================================================
 
--- ============================================================
--- migrations/0011_rls_mecanico.sql
--- ============================================================
 -- 0011 — RLS do mecânico
 --
 -- O mecânico enxerga SOMENTE as ordens de serviço atribuídas a ele, e enxerga
@@ -1105,10 +1116,10 @@ create policy "mecanico encerra o proprio apontamento"
     and mecanico_id = auth.uid()
   );
 
+-- ============================================================
+-- 0012_view_produtos_sem_custo.sql
+-- ============================================================
 
--- ============================================================
--- migrations/0012_view_produtos_sem_custo.sql
--- ============================================================
 -- 0012 — Catálogo de produtos sem preço de custo
 --
 -- O problema: RLS filtra LINHA, não COLUNA. Não existe política capaz de
@@ -1151,10 +1162,10 @@ comment on view public.vw_produtos is
 revoke all on public.vw_produtos from public, anon;
 grant select on public.vw_produtos to authenticated;
 
+-- ============================================================
+-- 0013_rpc_moto_com_proprietario.sql
+-- ============================================================
 
--- ============================================================
--- migrations/0013_rpc_moto_com_proprietario.sql
--- ============================================================
 -- 0013 — Cadastro de moto já vinculada ao dono
 --
 -- A moto e o vínculo com o cliente precisam nascer juntos: uma moto gravada sem
@@ -1200,10 +1211,10 @@ $$;
 revoke all on function public.criar_moto_com_proprietario(uuid, text, text, text, integer, text, text, integer) from public, anon;
 grant execute on function public.criar_moto_com_proprietario(uuid, text, text, text, integer, text, text, integer) to authenticated;
 
+-- ============================================================
+-- 0014_verificacao_rls.sql
+-- ============================================================
 
--- ============================================================
--- migrations/0014_verificacao_rls.sql
--- ============================================================
 -- 0014 — Fechadura final e verificação automática
 --
 -- "Nenhuma tabela sem RLS" é critério de aceite da Fase 1. Deixar isso na mão
@@ -1271,4 +1282,46 @@ begin
   raise notice 'Verificação de RLS concluída: todas as tabelas protegidas.';
 end $$;
 
+-- ============================================================
+-- 0015_defaults_resistentes_a_lote.sql
+-- ============================================================
+
+-- 0015 — Defaults que sobrevivem à inserção em lote
+--
+-- O problema, descoberto testando a tela da moto:
+--
+-- Quando o PostgREST recebe vários registros numa única chamada, ele monta UM
+-- comando INSERT com a união das colunas de todos os registros. O registro que
+-- não traz uma coluna recebe NULL explícito — e NULL não aciona o DEFAULT da
+-- coluna, ele viola o NOT NULL. Ou seja: um lote onde alguns registros contam
+-- com o valor padrão falha inteiro, com uma mensagem que não explica nada para
+-- quem está na oficina.
+--
+-- Isso não afeta o cadastro de moto de hoje, que passa pela função
+-- criar_moto_com_proprietario e sempre envia a data. Mas a Fase 2 é feita de
+-- inserção em lote (itens de orçamento, itens de OS), e a armadilha ficaria
+-- armada. Um gatilho que preenche o valor quando vier nulo resolve na origem.
+--
+-- Só vale para colunas cujo NULL não significa nada: a posse de uma moto sempre
+-- começa em algum dia. Onde NULL carrega sentido — data_fim, que quer dizer
+-- "é o dono atual" — nada é preenchido.
+
+create or replace function public.preencher_inicio_da_posse()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.data_inicio is null then
+    new.data_inicio = current_date;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger moto_proprietarios_preencher_inicio
+  before insert on public.moto_proprietarios
+  for each row execute function public.preencher_inicio_da_posse();
+
+comment on column public.moto_proprietarios.data_inicio is
+  'Início da posse. Preenchido com a data de hoje quando vier nulo, para que a inserção em lote pelo PostgREST não quebre. Ver gatilho moto_proprietarios_preencher_inicio.';
 
