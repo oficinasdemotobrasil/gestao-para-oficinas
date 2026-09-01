@@ -10,3 +10,7 @@ dist-ssr
 supabase/.temp
 supabase/.branches
 dev-dist
+
+# arquivo de build incremental do TypeScript
+tsconfig.tsbuildinfo
+.DS_Store
