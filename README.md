@@ -25,6 +25,7 @@ npm run dev
 | `npm run preview` | Serve o build, para testar o PWA de verdade |
 | `npm run validar:banco` | Roda as migrations num Postgres local e testa o RLS. Não precisa de internet nem de projeto Supabase |
 | `npm run teste:isolamento` | Teste oficial de isolamento, contra o Supabase real. Precisa de `.env.test.local` |
+| `npm run teste:funcao` | Ataca a Edge Function `criar-colaborador`, o único lugar onde a service_role roda. Precisa de `.env.test.local` |
 | `npm run checar-tipos` | TypeScript sem gerar arquivos |
 | `npm run migrations:juntar` | Regera `supabase/_todas_migrations_em_ordem.sql`, o arquivo colável no SQL Editor. Rode sempre que criar uma migration |
 
@@ -79,7 +80,8 @@ outra.
 - Colaboradores: cadastro via Edge Function, edição e ativar/desativar
 - Configurações da oficina, incluindo chave PIX
 - PWA instalável, abrindo offline, com tela de sem conexão
-- Dois níveis de teste de isolamento entre oficinas
+- Dois níveis de teste de isolamento entre oficinas, mais um teste de ataque à
+  Edge Function (tenta plantar colaborador na oficina de outro cliente)
 
 ### Fora do escopo da Fase 1 (de propósito)
 
@@ -132,6 +134,16 @@ indicadores, white-label, assinatura, IA e áudio.
    As variáveis `SUPABASE_URL`, `SUPABASE_ANON_KEY` e
    `SUPABASE_SERVICE_ROLE_KEY` já existem no ambiente das Edge Functions; não é
    preciso configurar nada.
+
+   Se a CLI der `403 — your account does not have the necessary privileges`, ela
+   está logada em outra conta: `npx supabase logout`, saia do Supabase no
+   navegador e entre de novo. Dá para publicar sem CLI nenhuma pelo painel, em
+   **Edge Functions › Deploy a new function › Via editor**, colando o mesmo
+   código. Depois de publicar, confirme com `npm run teste:funcao`.
+
+   **Não desligue o "Verify JWT"** dessa função. Ela já valida a sessão por conta
+   própria, e a verificação do portão é uma camada a mais que está funcionando —
+   o teste prova que um token de admin real passa.
 5. **URLs de autenticação** — Authentication › URL Configuration:
    - *Site URL*: a URL da Vercel (em desenvolvimento, `http://localhost:5173`)
    - *Redirect URLs*: `http://localhost:5173/redefinir-senha` e

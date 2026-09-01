@@ -11,7 +11,8 @@
     "tipos:banco": "supabase gen types typescript --linked > src/tipos/banco.ts",
     "teste:isolamento": "tsx scripts/teste-isolamento.ts",
     "validar:banco": "tsx scripts/validar-banco.ts",
-    "migrations:juntar": "tsx scripts/juntar-migrations.ts"
+    "migrations:juntar": "tsx scripts/juntar-migrations.ts",
+    "teste:funcao": "tsx scripts/teste-edge-function.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
