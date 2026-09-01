@@ -1,0 +1,52 @@
+/* Fonte única de verdade dos tokens de design. Ver DESIGN.md.
+   Nenhum valor daqui deve ser repetido dentro de componente. */
+
+:root {
+  /* Cor ------------------------------------------------------------------ */
+  --cor-fundo: #0b0b0c;
+  --cor-superficie: #ffffff;
+  --cor-superficie-escura: #1a1a1c;
+  --cor-borda-escura: #2a2a2e;
+  --cor-borda-clara: #e6e6e9;
+
+  --cor-acento: #f5c518;
+  --cor-acento-pressionado: #dcaf10;
+  --cor-acento-suave: #fdf3cc;
+
+  --cor-texto-claro: #111113;
+  --cor-texto-claro-secundario: #6b6b70;
+  --cor-texto-escuro: #ffffff;
+  --cor-texto-escuro-secundario: #9a9aa0;
+
+  --cor-sucesso: #2e9e5b;
+  --cor-sucesso-fundo: #e6f5ec;
+  --cor-atencao: #e0a800;
+  --cor-atencao-fundo: #fdf4dc;
+  --cor-erro: #d93a3a;
+  --cor-erro-fundo: #fdecec;
+
+  /* Raio ----------------------------------------------------------------- */
+  --raio-card: 20px;
+  --raio-controle: 14px;
+  --raio-badge: 10px;
+  --raio-folha: 24px;
+
+  /* Sombra --------------------------------------------------------------- */
+  --sombra-card: 0 8px 28px -10px rgba(0, 0, 0, 0.55);
+  --sombra-flutuante: 0 12px 40px -12px rgba(0, 0, 0, 0.65);
+
+  /* Altura --------------------------------------------------------------- */
+  --altura-toque: 48px;
+  --altura-botao: 56px;
+  --altura-campo: 52px;
+  --altura-linha-lista: 64px;
+  --altura-tabbar: 60px;
+
+  /* Movimento ------------------------------------------------------------ */
+  --transicao: 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --transicao-folha: 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Tipografia ----------------------------------------------------------- */
+  --fonte: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter',
+    system-ui, sans-serif;
+}

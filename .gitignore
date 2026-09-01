@@ -1,0 +1,12 @@
+node_modules
+dist
+dist-ssr
+.DS_Store
+*.local
+.env
+.env.local
+.env.test.local
+.vercel
+supabase/.temp
+supabase/.branches
+dev-dist

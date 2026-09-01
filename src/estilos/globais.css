@@ -1,0 +1,73 @@
+@import './tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    background-color: var(--cor-fundo);
+    /* Sem ajuste automático de fonte quando o iPhone gira. */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--cor-fundo);
+    color: var(--cor-texto-escuro);
+    font-family: var(--fonte);
+    font-size: 16px;
+    line-height: 24px;
+    -webkit-font-smoothing: antialiased;
+    /* Sem "puxar para recarregar" nem rolagem elástica arrastando o app. */
+    overscroll-behavior-y: none;
+  }
+
+  /* Piso de 16px: abaixo disso o Safari do iPhone dá zoom ao focar o campo. */
+  input,
+  select,
+  textarea {
+    font-family: inherit;
+    font-size: 16px;
+  }
+
+  button {
+    font-family: inherit;
+    /* Some o atraso de 300ms e o brilho azul do toque no iOS. */
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* Foco sempre visível, inclusive dentro do card branco. */
+  :focus-visible {
+    outline: 2px solid var(--cor-acento);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background-color: var(--cor-acento);
+    color: var(--cor-texto-claro);
+  }
+}
+
+@layer utilities {
+  /* Barra inferior encostada na safe area do iPhone, nunca sob o indicador. */
+  .pb-seguro {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-seguro {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
