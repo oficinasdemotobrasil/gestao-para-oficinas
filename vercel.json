@@ -1,0 +1,26 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "//": "O app é uma página única: o roteamento acontece no navegador, então o servidor precisa devolver o index.html para qualquer caminho. Sem isto, abrir /motos direto, atualizar a tela ou seguir o link de recuperação de senha (/redefinir-senha) devolve 404. Arquivos que existem em disco (sw.js, manifest, ícones) continuam sendo servidos normalmente: a Vercel tenta o arquivo antes da regra.",
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "//": "O service worker não pode ficar em cache: é ele quem descobre que existe versão nova do app. Guardado, a oficina continuaria abrindo a versão antiga por dias.",
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "//": "O Vite põe hash no nome de cada arquivo de assets, então eles nunca mudam de conteúdo. Podem ser guardados para sempre — o que faz o app abrir rápido na internet ruim da oficina.",
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ]
+}
