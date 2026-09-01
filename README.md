@@ -158,6 +158,23 @@ indicadores, white-label, assinatura, IA e áudio.
    - `VITE_SUPABASE_ANON_KEY` — a *publishable key*, nunca a service_role
 4. Depois do primeiro deploy, volte ao Supabase e acrescente a URL da Vercel nas
    URLs de autenticação do passo 5 acima.
+
+O arquivo `vercel.json` na raiz cuida de três coisas, e nenhuma delas é opcional:
+
+- **Rewrite de tudo para `/index.html`.** O app é uma página única: o roteamento
+  acontece no navegador. Sem isso, abrir `/motos` direto, atualizar a tela com F5
+  ou seguir o link de recuperação de senha (`/redefinir-senha`) devolve 404.
+  Arquivo que existe em disco (`sw.js`, manifest, ícones) continua sendo servido
+  normalmente — a Vercel tenta o arquivo antes da regra.
+- **`sw.js` sem cache.** É o service worker quem descobre que existe versão nova.
+  Guardado em cache, a oficina continuaria abrindo a versão antiga por dias.
+- **`/assets` com cache eterno.** O Vite põe hash no nome de cada arquivo, então
+  o conteúdo nunca muda — o que faz o app abrir rápido na internet da oficina.
+
+Cuidado ao editar: a Vercel valida esse arquivo de forma estrita e recusa
+qualquer propriedade que não conheça. JSON não aceita comentário, e tentar
+colocar um (uma chave `"//"`, por exemplo) faz o deploy falhar na leitura da
+configuração — o build passa, mas as regras não valem.
 5. No iPhone, abra a URL no **Safari** → Compartilhar → **Adicionar à Tela de
    Início**. O iOS não oferece instalação automática; o app ensina o caminho na
    aba "Mais".
