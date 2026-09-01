@@ -7,6 +7,19 @@ export default defineConfig({
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Separa as bibliotecas do código do app: numa atualização, o celular
+        // baixa só a parte que mudou. Importa para quem está na internet da oficina.
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          supabase: ['@supabase/supabase-js'],
+          formulario: ['react-hook-form', 'zod', '@hookform/resolvers/zod'],
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({

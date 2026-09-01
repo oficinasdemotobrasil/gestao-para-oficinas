@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0B0B0C" />
+    <title>Sem conexão · Gestão para Oficinas</title>
+    <style>
+      :root {
+        --fundo: #0b0b0c;
+        --acento: #f5c518;
+        --texto: #ffffff;
+        --texto-secundario: #9a9aa0;
+        --claro: #111113;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 24px calc(24px + env(safe-area-inset-left)) calc(24px + env(safe-area-inset-bottom));
+        background: var(--fundo);
+        color: var(--texto);
+        text-align: center;
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif;
+      }
+      .marca {
+        width: 64px;
+        height: 64px;
+        display: grid;
+        place-items: center;
+        border-radius: 999px;
+        background: #1a1a1c;
+        margin-bottom: 8px;
+      }
+      h1 { font-size: 28px; line-height: 34px; font-weight: 700; margin: 0; }
+      p { font-size: 16px; line-height: 24px; color: var(--texto-secundario); margin: 0; max-width: 36ch; }
+      button {
+        margin-top: 20px;
+        height: 56px;
+        min-width: 220px;
+        padding: 0 24px;
+        border: 0;
+        border-radius: 14px;
+        background: var(--acento);
+        color: var(--claro);
+        font: inherit;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+      @media (prefers-reduced-motion: reduce) {
+        * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <span class="marca" aria-hidden="true">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#F5C518" stroke-width="2" stroke-linecap="round">
+        <path d="M2 8.8a16 16 0 0 1 20 0" />
+        <path d="M5 12.6a11 11 0 0 1 14 0" />
+        <path d="M8.5 16.4a6 6 0 0 1 7 0" />
+        <path d="M12 20h.01" />
+        <path d="M2 2l20 20" />
+      </svg>
+    </span>
+    <h1>Você está sem conexão</h1>
+    <p>
+      O aplicativo abriu normalmente, mas precisa de internet para carregar os
+      dados da oficina. Assim que o sinal voltar, toque no botão abaixo.
+    </p>
+    <button type="button" onclick="location.reload()">Tentar de novo</button>
+
+    <script>
+      // Volta sozinho assim que o aparelho reencontra a rede.
+      window.addEventListener('online', function () {
+        location.reload()
+      })
+    </script>
+  </body>
+</html>
