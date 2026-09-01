@@ -9,8 +9,8 @@
 
 do $$
 declare
-  v_email text := 'troque-pelo-email-do-tiago@exemplo.com';  -- <<< TROQUE AQUI
-  v_nome  text := 'Tiago Carvalho';                          -- <<< e aqui
+  v_email text := 'oficinasdemotobrasil@gmail.com';
+  v_nome  text := 'Ed Pereira de Melo';
   v_usuario_id uuid;
   v_oficina_id uuid;
 begin

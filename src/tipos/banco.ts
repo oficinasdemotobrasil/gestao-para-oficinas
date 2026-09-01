@@ -141,8 +141,11 @@ type OrdemServico = {
 /** Campos que o banco preenche sozinho e que nunca são enviados na inserção. */
 type Gerados = 'id' | 'criado_em' | 'atualizado_em'
 
-/** oficina_id tem default no banco (a oficina do usuário logado): opcional aqui. */
-type ParaInserir<T extends { oficina_id: string }> = Omit<T, Gerados> & {
+/**
+ * oficina_id tem default no banco — a coluna é preenchida com a oficina do
+ * usuário logado — então o app não precisa (nem deve) mandar esse valor.
+ */
+type ParaInserir<T extends { oficina_id: string }> = Omit<T, Gerados | 'oficina_id'> & {
   id?: string
   oficina_id?: string
 }

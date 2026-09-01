@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { MailCheck } from 'lucide-react'
@@ -10,6 +10,7 @@ import { esquemaEsqueciSenha, type DadosEsqueciSenha } from '@/auth/esquemas'
 
 export function EsqueciSenha() {
   const { enviarRecuperacao } = useAuth()
+  const navegar = useNavigate()
   const [enviado, setEnviado] = useState(false)
   const [erroGeral, setErroGeral] = useState<string | null>(null)
 
@@ -41,11 +42,11 @@ export function EsqueciSenha() {
           Se existir uma conta para {getValues('email')}, o link para criar uma
           nova senha chega em instantes. Ele vale por uma hora.
         </p>
-        <Link to="/entrar" className="pt-8">
-          <Botao variante="contorno" largo>
-            Voltar para o login
-          </Botao>
-        </Link>
+        {/* Botão, e não link com botão dentro: elemento clicável dentro de outro
+            elemento clicável confunde leitor de tela e navegação por teclado. */}
+        <Botao variante="contorno" largo className="mt-8" onClick={() => navegar('/entrar')}>
+          Voltar para o login
+        </Botao>
       </main>
     )
   }
