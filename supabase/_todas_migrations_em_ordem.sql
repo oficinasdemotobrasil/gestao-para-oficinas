@@ -5,7 +5,7 @@
 -- no SQL Editor do Supabase. A fonte da verdade são os arquivos numerados;
 -- este aqui é só a cópia colável. Para atualizar: npm run migrations:juntar
 --
--- Migrations incluídas: 15
+-- Migrations incluídas: 24
 -- ============================================================
 
 -- ============================================================
@@ -1324,4 +1324,916 @@ create trigger moto_proprietarios_preencher_inicio
 
 comment on column public.moto_proprietarios.data_inicio is
   'Início da posse. Preenchido com a data de hoje quando vier nulo, para que a inserção em lote pelo PostgREST não quebre. Ver gatilho moto_proprietarios_preencher_inicio.';
+
+-- ============================================================
+-- 0016_item_avulso.sql
+-- ============================================================
+
+-- 0016 — Item avulso no orçamento
+--
+-- Nem tudo que entra num orçamento está no catálogo: "solda no escapamento",
+-- "peça que o cliente trouxe". Hoje o item precisa ser produto ou serviço, e
+-- obrigar o cadastro de um serviço novo só para orçar uma vez enche o catálogo
+-- de lixo.
+--
+-- Esta migration tem uma linha só de propósito: o Postgres não deixa usar um
+-- valor de enum na mesma transação em que ele é criado. Se estivesse junto com
+-- a alteração dos CHECK que dependem dele (0018), nenhuma das duas subiria.
+
+alter type public.tipo_item add value if not exists 'avulso';
+
+-- ============================================================
+-- 0017_responsavel_da_os.sql
+-- ============================================================
+
+-- 0017 — A ordem de serviço vai para um responsável, não só para um mecânico
+--
+-- Regra nova: ao aprovar um orçamento, a OS é direcionada a qualquer
+-- colaborador da oficina — admin, vendedor ou mecânico. Numa oficina pequena
+-- quem executa muitas vezes é o próprio dono.
+--
+-- O nome mecanico_id passou a mentir. Renomear agora custa esta migration;
+-- depois da Fase 3, com a tela de OS construída em cima da coluna, custa um dia.
+--
+-- As políticas de RLS não precisam ser reescritas: o Postgres guarda a
+-- expressão delas já analisada, apontando para a coluna, não para o texto do
+-- nome. O recorte do mecânico continua valendo, agora sobre responsavel_id.
+
+alter table public.ordens_servico rename column mecanico_id to responsavel_id;
+
+alter index public.ordens_servico_mecanico_idx rename to ordens_servico_responsavel_idx;
+
+alter table public.ordens_servico
+  rename constraint ordens_servico_mecanico_fk to ordens_servico_responsavel_fk;
+
+comment on column public.ordens_servico.responsavel_id is
+  'Colaborador encarregado da OS. Qualquer perfil pode ser responsável. O mecânico só enxerga as ordens em que ele está aqui.';
+
+-- ============================================================
+-- 0018_colunas_fase2.sql
+-- ============================================================
+
+-- 0018 — Colunas que a Fase 2 passa a usar
+-- Nenhuma migration anterior é editada: o que falta entra aqui.
+
+-- Situação da nota de entrada. Cancelar não apaga a nota nem as movimentações
+-- dela: gera o estorno e deixa o rastro, que é o que auditoria de estoque exige.
+create type public.status_nota as enum ('lancada', 'cancelada');
+
+alter table public.notas_fiscais_entrada
+  add column status public.status_nota not null default 'lancada',
+  add column cancelada_em timestamptz,
+  add column cancelada_por uuid references public.usuarios (id) on delete set null,
+  add constraint notas_cancelamento_coerente
+    check ((status = 'cancelada') = (cancelada_em is not null));
+
+-- O custo de compra mora na própria movimentação de entrada: os itens da nota
+-- SÃO as movimentações que ela gerou. Uma tabela a menos para divergir.
+alter table public.movimentacoes_estoque
+  add column custo_unitario numeric(12, 2)
+    check (custo_unitario is null or custo_unitario >= 0);
+
+comment on column public.movimentacoes_estoque.custo_unitario is
+  'Custo de compra, preenchido só nas entradas por nota fiscal. É preço de custo: o vendedor lê o extrato pela view vw_movimentacoes, que não expõe esta coluna.';
+
+-- Quem lançou. auth.uid() como padrão para o app não precisar mandar.
+alter table public.movimentacoes_estoque
+  alter column usuario_id set default auth.uid();
+
+-- entrada e saída são sempre positivas — o sinal vem do tipo, não do número.
+-- ajuste aceita os dois sentidos: sobrou na contagem ou faltou.
+alter table public.movimentacoes_estoque
+  add constraint movimentacoes_quantidade_coerente check (
+    (tipo in ('entrada', 'saida') and quantidade > 0)
+    or (tipo = 'ajuste' and quantidade <> 0)
+  );
+
+-- Orçamento recusado com motivo escrito vira informação; sem motivo, vira
+-- mistério três meses depois.
+alter table public.orcamentos
+  add column motivo_recusa text,
+  -- Guardamos o percentual junto do valor para conseguir reabrir o orçamento
+  -- mostrando "10%" e não só "R$ 45,60".
+  add column desconto_percentual numeric(5, 2)
+    check (desconto_percentual is null or (desconto_percentual >= 0 and desconto_percentual <= 100)),
+  -- Preenchida por gatilho a partir de criado_em + validade_dias. Coluna comum,
+  -- e não gerada, porque converter timestamptz em date depende do fuso e o
+  -- Postgres não aceita isso numa coluna gerada.
+  add column validade_ate date;
+
+-- Item avulso não aponta para produto nem para serviço: a descrição é tudo.
+alter table public.orcamento_itens drop constraint orcamento_itens_referencia_coerente;
+alter table public.orcamento_itens
+  add constraint orcamento_itens_referencia_coerente check (
+    (tipo = 'produto' and produto_id is not null and servico_id is null)
+    or (tipo = 'servico' and servico_id is not null and produto_id is null)
+    or (tipo = 'avulso' and produto_id is null and servico_id is null)
+  );
+
+alter table public.os_itens drop constraint os_itens_referencia_coerente;
+alter table public.os_itens
+  add constraint os_itens_referencia_coerente check (
+    (tipo = 'produto' and produto_id is not null and servico_id is null)
+    or (tipo = 'servico' and servico_id is not null and produto_id is null)
+    or (tipo = 'avulso' and produto_id is null and servico_id is null)
+  );
+
+create index notas_fiscais_status_idx on public.notas_fiscais_entrada (oficina_id, status);
+create index orcamentos_status_idx on public.orcamentos (oficina_id, status);
+create index movimentacoes_criado_em_idx on public.movimentacoes_estoque (oficina_id, criado_em desc);
+
+-- ============================================================
+-- 0019_estoque.sql
+-- ============================================================
+
+-- 0019 — O estoque é a soma das movimentações
+--
+-- produtos.estoque_atual é cache; a verdade é o extrato. Se os dois divergirem,
+-- o cache mente e a oficina compra peça que já tem. Por isso quem mexe no cache
+-- é o banco, em gatilho, e nunca o aplicativo.
+--
+-- O 'for update' não é zelo excessivo: sem ele, duas saídas simultâneas da mesma
+-- peça leem o mesmo saldo, as duas passam pela verificação e o estoque termina
+-- negativo. Trava a linha do produto, aplica, libera.
+
+create or replace function public.delta_da_movimentacao(
+  p_tipo public.tipo_movimentacao,
+  p_quantidade numeric
+)
+returns numeric
+language sql
+immutable
+as $$
+  select case p_tipo
+    when 'entrada' then p_quantidade
+    when 'saida'   then -p_quantidade
+    when 'ajuste'  then p_quantidade  -- já vem com sinal
+  end
+$$;
+
+create or replace function public.aplicar_no_estoque(
+  p_produto_id uuid,
+  p_delta numeric
+)
+returns void
+language plpgsql
+as $$
+declare
+  v_saldo numeric(12, 3);
+  v_novo numeric(12, 3);
+  v_nome text;
+  v_unidade text;
+begin
+  if p_delta = 0 then return; end if;
+
+  select estoque_atual, nome, unidade
+    into v_saldo, v_nome, v_unidade
+  from public.produtos
+  where id = p_produto_id
+  for update;
+
+  if not found then
+    raise exception 'Produto não encontrado.' using errcode = 'foreign_key_violation';
+  end if;
+
+  v_novo := v_saldo + p_delta;
+
+  -- Estoque físico negativo não existe. A mensagem sai pronta para a tela:
+  -- diz quanto tem, quanto foi pedido e de qual peça.
+  if v_novo < 0 then
+    raise exception 'Não há estoque suficiente de %: tem % %, você pediu %.',
+      v_nome,
+      trim(to_char(v_saldo, 'FM999999990.999')),
+      v_unidade,
+      trim(to_char(abs(p_delta), 'FM999999990.999'))
+      using errcode = 'check_violation';
+  end if;
+
+  update public.produtos set estoque_atual = v_novo where id = p_produto_id;
+end;
+$$;
+
+create or replace function public.movimentar_estoque()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  -- Desfaz o efeito da linha antiga e aplica o da nova. Cobre insert, update
+  -- (inclusive troca de produto) e delete com o mesmo raciocínio.
+  if tg_op in ('UPDATE', 'DELETE') then
+    perform public.aplicar_no_estoque(
+      old.produto_id,
+      -public.delta_da_movimentacao(old.tipo, old.quantidade)
+    );
+  end if;
+
+  if tg_op in ('INSERT', 'UPDATE') then
+    perform public.aplicar_no_estoque(
+      new.produto_id,
+      public.delta_da_movimentacao(new.tipo, new.quantidade)
+    );
+  end if;
+
+  return coalesce(new, old);
+end;
+$$;
+
+create trigger movimentacoes_estoque_aplicar
+  after insert or update or delete on public.movimentacoes_estoque
+  for each row execute function public.movimentar_estoque();
+
+-- Rede de segurança: refaz o saldo a partir do extrato inteiro. Se algum dia o
+-- cache divergir, é isto que reconcilia — e é a prova viva de que o estoque é a
+-- soma das movimentações.
+create or replace function public.recalcular_estoque(p_produto_id uuid)
+returns numeric
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_soma numeric(12, 3);
+begin
+  select coalesce(sum(public.delta_da_movimentacao(tipo, quantidade)), 0)
+    into v_soma
+  from public.movimentacoes_estoque
+  where produto_id = p_produto_id;
+
+  update public.produtos set estoque_atual = v_soma where id = p_produto_id;
+  return v_soma;
+end;
+$$;
+
+-- Registrar movimentação manual sem passar pela tabela.
+--
+-- Por que uma função em vez de insert direto: a tabela guarda custo_unitario,
+-- que é preço de custo, e o vendedor não pode ler isso. A função deixa o
+-- vendedor lançar entrada, saída e ajuste sem nunca receber a coluna de custo
+-- de volta — ela devolve só o saldo novo.
+create or replace function public.registrar_movimentacao(
+  p_produto_id uuid,
+  p_tipo public.tipo_movimentacao,
+  p_quantidade numeric,
+  p_motivo text
+)
+returns numeric
+language plpgsql
+as $$
+declare
+  v_oficina_id uuid := public.oficina_do_usuario();
+  v_saldo numeric(12, 3);
+begin
+  if v_oficina_id is null then
+    raise exception 'Usuário sem oficina ativa.' using errcode = 'insufficient_privilege';
+  end if;
+
+  if coalesce(trim(p_motivo), '') = '' then
+    raise exception 'Informe o motivo da movimentação.' using errcode = 'check_violation';
+  end if;
+
+  insert into public.movimentacoes_estoque
+    (oficina_id, produto_id, tipo, quantidade, motivo, usuario_id)
+  values
+    (v_oficina_id, p_produto_id, p_tipo, p_quantidade, trim(p_motivo), auth.uid());
+
+  select estoque_atual into v_saldo from public.produtos where id = p_produto_id;
+  return v_saldo;
+end;
+$$;
+
+revoke all on function public.registrar_movimentacao(uuid, public.tipo_movimentacao, numeric, text) from public, anon;
+grant execute on function public.registrar_movimentacao(uuid, public.tipo_movimentacao, numeric, text) to authenticated;
+revoke all on function public.recalcular_estoque(uuid) from public, anon;
+grant execute on function public.recalcular_estoque(uuid) to authenticated;
+
+-- ============================================================
+-- 0020_numeracao.sql
+-- ============================================================
+
+-- 0020 — Numeração sequencial por oficina
+--
+-- Cada oficina tem o seu 1, o seu 2, o seu 3. O número não pode sair do
+-- frontend: dois celulares criando orçamento ao mesmo tempo leriam o mesmo
+-- "último número" e gerariam dois de número 42.
+--
+-- A trava é a linha da própria oficina. Enquanto um insert está escolhendo o
+-- número, o outro espera — mas só quem for da mesma oficina. Uma oficina nunca
+-- segura a outra.
+
+create or replace function public.definir_numero_sequencial()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_numero integer;
+begin
+  if new.numero is not null then
+    return new;
+  end if;
+
+  perform 1 from public.oficinas where id = new.oficina_id for update;
+
+  if tg_table_name = 'orcamentos' then
+    select coalesce(max(numero), 0) + 1 into v_numero
+    from public.orcamentos where oficina_id = new.oficina_id;
+  else
+    select coalesce(max(numero), 0) + 1 into v_numero
+    from public.ordens_servico where oficina_id = new.oficina_id;
+  end if;
+
+  new.numero := v_numero;
+  return new;
+end;
+$$;
+
+create trigger orcamentos_numerar
+  before insert on public.orcamentos
+  for each row execute function public.definir_numero_sequencial();
+
+create trigger ordens_servico_numerar
+  before insert on public.ordens_servico
+  for each row execute function public.definir_numero_sequencial();
+
+-- Validade: guardada como data para a lista poder filtrar "expirado" sem
+-- calcular nada na leitura. Recalculada quando o prazo muda.
+create or replace function public.definir_validade_orcamento()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.validade_ate := (coalesce(new.criado_em, now()))::date + new.validade_dias;
+  return new;
+end;
+$$;
+
+create trigger orcamentos_validade
+  before insert or update of validade_dias, criado_em on public.orcamentos
+  for each row execute function public.definir_validade_orcamento();
+
+-- ============================================================
+-- 0021_rpcs_fase2.sql
+-- ============================================================
+
+-- 0021 — Operações que são várias escritas e precisam ser uma só
+--
+-- Nota com itens, cancelamento, orçamento com itens e aprovação: em todas,
+-- gravar metade é pior do que não gravar nada. Uma nota sem as entradas de
+-- estoque, ou uma OS sem os itens copiados, é um registro que ninguém entende
+-- depois. Aqui elas viram uma transação.
+--
+-- Todas rodam com as permissões de quem chamou (padrão do plpgsql), então o RLS
+-- continua valendo dentro delas. Nenhuma escapa do isolamento entre oficinas.
+
+-- Nota fiscal de entrada -----------------------------------------------------
+-- Os itens da nota são as movimentações de entrada que ela gera. Uma fonte de
+-- verdade em vez de duas que podem discordar.
+create or replace function public.salvar_nota_com_itens(
+  p_numero text,
+  p_fornecedor text,
+  p_data_emissao date,
+  p_valor_total numeric,
+  p_arquivo_url text,
+  p_itens jsonb
+)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_oficina_id uuid := public.oficina_do_usuario();
+  v_nota_id uuid;
+  v_item record;
+begin
+  if v_oficina_id is null then
+    raise exception 'Usuário sem oficina ativa.' using errcode = 'insufficient_privilege';
+  end if;
+
+  if jsonb_array_length(coalesce(p_itens, '[]'::jsonb)) = 0 then
+    raise exception 'A nota precisa de pelo menos um item.' using errcode = 'check_violation';
+  end if;
+
+  insert into public.notas_fiscais_entrada
+    (oficina_id, numero, fornecedor, data_emissao, valor_total, arquivo_url)
+  values
+    (v_oficina_id, p_numero, p_fornecedor, p_data_emissao, coalesce(p_valor_total, 0), p_arquivo_url)
+  returning id into v_nota_id;
+
+  for v_item in
+    select * from jsonb_to_recordset(p_itens)
+      as x(produto_id uuid, quantidade numeric, custo_unitario numeric)
+  loop
+    if v_item.quantidade is null or v_item.quantidade <= 0 then
+      raise exception 'Quantidade inválida em um dos itens da nota.' using errcode = 'check_violation';
+    end if;
+
+    insert into public.movimentacoes_estoque
+      (oficina_id, produto_id, tipo, quantidade, motivo, nota_fiscal_id, usuario_id, custo_unitario)
+    values
+      (v_oficina_id, v_item.produto_id, 'entrada', v_item.quantidade,
+       'Entrada pela nota ' || coalesce(p_numero, 's/n'), v_nota_id, auth.uid(), v_item.custo_unitario);
+  end loop;
+
+  return v_nota_id;
+end;
+$$;
+
+-- Cancelar não apaga: estorna.
+--
+-- Se a peça já saiu para um serviço, o estorno derruba o estoque abaixo de zero
+-- e o gatilho recusa a operação inteira. É o comportamento certo: não dá para
+-- "des-receber" uma peça que já foi usada. A mensagem que chega na tela é a do
+-- estoque insuficiente, dizendo qual peça travou.
+create or replace function public.cancelar_nota(p_nota_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+  v_nota record;
+  v_mov record;
+begin
+  select * into v_nota from public.notas_fiscais_entrada where id = p_nota_id;
+
+  if not found then
+    raise exception 'Nota não encontrada.' using errcode = 'no_data_found';
+  end if;
+
+  if v_nota.status = 'cancelada' then
+    raise exception 'Esta nota já foi cancelada.' using errcode = 'check_violation';
+  end if;
+
+  for v_mov in
+    select * from public.movimentacoes_estoque
+    where nota_fiscal_id = p_nota_id and tipo = 'entrada'
+  loop
+    insert into public.movimentacoes_estoque
+      (oficina_id, produto_id, tipo, quantidade, motivo, nota_fiscal_id, usuario_id)
+    values
+      (v_mov.oficina_id, v_mov.produto_id, 'saida', v_mov.quantidade,
+       'Estorno da nota ' || coalesce(v_nota.numero, 's/n'), p_nota_id, auth.uid());
+  end loop;
+
+  update public.notas_fiscais_entrada
+     set status = 'cancelada', cancelada_em = now(), cancelada_por = auth.uid()
+   where id = p_nota_id;
+end;
+$$;
+
+-- Orçamento ------------------------------------------------------------------
+-- Grava o orçamento e troca os itens de uma vez. Também evita a armadilha da
+-- inserção em lote pelo PostgREST, em que a linha sem uma coluna recebe NULL e
+-- derruba o lote inteiro (ver migration 0015).
+create or replace function public.salvar_orcamento_com_itens(
+  p_orcamento_id uuid,
+  p_cliente_id uuid,
+  p_moto_id uuid,
+  p_km_registrado integer,
+  p_validade_dias integer,
+  p_garantia_dias integer,
+  p_observacoes text,
+  p_desconto numeric,
+  p_desconto_percentual numeric,
+  p_itens jsonb
+)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_oficina_id uuid := public.oficina_do_usuario();
+  v_id uuid := p_orcamento_id;
+  v_total numeric(12, 2) := 0;
+  v_status public.status_orcamento;
+  v_item record;
+begin
+  if v_oficina_id is null then
+    raise exception 'Usuário sem oficina ativa.' using errcode = 'insufficient_privilege';
+  end if;
+
+  select coalesce(sum((x.quantidade * x.valor_unitario)::numeric(12, 2)), 0)
+    into v_total
+  from jsonb_to_recordset(coalesce(p_itens, '[]'::jsonb))
+    as x(tipo text, produto_id uuid, servico_id uuid, descricao text,
+         quantidade numeric, valor_unitario numeric);
+
+  v_total := greatest(v_total - coalesce(p_desconto, 0), 0);
+
+  if v_id is null then
+    insert into public.orcamentos
+      (oficina_id, cliente_id, moto_id, km_registrado, validade_dias, garantia_dias,
+       observacoes, desconto, desconto_percentual, valor_total, criado_por)
+    values
+      (v_oficina_id, p_cliente_id, p_moto_id, p_km_registrado,
+       coalesce(p_validade_dias, 7), coalesce(p_garantia_dias, 90),
+       p_observacoes, coalesce(p_desconto, 0), p_desconto_percentual, v_total, auth.uid())
+    returning id into v_id;
+  else
+    select status into v_status from public.orcamentos where id = v_id;
+
+    if v_status is null then
+      raise exception 'Orçamento não encontrado.' using errcode = 'no_data_found';
+    end if;
+
+    -- Aprovado virou documento: a OS já nasceu dele. Editar depois faria a OS
+    -- contar uma história diferente da que o cliente aprovou.
+    if v_status in ('aprovado', 'recusado') then
+      raise exception 'Este orçamento já foi %. Não pode mais ser alterado.', v_status
+        using errcode = 'check_violation';
+    end if;
+
+    update public.orcamentos
+       set cliente_id = p_cliente_id,
+           moto_id = p_moto_id,
+           km_registrado = p_km_registrado,
+           validade_dias = coalesce(p_validade_dias, 7),
+           garantia_dias = coalesce(p_garantia_dias, 90),
+           observacoes = p_observacoes,
+           desconto = coalesce(p_desconto, 0),
+           desconto_percentual = p_desconto_percentual,
+           valor_total = v_total
+     where id = v_id;
+
+    delete from public.orcamento_itens where orcamento_id = v_id;
+  end if;
+
+  for v_item in
+    select * from jsonb_to_recordset(coalesce(p_itens, '[]'::jsonb))
+      as x(tipo text, produto_id uuid, servico_id uuid, descricao text,
+           quantidade numeric, valor_unitario numeric)
+  loop
+    insert into public.orcamento_itens
+      (oficina_id, orcamento_id, tipo, produto_id, servico_id, descricao,
+       quantidade, valor_unitario, valor_total)
+    values
+      (v_oficina_id, v_id, v_item.tipo::public.tipo_item, v_item.produto_id, v_item.servico_id,
+       v_item.descricao, v_item.quantidade, v_item.valor_unitario,
+       (v_item.quantidade * v_item.valor_unitario)::numeric(12, 2));
+  end loop;
+
+  -- A quilometragem da moto vale a do orçamento mais recente: foi lida do painel
+  -- agora, com a moto na frente de quem digitou.
+  if p_km_registrado is not null then
+    update public.motos
+       set km_atual = p_km_registrado
+     where id = p_moto_id and km_atual < p_km_registrado;
+  end if;
+
+  return v_id;
+end;
+$$;
+
+create or replace function public.duplicar_orcamento(p_orcamento_id uuid)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_origem record;
+  v_novo_id uuid;
+begin
+  select * into v_origem from public.orcamentos where id = p_orcamento_id;
+  if not found then
+    raise exception 'Orçamento não encontrado.' using errcode = 'no_data_found';
+  end if;
+
+  insert into public.orcamentos
+    (oficina_id, cliente_id, moto_id, km_registrado, validade_dias, garantia_dias,
+     observacoes, desconto, desconto_percentual, valor_total, criado_por, status)
+  values
+    (v_origem.oficina_id, v_origem.cliente_id, v_origem.moto_id, v_origem.km_registrado,
+     v_origem.validade_dias, v_origem.garantia_dias, v_origem.observacoes,
+     v_origem.desconto, v_origem.desconto_percentual, v_origem.valor_total,
+     auth.uid(), 'rascunho')
+  returning id into v_novo_id;
+
+  insert into public.orcamento_itens
+    (oficina_id, orcamento_id, tipo, produto_id, servico_id, descricao,
+     quantidade, valor_unitario, valor_total)
+  select oficina_id, v_novo_id, tipo, produto_id, servico_id, descricao,
+         quantidade, valor_unitario, valor_total
+  from public.orcamento_itens
+  where orcamento_id = p_orcamento_id;
+
+  return v_novo_id;
+end;
+$$;
+
+-- Aprovação ------------------------------------------------------------------
+-- Vira ordem de serviço com os itens copiados e o responsável escolhido.
+-- O estoque NÃO se mexe aqui: a baixa acontece quando a OS for finalizada, na
+-- Fase 3. Dar baixa na aprovação obrigaria a estornar toda vez que uma peça
+-- fosse trocada durante o serviço.
+create or replace function public.aprovar_orcamento(
+  p_orcamento_id uuid,
+  p_responsavel_id uuid
+)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_orc record;
+  v_os_id uuid;
+begin
+  select * into v_orc from public.orcamentos where id = p_orcamento_id;
+  if not found then
+    raise exception 'Orçamento não encontrado.' using errcode = 'no_data_found';
+  end if;
+
+  if v_orc.status = 'aprovado' then
+    raise exception 'Este orçamento já foi aprovado.' using errcode = 'check_violation';
+  end if;
+  if v_orc.status = 'recusado' then
+    raise exception 'Este orçamento foi recusado e não pode ser aprovado.' using errcode = 'check_violation';
+  end if;
+
+  insert into public.ordens_servico
+    (oficina_id, orcamento_id, cliente_id, moto_id, responsavel_id, status,
+     km_entrada, garantia_ate, observacoes)
+  values
+    (v_orc.oficina_id, v_orc.id, v_orc.cliente_id, v_orc.moto_id, p_responsavel_id,
+     'aberta', v_orc.km_registrado, current_date + v_orc.garantia_dias, v_orc.observacoes)
+  returning id into v_os_id;
+
+  insert into public.os_itens
+    (oficina_id, ordem_servico_id, tipo, produto_id, servico_id, descricao,
+     quantidade, valor_unitario, valor_total)
+  select oficina_id, v_os_id, tipo, produto_id, servico_id, descricao,
+         quantidade, valor_unitario, valor_total
+  from public.orcamento_itens
+  where orcamento_id = p_orcamento_id;
+
+  update public.orcamentos set status = 'aprovado' where id = p_orcamento_id;
+
+  return v_os_id;
+end;
+$$;
+
+create or replace function public.recusar_orcamento(
+  p_orcamento_id uuid,
+  p_motivo text
+)
+returns void
+language plpgsql
+as $$
+begin
+  update public.orcamentos
+     set status = 'recusado', motivo_recusa = nullif(trim(coalesce(p_motivo, '')), '')
+   where id = p_orcamento_id and status <> 'aprovado';
+
+  if not found then
+    raise exception 'Não foi possível recusar: o orçamento não existe ou já foi aprovado.'
+      using errcode = 'check_violation';
+  end if;
+end;
+$$;
+
+do $$
+declare
+  f text;
+begin
+  foreach f in array array[
+    'salvar_nota_com_itens(text, text, date, numeric, text, jsonb)',
+    'cancelar_nota(uuid)',
+    'salvar_orcamento_com_itens(uuid, uuid, uuid, integer, integer, integer, text, numeric, numeric, jsonb)',
+    'duplicar_orcamento(uuid)',
+    'aprovar_orcamento(uuid, uuid)',
+    'recusar_orcamento(uuid, text)'
+  ] loop
+    execute format('revoke all on function public.%s from public, anon', f);
+    execute format('grant execute on function public.%s to authenticated', f);
+  end loop;
+end $$;
+
+-- ============================================================
+-- 0022_storage_notas.sql
+-- ============================================================
+
+-- 0022 — Anexo da nota fiscal no Storage
+--
+-- Bucket privado: sem URL pública. O arquivo só é lido por quem apresenta uma
+-- sessão da oficina dona dele.
+--
+-- O isolamento vem do caminho do arquivo, que é sempre
+--   <oficina_id>/<nota_id>/<nome do arquivo>
+-- e a política compara a primeira pasta com a oficina de quem pede. Um arquivo
+-- gravado fora desse formato simplesmente não passa pelo 'with check'.
+--
+-- Nota fiscal é preço de custo do começo ao fim, então só o admin alcança.
+
+insert into storage.buckets (id, name, public)
+values ('notas-fiscais', 'notas-fiscais', false)
+on conflict (id) do nothing;
+
+create policy "admin le anexo de nota da propria oficina"
+  on storage.objects for select to authenticated
+  using (
+    bucket_id = 'notas-fiscais'
+    and (storage.foldername(name))[1] = public.oficina_do_usuario()::text
+    and public.eh_admin()
+  );
+
+create policy "admin envia anexo de nota da propria oficina"
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'notas-fiscais'
+    and (storage.foldername(name))[1] = public.oficina_do_usuario()::text
+    and public.eh_admin()
+  );
+
+create policy "admin apaga anexo de nota da propria oficina"
+  on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'notas-fiscais'
+    and (storage.foldername(name))[1] = public.oficina_do_usuario()::text
+    and public.eh_admin()
+  );
+
+-- ============================================================
+-- 0023_rls_fase2.sql
+-- ============================================================
+
+-- 0023 — RLS das tabelas que a Fase 2 coloca em uso
+--
+-- Duas decisões, e as duas seguem a regra que já vale desde a Fase 1: o vendedor
+-- opera a oficina, mas não enxerga preço de custo.
+--
+-- 1. Estoque é do balcão. O vendedor precisa dar entrada de peça sem depender do
+--    dono. Mas a tabela guarda custo_unitario, e RLS filtra linha, não coluna —
+--    então ele lê o extrato por uma view sem custo e lança pela função
+--    registrar_movimentacao, que nunca preenche custo.
+-- 2. Nota fiscal é do dono. Ela é preço de compra do começo ao fim: não há
+--    recorte que a torne segura para quem não pode ver custo.
+
+-- Extrato sem custo, para quem não pode ver preço de compra.
+-- Mesmo desenho da vw_produtos: roda como dono, e o isolamento entre oficinas
+-- depende do WHERE abaixo — que está coberto pelo teste de isolamento.
+create view public.vw_movimentacoes
+with (security_invoker = false, security_barrier = true)
+as
+select
+  m.id,
+  m.oficina_id,
+  m.produto_id,
+  p.nome as produto_nome,
+  p.unidade as produto_unidade,
+  m.tipo,
+  m.quantidade,
+  m.motivo,
+  m.nota_fiscal_id,
+  m.ordem_servico_id,
+  m.usuario_id,
+  u.nome as usuario_nome,
+  m.criado_em
+from public.movimentacoes_estoque m
+join public.produtos p on p.id = m.produto_id
+left join public.usuarios u on u.id = m.usuario_id
+where m.oficina_id = public.oficina_do_usuario()
+  and public.eh_atendimento();
+
+comment on view public.vw_movimentacoes is
+  'Extrato de estoque sem custo_unitario, para admin e vendedor. O admin lê a tabela direto quando precisa do custo.';
+
+revoke all on public.vw_movimentacoes from public, anon;
+grant select on public.vw_movimentacoes to authenticated;
+
+-- O vendedor passa a poder lançar movimentação — mas nunca com custo, e o
+-- 'with check' garante isso mesmo se alguém chamar a API na mão.
+create policy "vendedor lanca movimentacao sem custo"
+  on public.movimentacoes_estoque for insert to authenticated
+  with check (
+    oficina_id = public.oficina_do_usuario()
+    and public.eh_vendedor()
+    and custo_unitario is null
+  );
+
+-- Orçamentos: admin e vendedor operam, mecânico não alcança.
+-- As políticas de 0010 já dizem exatamente isso ('atendimento' = admin +
+-- vendedor), então não há nada a mudar em orcamentos nem em orcamento_itens.
+-- Esta migration existe também para deixar isso escrito, e não subentendido.
+
+-- Ordem de serviço: quem aprova o orçamento é atendimento, e a OS nasce por RPC.
+-- O mecânico continua vendo só as ordens em que ele é o responsável (0011).
+
+do $$
+declare
+  pendentes text;
+begin
+  -- A mesma checagem da 0014, agora incluindo as tabelas que entraram em uso.
+  select string_agg(c.relname, ', ' order by c.relname)
+  into pendentes
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and c.relkind = 'r'
+    and (not c.relrowsecurity
+         or not exists (select 1 from pg_policy p where p.polrelid = c.oid));
+
+  if pendentes is not null then
+    raise exception 'Tabelas sem RLS ou sem política: %', pendentes;
+  end if;
+end $$;
+
+-- ============================================================
+-- 0024_saldo_inicial_e_protecao.sql
+-- ============================================================
+
+-- 0024 — O saldo inicial também é uma movimentação
+--
+-- Defeito encontrado testando a 0019: o formulário de produto tem o campo
+-- "estoque atual", e o que era digitado ali ia direto para a coluna, sem
+-- movimentação nenhuma. O invariante "estoque = soma das movimentações" nascia
+-- falso, e recalcular_estoque zeraria o produto — porque, para o extrato, ele
+-- nunca tinha recebido nada.
+--
+-- Duas travas:
+--
+-- 1. Produto cadastrado com estoque vira um ajuste de "Saldo inicial do
+--    cadastro". A quantidade entra pelo caminho normal, e o extrato conta a
+--    história desde o primeiro dia.
+-- 2. Ninguém mais escreve em estoque_atual direto. Quem tentar recebe uma
+--    mensagem dizendo o que fazer. O único jeito de mexer no saldo passa a ser
+--    registrar movimentação — que é exatamente o que foi pedido.
+
+create or replace function public.registrar_saldo_inicial()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_inicial numeric(12, 3) := coalesce(new.estoque_atual, 0);
+begin
+  if v_inicial = 0 then
+    return null;
+  end if;
+
+  -- Devolve a coluna a zero e deixa a movimentação recompor o valor. O gatilho
+  -- de proteção deixa esta escrita passar porque ela vem de dentro de um gatilho.
+  update public.produtos set estoque_atual = 0 where id = new.id;
+
+  insert into public.movimentacoes_estoque
+    (oficina_id, produto_id, tipo, quantidade, motivo, usuario_id)
+  values
+    (new.oficina_id, new.id, 'ajuste', v_inicial, 'Saldo inicial do cadastro', auth.uid());
+
+  return null;
+end;
+$$;
+
+create trigger produtos_saldo_inicial
+  after insert on public.produtos
+  for each row execute function public.registrar_saldo_inicial();
+
+create or replace function public.proteger_estoque_atual()
+returns trigger
+language plpgsql
+as $$
+begin
+  -- Escrita vinda de outro gatilho (o de movimentação, o de saldo inicial) ou da
+  -- reconciliação: essas são as donas legítimas da coluna.
+  if pg_trigger_depth() > 1
+     or coalesce(current_setting('app.estoque_interno', true), 'nao') = 'sim'
+  then
+    return new;
+  end if;
+
+  if new.estoque_atual is distinct from old.estoque_atual then
+    raise exception
+      'O estoque não é alterado direto no cadastro. Registre uma entrada, uma saída ou um ajuste.'
+      using errcode = 'insufficient_privilege';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger produtos_proteger_estoque
+  before update on public.produtos
+  for each row execute function public.proteger_estoque_atual();
+
+-- A reconciliação escreve na coluna por dever de ofício: avisa que é ela.
+create or replace function public.recalcular_estoque(p_produto_id uuid)
+returns numeric
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_soma numeric(12, 3);
+begin
+  select coalesce(sum(public.delta_da_movimentacao(tipo, quantidade)), 0)
+    into v_soma
+  from public.movimentacoes_estoque
+  where produto_id = p_produto_id;
+
+  perform set_config('app.estoque_interno', 'sim', true);
+  update public.produtos set estoque_atual = v_soma where id = p_produto_id;
+  perform set_config('app.estoque_interno', 'nao', true);
+
+  return v_soma;
+end;
+$$;
+
+revoke all on function public.recalcular_estoque(uuid) from public, anon;
+grant execute on function public.recalcular_estoque(uuid) to authenticated;
 

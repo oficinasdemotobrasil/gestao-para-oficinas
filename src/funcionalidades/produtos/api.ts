@@ -69,9 +69,15 @@ export async function criarProduto(dados: DadosProduto) {
 }
 
 export async function atualizarProduto(id: string, dados: DadosProduto) {
+  // estoque_atual fica de fora de propósito: o saldo só muda por movimentação,
+  // e o banco recusa escrita direta na coluna (migration 0024). Mandar aqui
+  // derrubaria a edição inteira do produto por causa de um campo que a tela nem
+  // deixa alterar.
+  const { estoque_atual: _saldo, ...editaveis } = dados
+
   const { data, error } = await supabase
     .from('produtos')
-    .update(dados)
+    .update(editaveis)
     .eq('id', id)
     .select()
     .single()

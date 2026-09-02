@@ -152,10 +152,15 @@ export function FormularioProduto() {
         )}
 
         <div className="grid grid-cols-2 gap-3">
+          {/* Na edição o saldo é só leitura: ele muda por entrada, saída ou
+              ajuste, nunca por digitação no cadastro. No produto novo, o que for
+              digitado aqui vira a movimentação de saldo inicial. */}
           <Campo
             rotulo="Estoque atual"
             inputMode="decimal"
             placeholder="0"
+            disabled={editando}
+            dica={editando ? 'Alterado por movimentação.' : 'Saldo que já existe hoje.'}
             erro={errors.estoque_atual?.message}
             {...register('estoque_atual')}
           />

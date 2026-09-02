@@ -35,6 +35,9 @@ const ID = {
 
 const db = new PGlite()
 
+/** Preenchido em testarOrcamento, usado no teste de isolamento. */
+const ORCAMENTO_DA_A = { id: '' }
+
 let passou = 0
 let falhou = 0
 const falhas: string[] = []
@@ -335,9 +338,9 @@ async function testarPerfilMecanico() {
   console.log('\n[1mMecânico com uma OS atribuída[0m')
   await comoAdministradorDoBanco()
   await db.exec(`
-    insert into public.ordens_servico (oficina_id, numero, cliente_id, moto_id, mecanico_id)
+    insert into public.ordens_servico (oficina_id, numero, cliente_id, moto_id, responsavel_id)
     values ('${ID.oficinaA}', 1, '${ID.clienteA}', '${ID.motoA}', '${ID.mecanicoA}');
-    insert into public.ordens_servico (oficina_id, numero, cliente_id, moto_id, mecanico_id)
+    insert into public.ordens_servico (oficina_id, numero, cliente_id, moto_id, responsavel_id)
     values ('${ID.oficinaA}', 2, '${ID.clienteA}', '${ID.motoA}', null);
   `)
   await logarComo(ID.mecanicoA)
@@ -346,8 +349,8 @@ async function testarPerfilMecanico() {
   await esperaLinhas('passa a enxergar a moto daquela OS', 'select count(*) as n from public.motos', 1)
   await esperaLinhas('continua sem enxergar o preço de custo', 'select count(*) as n from public.produtos', 0)
   await esperaBloqueio(
-    'não passa a OS para outro mecânico',
-    `update public.ordens_servico set mecanico_id = null where mecanico_id = '${ID.mecanicoA}'`,
+    'não passa a OS para outro responsável',
+    `update public.ordens_servico set responsavel_id = null where responsavel_id = '${ID.mecanicoA}'`,
   )
 }
 
@@ -425,6 +428,314 @@ async function testarRegrasDeNegocio() {
   else erro('cobertura de RLS', `${semRls} tabela(s) sem RLS`)
 }
 
+/** Lê o saldo do produto direto da coluna que o gatilho mantém. */
+async function saldo(produtoId: string): Promise<number> {
+  return contar(`select estoque_atual as n from public.produtos where id = '${produtoId}'`)
+}
+
+async function testarEstoque() {
+  console.log('\n\x1b[1mEstoque — o saldo é a soma das movimentações\x1b[0m')
+  await logarComo(ID.adminA)
+
+  const inicial = await saldo(ID.produtoA)
+
+  await db.query(`select public.registrar_movimentacao($1, 'entrada', 10, 'Compra no fornecedor')`, [ID.produtoA])
+  const aposEntrada = await saldo(ID.produtoA)
+  aposEntrada === inicial + 10
+    ? ok(`entrada de 10 sobe o saldo (${inicial} → ${aposEntrada})`)
+    : erro('entrada', `esperava ${inicial + 10}, veio ${aposEntrada}`)
+
+  await db.query(`select public.registrar_movimentacao($1, 'saida', 3, 'Usado no serviço')`, [ID.produtoA])
+  const aposSaida = await saldo(ID.produtoA)
+  aposSaida === aposEntrada - 3
+    ? ok(`saída de 3 desce o saldo (${aposEntrada} → ${aposSaida})`)
+    : erro('saída', `esperava ${aposEntrada - 3}, veio ${aposSaida}`)
+
+  // O que o critério de aceite chama de "me impede de deixar o estoque negativo".
+  try {
+    await db.query(`select public.registrar_movimentacao($1, 'saida', 999, 'Tentativa absurda')`, [ID.produtoA])
+    erro('bloqueio de estoque negativo', 'a saída passou e deixaria o estoque negativo')
+  } catch (e) {
+    const msg = (e as Error).message
+    msg.includes('Não há estoque suficiente')
+      ? ok(`saída maior que o saldo é recusada com a peça e os números na mensagem`)
+      : erro('bloqueio de estoque negativo', `recusou, mas com a mensagem errada: ${msg}`)
+  }
+
+  const antesDoAjuste = await saldo(ID.produtoA)
+  await db.query(`select public.registrar_movimentacao($1, 'ajuste', -2, 'Contagem do mês')`, [ID.produtoA])
+  const aposAjuste = await saldo(ID.produtoA)
+  aposAjuste === antesDoAjuste - 2
+    ? ok('ajuste negativo corrige o saldo para baixo')
+    : erro('ajuste', `esperava ${antesDoAjuste - 2}, veio ${aposAjuste}`)
+
+  await esperaErro(
+    'movimentação sem motivo é recusada',
+    `select public.registrar_movimentacao('${ID.produtoA}', 'entrada', 1, '   ')`,
+  )
+  await esperaErro(
+    'entrada com quantidade negativa é recusada',
+    `insert into public.movimentacoes_estoque (oficina_id, produto_id, tipo, quantidade, motivo)
+     values ('${ID.oficinaA}', '${ID.produtoA}', 'entrada', -5, 'x')`,
+  )
+
+  // Apagar uma movimentação tem que desfazer o efeito dela.
+  const antesDoApagar = await saldo(ID.produtoA)
+  await db.exec(`delete from public.movimentacoes_estoque
+                 where produto_id = '${ID.produtoA}' and tipo = 'saida' and quantidade = 3`)
+  const aposApagar = await saldo(ID.produtoA)
+  aposApagar === antesDoApagar + 3
+    ? ok('apagar uma saída devolve a quantidade ao saldo')
+    : erro('apagar movimentação', `esperava ${antesDoApagar + 3}, veio ${aposApagar}`)
+
+  // Ninguém escreve no saldo direto: o único caminho é a movimentação.
+  await esperaErro(
+    'editar estoque_atual direto no cadastro é recusado',
+    `update public.produtos set estoque_atual = 999 where id = '${ID.produtoA}'`,
+  )
+
+  // Produto novo com estoque já vira movimentação de saldo inicial, senão o
+  // extrato nasceria discordando do saldo.
+  await db.exec(`insert into public.produtos (id, oficina_id, nome, estoque_atual, preco_venda)
+                 values ('e9999999-1111-4111-8111-111111111111', '${ID.oficinaA}', 'Peça com saldo inicial', 7, 10)`)
+  const inicialRegistrado = await contar(
+    `select count(*) as n from public.movimentacoes_estoque
+     where produto_id = 'e9999999-1111-4111-8111-111111111111'
+       and tipo = 'ajuste' and quantidade = 7 and motivo = 'Saldo inicial do cadastro'`,
+  )
+  const saldoNovo = await saldo('e9999999-1111-4111-8111-111111111111')
+  inicialRegistrado === 1 && saldoNovo === 7
+    ? ok('produto cadastrado com estoque gera a movimentação de saldo inicial')
+    : erro('saldo inicial', `movimentação ${inicialRegistrado}, saldo ${saldoNovo}`)
+
+  // A prova do invariante: recalcular do zero tem que dar o mesmo número.
+  const cacheado = await saldo(ID.produtoA)
+  const recalculado = await contar(`select public.recalcular_estoque('${ID.produtoA}') as n`)
+  cacheado === recalculado
+    ? ok(`o saldo em cache bate com a soma do extrato (${cacheado})`)
+    : erro('invariante do estoque', `cache ${cacheado}, extrato ${recalculado}`)
+}
+
+async function testarNotaFiscal() {
+  console.log('\n\x1b[1mNota fiscal — entrada e estorno\x1b[0m')
+  await logarComo(ID.adminA)
+
+  const antes = await saldo(ID.produtoA)
+  const nota = await db.query<{ id: string }>(
+    `select public.salvar_nota_com_itens('1234', 'Distribuidora Moto', current_date, 500,
+       null, $1::jsonb) as id`,
+    [JSON.stringify([{ produto_id: ID.produtoA, quantidade: 12, custo_unitario: 21.5 }])],
+  )
+  const notaId = nota.rows[0].id
+  const aposNota = await saldo(ID.produtoA)
+  aposNota === antes + 12
+    ? ok(`os itens da nota entram no estoque (${antes} → ${aposNota})`)
+    : erro('entrada por nota', `esperava ${antes + 12}, veio ${aposNota}`)
+
+  await db.query(`select public.cancelar_nota($1)`, [notaId])
+  const aposCancelar = await saldo(ID.produtoA)
+  aposCancelar === antes
+    ? ok(`cancelar a nota devolve o estoque ao que era (${aposCancelar})`)
+    : erro('estorno da nota', `esperava ${antes}, veio ${aposCancelar}`)
+
+  const movimentacoes = await contar(
+    `select count(*) as n from public.movimentacoes_estoque where nota_fiscal_id = '${notaId}'`,
+  )
+  movimentacoes === 2
+    ? ok('o estorno não apaga a entrada: guarda as duas linhas no extrato')
+    : erro('rastro do estorno', `esperava 2 movimentações, veio ${movimentacoes}`)
+
+  await esperaErro('cancelar a mesma nota duas vezes é recusado', `select public.cancelar_nota('${notaId}')`)
+}
+
+async function testarOrcamento() {
+  console.log('\n\x1b[1mOrçamento — numeração, itens e aprovação\x1b[0m')
+  await logarComo(ID.adminA)
+
+  const itens = JSON.stringify([
+    { tipo: 'produto', produto_id: ID.produtoA, servico_id: null, descricao: 'Óleo 10W30', quantidade: 2, valor_unitario: 45 },
+    { tipo: 'servico', produto_id: null, servico_id: ID.servicoA, descricao: 'Troca de óleo', quantidade: 1, valor_unitario: 60 },
+    { tipo: 'avulso', produto_id: null, servico_id: null, descricao: 'Solda no escapamento', quantidade: 1, valor_unitario: 40 },
+  ])
+
+  const criado = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', 24500,
+       7, 90, 'Cliente pediu urgência', 20, null, $1::jsonb) as id`,
+    [itens],
+  )
+  const orcamentoId = criado.rows[0].id
+  ORCAMENTO_DA_A.id = orcamentoId
+
+  const total = await contar(`select valor_total as n from public.orcamentos where id = '${orcamentoId}'`)
+  total === 170
+    ? ok('total calculado no banco: 2×45 + 60 + 40 = 190, menos 20 de desconto = 170')
+    : erro('total do orçamento', `esperava 170, veio ${total}`)
+
+  await esperaLinhas(
+    'item avulso é aceito sem produto nem serviço',
+    `select count(*) as n from public.orcamento_itens where orcamento_id = '${orcamentoId}' and tipo = 'avulso'`,
+    1,
+  )
+
+  const km = await contar(`select km_atual as n from public.motos where id = '${ID.motoA}'`)
+  km === 24500 ? ok('a quilometragem do orçamento atualiza a moto') : erro('km da moto', `veio ${km}`)
+
+  const validade = await contar(
+    `select (validade_ate - current_date) as n from public.orcamentos where id = '${orcamentoId}'`,
+  )
+  validade === 7 ? ok('validade gravada como data, 7 dias à frente') : erro('validade', `veio ${validade} dias`)
+
+  // Numeração por oficina: a A segue a contagem dela, a B começa do 1.
+  const numeroA = await contar(`select numero as n from public.orcamentos where id = '${orcamentoId}'`)
+  numeroA === 1 ? ok('primeiro orçamento da oficina A é o número 1') : erro('numeração', `veio ${numeroA}`)
+
+  const segundo = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', 24500,
+       7, 90, null, 0, null, $1::jsonb) as id`,
+    [itens],
+  )
+  const numeroSegundo = await contar(
+    `select numero as n from public.orcamentos where id = '${segundo.rows[0].id}'`,
+  )
+  numeroSegundo === 2 ? ok('o segundo orçamento da oficina A é o número 2') : erro('numeração', `veio ${numeroSegundo}`)
+
+  await logarComo(ID.adminB)
+  const daB = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteB}', '${ID.motoB}', 31000,
+       7, 90, null, 0, null, '[]'::jsonb) as id`,
+  )
+  const numeroB = await contar(`select numero as n from public.orcamentos where id = '${daB.rows[0].id}'`)
+  numeroB === 1
+    ? ok('a oficina B tem a numeração dela: também começa no 1')
+    : erro('numeração por oficina', `a oficina B veio com o número ${numeroB}`)
+
+  // Aprovação
+  await logarComo(ID.adminA)
+  const estoqueAntes = await saldo(ID.produtoA)
+  const os = await db.query<{ id: string }>(
+    `select public.aprovar_orcamento('${orcamentoId}', '${ID.mecanicoA}') as id`,
+  )
+  const osId = os.rows[0].id
+
+  await esperaLinhas(
+    'a OS nasce com os três itens copiados',
+    `select count(*) as n from public.os_itens where ordem_servico_id = '${osId}'`,
+    3,
+  )
+  await esperaLinhas(
+    'a OS nasce aberta e com responsável',
+    `select count(*) as n from public.ordens_servico
+     where id = '${osId}' and status = 'aberta' and responsavel_id = '${ID.mecanicoA}'`,
+    1,
+  )
+  const garantia = await contar(
+    `select (garantia_ate - current_date) as n from public.ordens_servico where id = '${osId}'`,
+  )
+  garantia === 90 ? ok('garantia gravada 90 dias à frente da aprovação') : erro('garantia', `veio ${garantia}`)
+
+  const estoqueDepois = await saldo(ID.produtoA)
+  estoqueDepois === estoqueAntes
+    ? ok(`aprovar NÃO mexe no estoque (${estoqueAntes} antes e depois)`)
+    : erro('estoque na aprovação', `mudou de ${estoqueAntes} para ${estoqueDepois}`)
+
+  await esperaErro(
+    'orçamento aprovado não pode mais ser editado',
+    `select public.salvar_orcamento_com_itens('${orcamentoId}', '${ID.clienteA}', '${ID.motoA}',
+       24500, 7, 90, 'tentando mudar', 0, null, '[]'::jsonb)`,
+  )
+  await esperaErro(
+    'orçamento aprovado não pode ser aprovado de novo',
+    `select public.aprovar_orcamento('${orcamentoId}', '${ID.adminA}')`,
+  )
+
+  // Duplicar
+  const copia = await db.query<{ id: string }>(`select public.duplicar_orcamento('${orcamentoId}') as id`)
+  await esperaLinhas(
+    'duplicar traz os itens e volta para rascunho',
+    `select count(*) as n from public.orcamentos o
+     join public.orcamento_itens i on i.orcamento_id = o.id
+     where o.id = '${copia.rows[0].id}' and o.status = 'rascunho'`,
+    3,
+  )
+}
+
+async function testarPerfisNaFase2() {
+  console.log('\n\x1b[1mQuem alcança o que na Fase 2\x1b[0m')
+
+  await logarComo(ID.vendedorA)
+  await esperaLinhas(
+    'vendedor NÃO lê a tabela de movimentações, que tem custo',
+    'select count(*) as n from public.movimentacoes_estoque',
+    0,
+  )
+  const extrato = await contar('select count(*) as n from public.vw_movimentacoes')
+  extrato > 0
+    ? ok(`vendedor lê o extrato pela view (${extrato} movimentações)`)
+    : erro('extrato do vendedor', 'a view não devolveu nada')
+  await esperaErro(
+    'a view do extrato não expõe custo_unitario',
+    'select custo_unitario from public.vw_movimentacoes',
+  )
+  await esperaLinhas('vendedor NÃO lê notas fiscais', 'select count(*) as n from public.notas_fiscais_entrada', 0)
+  await esperaErro(
+    'vendedor NÃO lança nota fiscal',
+    `select public.salvar_nota_com_itens('999', 'x', current_date, 10, null,
+       '[{"produto_id":"${ID.produtoA}","quantidade":1,"custo_unitario":1}]'::jsonb)`,
+  )
+
+  try {
+    await db.query(`select public.registrar_movimentacao($1, 'entrada', 1, 'Recebido no balcão')`, [ID.produtoA])
+    ok('vendedor PODE lançar movimentação de estoque')
+  } catch (e) {
+    erro('vendedor lança movimentação', (e as Error).message)
+  }
+  await esperaErro(
+    'vendedor NÃO grava movimentação com custo',
+    `insert into public.movimentacoes_estoque (oficina_id, produto_id, tipo, quantidade, motivo, custo_unitario)
+     values ('${ID.oficinaA}', '${ID.produtoA}', 'entrada', 1, 'x', 9.9)`,
+  )
+
+  await logarComo(ID.mecanicoA)
+  await esperaLinhas('mecânico NÃO enxerga orçamento', 'select count(*) as n from public.orcamentos', 0)
+  await esperaLinhas('mecânico NÃO enxerga movimentação', 'select count(*) as n from public.vw_movimentacoes', 0)
+  // Duas: a que o teste de perfis criou antes e a que nasceu da aprovação.
+  await esperaLinhas(
+    'mecânico enxerga só as OS em que ele é o responsável',
+    'select count(*) as n from public.ordens_servico',
+    2,
+  )
+
+  console.log('\n\x1b[1mIsolamento das tabelas novas\x1b[0m')
+  await logarComo(ID.adminB)
+  await esperaLinhas(
+    'oficina B não vê orçamento da A',
+    `select count(*) as n from public.orcamentos where oficina_id = '${ID.oficinaA}'`,
+    0,
+  )
+  await esperaLinhas(
+    'oficina B não vê movimentação da A',
+    `select count(*) as n from public.movimentacoes_estoque where oficina_id = '${ID.oficinaA}'`,
+    0,
+  )
+  await esperaLinhas(
+    'oficina B não vê nota fiscal da A',
+    `select count(*) as n from public.notas_fiscais_entrada where oficina_id = '${ID.oficinaA}'`,
+    0,
+  )
+  await esperaLinhas(
+    'oficina B não vê ordem de serviço da A',
+    `select count(*) as n from public.ordens_servico where oficina_id = '${ID.oficinaA}'`,
+    0,
+  )
+  // O 'limit 1' de antes pegava o orçamento da própria oficina B, porque o RLS
+  // já havia filtrado — o teste passava sem provar nada. Agora aponta para o
+  // orçamento da A de propósito.
+  await esperaErro(
+    'oficina B não aprova orçamento da oficina A',
+    `select public.aprovar_orcamento('${ORCAMENTO_DA_A.id}', '${ID.adminB}')`,
+  )
+}
+
 async function main() {
   console.log('[1m\nValidação do banco — Gestão para Oficinas[0m')
   try {
@@ -434,8 +745,15 @@ async function main() {
     await testarPerfilVendedor()
     await testarPerfilMecanico()
     await testarRegrasDeNegocio()
+    await testarEstoque()
+    await testarNotaFiscal()
+    await testarOrcamento()
+    await testarPerfisNaFase2()
   } catch (e) {
-    console.error(`\n[31mInterrompido:[0m ${(e as Error).message}`)
+    // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
+    // impressão de que correu tudo bem — foi o que aconteceu quando a coluna
+    // mecanico_id virou responsavel_id.
+    erro('execução interrompida', (e as Error).message)
   }
 
   console.log(`\n[1mResultado:[0m ${passou} passaram, ${falhou} falharam`)

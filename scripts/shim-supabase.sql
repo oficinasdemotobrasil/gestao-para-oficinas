@@ -47,3 +47,42 @@ alter default privileges in schema public
   grant select, insert, update, delete on tables to authenticated;
 alter default privileges in schema public
   grant usage, select on sequences to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Storage do Supabase, o mínimo para as políticas de anexo serem validadas.
+-- No projeto real isto tudo já existe; aqui é só o esqueleto.
+create schema if not exists storage;
+grant usage on schema storage to anon, authenticated, service_role;
+
+create table if not exists storage.buckets (
+  id text primary key,
+  name text not null,
+  public boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists storage.objects (
+  id uuid primary key default gen_random_uuid(),
+  bucket_id text references storage.buckets (id),
+  name text not null,
+  owner uuid,
+  created_at timestamptz not null default now()
+);
+
+alter table storage.objects enable row level security;
+grant select, insert, update, delete on storage.objects to authenticated;
+
+-- Devolve as pastas do caminho, sem o nome do arquivo — é assim que o Supabase
+-- faz, e é o que permite comparar a primeira pasta com a oficina do usuário.
+create or replace function storage.foldername(name text)
+returns text[]
+language plpgsql
+immutable
+as $$
+declare
+  partes text[];
+begin
+  partes := string_to_array(name, '/');
+  return partes[1 : greatest(array_length(partes, 1) - 1, 0)];
+end;
+$$;
