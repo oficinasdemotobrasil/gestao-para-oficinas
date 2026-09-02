@@ -15,6 +15,7 @@ import { FormularioMoto } from '@/funcionalidades/motos/paginas/FormularioMoto'
 import { DetalheMoto } from '@/funcionalidades/motos/paginas/DetalheMoto'
 import { Catalogo } from '@/funcionalidades/catalogo/Catalogo'
 import { FormularioProduto } from '@/funcionalidades/produtos/paginas/FormularioProduto'
+import { DetalheProduto } from '@/funcionalidades/produtos/paginas/DetalheProduto'
 import { FormularioServico } from '@/funcionalidades/servicos/paginas/FormularioServico'
 import { ListaColaboradores } from '@/funcionalidades/colaboradores/paginas/ListaColaboradores'
 import { FormularioColaborador } from '@/funcionalidades/colaboradores/paginas/FormularioColaborador'
@@ -66,13 +67,18 @@ export const rotas = createBrowserRouter([
           },
           {
             element: <RotaPorPerfil permitido={(p) => p.verCatalogo} />,
-            children: [{ path: '/catalogo', element: <Catalogo /> }],
+            children: [
+              { path: '/catalogo', element: <Catalogo /> },
+              // O detalhe do produto é onde se lança estoque, então o vendedor
+              // também alcança. Editar o cadastro continua sendo do admin.
+              { path: '/catalogo/produtos/:id', element: <DetalheProduto /> },
+            ],
           },
           {
             element: <RotaPorPerfil permitido={(p) => p.editarCatalogo} />,
             children: [
               { path: '/catalogo/produtos/novo', element: <FormularioProduto /> },
-              { path: '/catalogo/produtos/:id', element: <FormularioProduto /> },
+              { path: '/catalogo/produtos/:id/editar', element: <FormularioProduto /> },
               { path: '/catalogo/servicos/novo', element: <FormularioServico /> },
               { path: '/catalogo/servicos/:id', element: <FormularioServico /> },
             ],

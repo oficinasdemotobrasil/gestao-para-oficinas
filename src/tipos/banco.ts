@@ -12,7 +12,8 @@ export type PerfilUsuario = 'admin' | 'vendedor' | 'mecanico'
 export type PlanoOficina = 'gratuito' | 'essencial' | 'completo'
 export type StatusOficina = 'ativa' | 'suspensa' | 'cancelada'
 export type TipoChavePix = 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria'
-export type TipoItem = 'produto' | 'servico'
+/** 'avulso' é o item digitado na hora, sem produto nem serviço (migration 0016). */
+export type TipoItem = 'produto' | 'servico' | 'avulso'
 export type StatusOrcamento = 'rascunho' | 'enviado' | 'aprovado' | 'recusado' | 'expirado'
 export type StatusOS =
   | 'aberta'
@@ -23,6 +24,7 @@ export type StatusOS =
   | 'cancelada'
 export type TipoMovimentacao = 'entrada' | 'saida' | 'ajuste'
 export type StatusConta = 'aberta' | 'paga' | 'atrasada' | 'cancelada'
+export type StatusNota = 'lancada' | 'cancelada'
 
 type Oficina = {
   id: string
@@ -120,6 +122,90 @@ type Servico = {
   atualizado_em: string
 }
 
+type NotaFiscalEntrada = {
+  id: string
+  oficina_id: string
+  numero: string
+  fornecedor: string | null
+  data_emissao: string | null
+  valor_total: number
+  arquivo_url: string | null
+  status: StatusNota
+  cancelada_em: string | null
+  cancelada_por: string | null
+  criado_em: string
+  atualizado_em: string
+}
+
+type MovimentacaoEstoque = {
+  id: string
+  oficina_id: string
+  produto_id: string
+  tipo: TipoMovimentacao
+  quantidade: number
+  motivo: string | null
+  nota_fiscal_id: string | null
+  ordem_servico_id: string | null
+  usuario_id: string | null
+  /** Preço de custo: só o admin lê a tabela. Ver vw_movimentacoes. */
+  custo_unitario: number | null
+  criado_em: string
+}
+
+/** Extrato sem custo, para admin e vendedor (migration 0023). */
+type MovimentacaoVisivel = {
+  id: string
+  oficina_id: string
+  produto_id: string
+  produto_nome: string
+  produto_unidade: string
+  tipo: TipoMovimentacao
+  quantidade: number
+  motivo: string | null
+  nota_fiscal_id: string | null
+  ordem_servico_id: string | null
+  usuario_id: string | null
+  usuario_nome: string | null
+  criado_em: string
+}
+
+type Orcamento = {
+  id: string
+  oficina_id: string
+  numero: number
+  cliente_id: string
+  moto_id: string
+  status: StatusOrcamento
+  km_registrado: number | null
+  validade_dias: number
+  validade_ate: string | null
+  garantia_dias: number
+  observacoes: string | null
+  desconto: number
+  desconto_percentual: number | null
+  motivo_recusa: string | null
+  valor_total: number
+  criado_por: string | null
+  criado_em: string
+  atualizado_em: string
+}
+
+type ItemDeDocumento = {
+  id: string
+  oficina_id: string
+  tipo: TipoItem
+  produto_id: string | null
+  servico_id: string | null
+  descricao: string
+  quantidade: number
+  valor_unitario: number
+  valor_total: number
+  criado_em: string
+}
+
+type OrcamentoItem = ItemDeDocumento & { orcamento_id: string }
+type OsItem = ItemDeDocumento & { ordem_servico_id: string }
+
 type OrdemServico = {
   id: string
   oficina_id: string
@@ -127,7 +213,8 @@ type OrdemServico = {
   numero: number
   cliente_id: string
   moto_id: string
-  mecanico_id: string | null
+  /** Qualquer colaborador pode ser o responsável, não só mecânico (0017). */
+  responsavel_id: string | null
   status: StatusOS
   km_entrada: number | null
   data_abertura: string
@@ -157,6 +244,17 @@ type Tabela<Linha extends { oficina_id: string }> = {
   Relationships: []
 }
 
+/** O número é preenchido por gatilho, por oficina (migration 0020). */
+type TabelaNumerada<Linha extends { oficina_id: string; numero: number }> = {
+  Row: Linha
+  Insert: Omit<ParaInserir<Linha>, 'numero'> & { numero?: number }
+  Update: Partial<ParaInserir<Linha>>
+  Relationships: []
+}
+
+type ItemOrcamento = { tipo: string; produto_id: string | null; servico_id: string | null; descricao: string; quantidade: number; valor_unitario: number }
+type ItemNota = { produto_id: string; quantidade: number; custo_unitario: number | null }
+
 export type Database = {
   public: {
     Tables: {
@@ -177,13 +275,16 @@ export type Database = {
       moto_proprietarios: Tabela<MotoProprietario>
       produtos: Tabela<Produto>
       servicos: Tabela<Servico>
-      ordens_servico: Tabela<OrdemServico>
+      notas_fiscais_entrada: Tabela<NotaFiscalEntrada>
+      movimentacoes_estoque: Tabela<MovimentacaoEstoque>
+      orcamentos: TabelaNumerada<Orcamento>
+      orcamento_itens: Tabela<OrcamentoItem>
+      ordens_servico: TabelaNumerada<OrdemServico>
+      os_itens: Tabela<OsItem>
     }
     Views: {
-      vw_produtos: {
-        Row: ProdutoSemCusto
-        Relationships: []
-      }
+      vw_produtos: { Row: ProdutoSemCusto; Relationships: [] }
+      vw_movimentacoes: { Row: MovimentacaoVisivel; Relationships: [] }
     }
     Functions: {
       criar_moto_com_proprietario: {
@@ -199,6 +300,52 @@ export type Database = {
         }
         Returns: Moto
       }
+      registrar_movimentacao: {
+        Args: {
+          p_produto_id: string
+          p_tipo: TipoMovimentacao
+          p_quantidade: number
+          p_motivo: string
+        }
+        Returns: number
+      }
+      recalcular_estoque: { Args: { p_produto_id: string }; Returns: number }
+      salvar_nota_com_itens: {
+        Args: {
+          p_numero: string
+          p_fornecedor: string | null
+          p_data_emissao: string | null
+          p_valor_total: number
+          p_arquivo_url: string | null
+          p_itens: ItemNota[]
+        }
+        Returns: string
+      }
+      cancelar_nota: { Args: { p_nota_id: string }; Returns: undefined }
+      salvar_orcamento_com_itens: {
+        Args: {
+          p_orcamento_id: string | null
+          p_cliente_id: string
+          p_moto_id: string
+          p_km_registrado: number | null
+          p_validade_dias: number
+          p_garantia_dias: number
+          p_observacoes: string | null
+          p_desconto: number
+          p_desconto_percentual: number | null
+          p_itens: ItemOrcamento[]
+        }
+        Returns: string
+      }
+      duplicar_orcamento: { Args: { p_orcamento_id: string }; Returns: string }
+      aprovar_orcamento: {
+        Args: { p_orcamento_id: string; p_responsavel_id: string }
+        Returns: string
+      }
+      recusar_orcamento: {
+        Args: { p_orcamento_id: string; p_motivo: string | null }
+        Returns: undefined
+      }
       oficina_do_usuario: { Args: Record<string, never>; Returns: string }
       perfil_do_usuario: { Args: Record<string, never>; Returns: PerfilUsuario }
     }
@@ -212,6 +359,7 @@ export type Database = {
       status_os: StatusOS
       tipo_movimentacao: TipoMovimentacao
       status_conta: StatusConta
+      status_nota: StatusNota
     }
     CompositeTypes: Record<string, never>
   }
@@ -226,5 +374,13 @@ export type {
   Produto,
   ProdutoSemCusto,
   Servico,
+  NotaFiscalEntrada,
+  MovimentacaoEstoque,
+  MovimentacaoVisivel,
+  Orcamento,
+  OrcamentoItem,
   OrdemServico,
+  OsItem,
+  ItemOrcamento,
+  ItemNota,
 }

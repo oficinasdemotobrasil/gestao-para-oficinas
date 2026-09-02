@@ -1,11 +1,13 @@
 import { useNavigate } from 'react-router-dom'
-import { Users, Bike, Package, Wrench, ClipboardList, UserPlus } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { Users, Bike, Package, Wrench, ClipboardList, UserPlus, TriangleAlert } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Tela, CabecalhoTela, TituloSecao } from '@/componentes/layout/Tela'
 import { EstadoVazio } from '@/componentes/ui/EstadoVazio'
 import { useAuth } from '@/auth/ProvedorAuth'
 import { usePermissoes } from '@/auth/usePermissoes'
 import { primeiroNome } from '@/lib/formato'
+import { produtosParaRepor } from '@/funcionalidades/estoque/api'
 
 interface Atalho {
   para: string
@@ -18,6 +20,14 @@ export function Inicio() {
   const { usuario, oficina } = useAuth()
   const p = usePermissoes()
   const navegar = useNavigate()
+
+  // Contador de peça no fim: é o aviso que evita descobrir a falta com a moto
+  // desmontada em cima da bancada.
+  const repor = useQuery({
+    queryKey: ['repor'],
+    queryFn: produtosParaRepor,
+    enabled: p.verCatalogo,
+  })
 
   // O mecânico só enxerga as ordens atribuídas a ele — e ordem de serviço é
   // assunto da Fase 2. Até lá esta é a tela inteira dele, o que é o correto,
@@ -74,6 +84,26 @@ export function Inicio() {
           </span>
         </span>
       </button>
+
+      {repor.data && repor.data.length > 0 && (
+        <button
+          type="button"
+          onClick={() => navegar('/catalogo?repor=1')}
+          className="mt-3 flex w-full items-center gap-3 rounded-card bg-atencao-fundo p-4 text-left active:opacity-90"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-atencao/20 text-atencao">
+            <TriangleAlert aria-hidden size={22} />
+          </span>
+          <span className="flex flex-col">
+            <span className="text-secao text-claro">
+              {repor.data.length} {repor.data.length === 1 ? 'produto' : 'produtos'} para repor
+            </span>
+            <span className="text-apoio text-claro-secundario">
+              No mínimo ou abaixo. Toque para ver quais.
+            </span>
+          </span>
+        </button>
+      )}
 
       <TituloSecao>Atalhos</TituloSecao>
 

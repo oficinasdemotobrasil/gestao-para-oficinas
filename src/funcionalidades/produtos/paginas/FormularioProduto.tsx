@@ -11,6 +11,7 @@ import { useToast } from '@/componentes/ui/Toast'
 import { traduzirErro } from '@/lib/erros'
 import { moeda } from '@/lib/formato'
 import { paraNumero } from '@/lib/numero'
+import { usePermissoes } from '@/auth/usePermissoes'
 import { esquemaProduto, type DadosFormularioProduto } from '../esquemas'
 import { criarProduto, atualizarProduto, obterProduto } from '../api'
 
@@ -20,10 +21,11 @@ export function FormularioProduto() {
   const navegar = useNavigate()
   const toast = useToast()
   const cache = useQueryClient()
+  const p = usePermissoes()
 
   const { data: produto, isPending: carregando } = useQuery({
-    queryKey: ['produto', id],
-    queryFn: () => obterProduto(id!),
+    queryKey: ['produto', id, p.verCusto],
+    queryFn: () => obterProduto(id!, p.verCusto),
     enabled: editando,
   })
 
@@ -84,7 +86,7 @@ export function FormularioProduto() {
       void cache.invalidateQueries({ queryKey: ['produtos'] })
       void cache.invalidateQueries({ queryKey: ['produto', id] })
       toast.sucesso(editando ? 'Produto atualizado.' : 'Produto cadastrado.')
-      navegar('/catalogo', { replace: true })
+      navegar(editando ? `/catalogo/produtos/${id}` : '/catalogo', { replace: true })
     },
     onError: (erro) => setError('root', { message: traduzirErro(erro) }),
   })

@@ -40,14 +40,18 @@ export async function listarProdutos(
   return (data ?? []) as ProdutoListado[]
 }
 
-export async function obterProduto(id: string): Promise<ProdutoListado | null> {
-  const { data, error } = await supabase
-    .from('produtos')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle()
+export async function obterProduto(
+  id: string,
+  verCusto: boolean,
+): Promise<ProdutoListado | null> {
+  // Mesmo motivo da listagem: o vendedor não pode receber preco_custo no JSON,
+  // então lê pela view. Ver migration 0012.
+  const { data, error } = verCusto
+    ? await supabase.from('produtos').select('*').eq('id', id).maybeSingle()
+    : await supabase.from('vw_produtos').select('*').eq('id', id).maybeSingle()
+
   if (error) throw error
-  return data
+  return (data ?? null) as ProdutoListado | null
 }
 
 export interface DadosProduto {
