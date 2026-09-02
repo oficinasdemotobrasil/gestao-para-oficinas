@@ -30,6 +30,9 @@ export function usePermissoes() {
     verMotos: ehAtendimento,
     editarMotos: ehAtendimento,
 
+    verOrcamentos: ehAtendimento,
+    editarOrcamentos: ehAtendimento,
+
     verCatalogo: ehAtendimento,
     /** Só o admin enxerga preço de custo e margem. */
     verCusto: ehAdmin,

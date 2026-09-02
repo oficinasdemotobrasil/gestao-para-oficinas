@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Users2, Settings, LogOut, Share, Info } from 'lucide-react'
+import { Users, Users2, Settings, LogOut, Share, Info } from 'lucide-react'
 import { Tela, CabecalhoTela, TituloSecao } from '@/componentes/layout/Tela'
 import { ListaCard, LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
 import { Botao } from '@/componentes/ui/Botao'
@@ -37,6 +37,24 @@ export function Mais() {
           comSeta={false}
         />
       </ListaCard>
+
+      {p.verClientes && (
+        <>
+          <TituloSecao>Cadastros</TituloSecao>
+          <ListaCard>
+            <LinhaLista
+              inicio={
+                <IconeCirculo>
+                  <Users aria-hidden size={20} />
+                </IconeCirculo>
+              }
+              titulo="Clientes"
+              descricao="Quem já passou pela oficina"
+              aoTocar={() => navegar('/clientes')}
+            />
+          </ListaCard>
+        </>
+      )}
 
       {(p.verColaboradores || p.verConfiguracoes) && (
         <>

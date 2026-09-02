@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Users, Bike, Package, Wrench, ClipboardList, UserPlus, TriangleAlert } from 'lucide-react'
+import { Users, Bike, Package, Wrench, ClipboardList, UserPlus, TriangleAlert, FileText } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Tela, CabecalhoTela, TituloSecao } from '@/componentes/layout/Tela'
 import { EstadoVazio } from '@/componentes/ui/EstadoVazio'
@@ -48,8 +48,10 @@ export function Inicio() {
     )
   }
 
+  // Clientes saiu da tab bar, então ganha lugar garantido aqui: nunca fica a
+  // mais de um toque de distância.
   const atalhos: Atalho[] = [
-    { para: '/clientes/novo', rotulo: 'Novo cliente', Icone: Users, visivel: p.editarClientes },
+    { para: '/clientes', rotulo: 'Clientes', Icone: Users, visivel: p.verClientes },
     { para: '/motos/nova', rotulo: 'Nova moto', Icone: Bike, visivel: p.editarMotos },
     { para: '/catalogo', rotulo: 'Catálogo', Icone: Package, visivel: p.verCatalogo },
     {
@@ -67,19 +69,35 @@ export function Inicio() {
         contexto={oficina?.nome ?? 'Sua oficina'}
       />
 
-      {/* Busca por placa é o caminho mais usado do dia: chega a moto, digita a
-          placa, abre o histórico. Fica no topo, com alvo grande. */}
+      {/* Os dois caminhos que a oficina percorre o dia inteiro: chegou uma moto,
+          ou vai sair um orçamento. Ficam no topo, com o maior alvo da tela. */}
+      {p.editarOrcamentos && (
+        <button
+          type="button"
+          onClick={() => navegar('/orcamentos/novo')}
+          className="mb-3 flex w-full items-center gap-4 rounded-card bg-acento p-5 text-left active:bg-acento-pressionado"
+        >
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-claro/10">
+            <FileText aria-hidden size={26} className="text-claro" />
+          </span>
+          <span className="flex flex-col">
+            <span className="text-secao text-claro">Novo orçamento</span>
+            <span className="text-apoio text-claro/70">Monte e mande pelo WhatsApp.</span>
+          </span>
+        </button>
+      )}
+
       <button
         type="button"
         onClick={() => navegar('/motos')}
-        className="flex w-full items-center gap-4 rounded-card bg-acento p-5 text-left active:bg-acento-pressionado"
+        className="flex w-full items-center gap-4 rounded-card bg-superficie p-5 text-left shadow-card active:opacity-90"
       >
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-claro/10">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-acento-suave">
           <Bike aria-hidden size={26} className="text-claro" />
         </span>
         <span className="flex flex-col">
           <span className="text-secao text-claro">Buscar moto pela placa</span>
-          <span className="text-apoio text-claro/70">
+          <span className="text-apoio text-claro-secundario">
             Chegou uma moto? Comece por aqui.
           </span>
         </span>

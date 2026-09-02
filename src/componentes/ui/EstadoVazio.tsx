@@ -3,7 +3,8 @@ import { AlertTriangle, WifiOff } from 'lucide-react'
 import { Botao } from './Botao'
 
 interface Props {
-  icone: ReactNode
+  /** Opcional: dentro de uma folha de busca o círculo só ocupa espaço. */
+  icone?: ReactNode
   titulo: string
   /** Convida à ação: "Cadastre a primeira." — nunca só "Sem resultados". */
   descricao: string
@@ -14,9 +15,11 @@ interface Props {
 export function EstadoVazio({ icone, titulo, descricao, rotuloAcao, aoAgir }: Props) {
   return (
     <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
-      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-superficie-escura text-acento">
-        {icone}
-      </span>
+      {icone && (
+        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-superficie-escura text-acento">
+          {icone}
+        </span>
+      )}
       <h2 className="text-secao text-escuro">{titulo}</h2>
       <p className="max-w-[36ch] text-corpo text-escuro-secundario">{descricao}</p>
       {rotuloAcao && aoAgir && (

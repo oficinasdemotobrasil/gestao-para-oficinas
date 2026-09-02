@@ -20,6 +20,9 @@ import { FormularioServico } from '@/funcionalidades/servicos/paginas/Formulario
 import { ListaColaboradores } from '@/funcionalidades/colaboradores/paginas/ListaColaboradores'
 import { FormularioColaborador } from '@/funcionalidades/colaboradores/paginas/FormularioColaborador'
 import { Configuracoes } from '@/funcionalidades/configuracoes/Configuracoes'
+import { ListaOrcamentos } from '@/funcionalidades/orcamentos/paginas/ListaOrcamentos'
+import { EditorOrcamento } from '@/funcionalidades/orcamentos/paginas/EditorOrcamento'
+import { DetalheOrcamento } from '@/funcionalidades/orcamentos/paginas/DetalheOrcamento'
 
 export const rotas = createBrowserRouter([
   {
@@ -54,6 +57,15 @@ export const rotas = createBrowserRouter([
               { path: '/clientes/novo', element: <FormularioCliente /> },
               { path: '/clientes/:id', element: <DetalheCliente /> },
               { path: '/clientes/:id/editar', element: <FormularioCliente /> },
+            ],
+          },
+          {
+            element: <RotaPorPerfil permitido={(p) => p.verOrcamentos} />,
+            children: [
+              { path: '/orcamentos', element: <ListaOrcamentos /> },
+              { path: '/orcamentos/novo', element: <EditorOrcamento /> },
+              { path: '/orcamentos/:id', element: <DetalheOrcamento /> },
+              { path: '/orcamentos/:id/editar', element: <EditorOrcamento /> },
             ],
           },
           {

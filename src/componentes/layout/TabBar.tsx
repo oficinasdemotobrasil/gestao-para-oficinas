@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Users, Bike, Package, Menu } from 'lucide-react'
+import { Home, FileText, Bike, Package, Menu } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { usePermissoes } from '@/auth/usePermissoes'
 import { cn } from '@/lib/cn'
@@ -19,9 +19,13 @@ interface Item {
 export function TabBar() {
   const p = usePermissoes()
 
+  // Cinco vagas, e orçamento é o que a oficina faz dez vezes por dia. Clientes
+  // saiu da barra porque ninguém abre "Clientes" para olhar: chega-se ao cliente
+  // pela moto que entrou ou digitando o nome dentro do orçamento, que é onde ele
+  // é realmente necessário. O atalho continua na Início e em Mais.
   const itens: Item[] = [
     { para: '/', rotulo: 'Início', Icone: Home, visivel: true },
-    { para: '/clientes', rotulo: 'Clientes', Icone: Users, visivel: p.verClientes },
+    { para: '/orcamentos', rotulo: 'Orçamentos', Icone: FileText, visivel: p.verOrcamentos },
     { para: '/motos', rotulo: 'Motos', Icone: Bike, visivel: p.verMotos },
     { para: '/catalogo', rotulo: 'Catálogo', Icone: Package, visivel: p.verCatalogo },
     { para: '/mais', rotulo: 'Mais', Icone: Menu, visivel: true },
