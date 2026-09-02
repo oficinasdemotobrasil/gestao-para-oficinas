@@ -457,9 +457,12 @@ async function testarEstoque() {
     erro('bloqueio de estoque negativo', 'a saída passou e deixaria o estoque negativo')
   } catch (e) {
     const msg = (e as Error).message
-    msg.includes('Não há estoque suficiente')
-      ? ok(`saída maior que o saldo é recusada com a peça e os números na mensagem`)
-      : erro('bloqueio de estoque negativo', `recusou, mas com a mensagem errada: ${msg}`)
+    // A mensagem tem que sair legível: sem ponto solto depois do número e com
+    // vírgula como separador decimal, que é como se escreve em português.
+    const limpa = msg.includes('Não há estoque suficiente') && !/\d\. /.test(msg)
+    limpa
+      ? ok(`saída maior que o saldo é recusada: "${msg.split('\n')[0].slice(0, 70)}"`)
+      : erro('bloqueio de estoque negativo', `recusou, mas a mensagem saiu torta: ${msg}`)
   }
 
   const antesDoAjuste = await saldo(ID.produtoA)
