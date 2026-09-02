@@ -33,3 +33,5 @@ export const esquemaCliente = z.object({
 })
 
 export type DadosFormularioCliente = z.input<typeof esquemaCliente>
+/** O que sai do Zod, já convertido — é isto que chega no onSubmit. */
+export type DadosClienteValidados = z.output<typeof esquemaCliente>

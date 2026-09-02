@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { resolverZod } from '@/lib/formulario'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Tela, CabecalhoInterno } from '@/componentes/layout/Tela'
 import { Campo, AreaTexto, Interruptor } from '@/componentes/ui/Campo'
@@ -9,7 +9,11 @@ import { Botao } from '@/componentes/ui/Botao'
 import { Carregando } from '@/componentes/ui/Carregando'
 import { useToast } from '@/componentes/ui/Toast'
 import { traduzirErro } from '@/lib/erros'
-import { esquemaServico, type DadosFormularioServico } from '../esquemas'
+import {
+  esquemaServico,
+  type DadosFormularioServico,
+  type DadosServicoValidados,
+} from '../esquemas'
 import { criarServico, atualizarServico, obterServico } from '../api'
 
 export function FormularioServico() {
@@ -32,8 +36,8 @@ export function FormularioServico() {
     reset,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm<DadosFormularioServico>({
-    resolver: zodResolver(esquemaServico),
+  } = useForm<DadosFormularioServico, unknown, DadosServicoValidados>({
+    resolver: resolverZod<DadosFormularioServico, DadosServicoValidados>(esquemaServico),
     defaultValues: {
       nome: '',
       descricao: '',
@@ -58,10 +62,8 @@ export function FormularioServico() {
   }, [servico, reset])
 
   const salvar = useMutation({
-    mutationFn: (bruto: DadosFormularioServico) => {
-      const dados = esquemaServico.parse(bruto)
-      return editando ? atualizarServico(id!, dados) : criarServico(dados)
-    },
+    mutationFn: (dados: DadosServicoValidados) =>
+      editando ? atualizarServico(id!, dados) : criarServico(dados),
     onSuccess: () => {
       void cache.invalidateQueries({ queryKey: ['servicos'] })
       void cache.invalidateQueries({ queryKey: ['servico', id] })

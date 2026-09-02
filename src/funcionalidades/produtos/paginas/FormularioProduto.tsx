@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm, Controller, useWatch } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { resolverZod } from '@/lib/formulario'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Tela, CabecalhoInterno } from '@/componentes/layout/Tela'
 import { Campo, AreaTexto, Interruptor } from '@/componentes/ui/Campo'
@@ -12,7 +12,11 @@ import { traduzirErro } from '@/lib/erros'
 import { moeda } from '@/lib/formato'
 import { paraNumero } from '@/lib/numero'
 import { usePermissoes } from '@/auth/usePermissoes'
-import { esquemaProduto, type DadosFormularioProduto } from '../esquemas'
+import {
+  esquemaProduto,
+  type DadosFormularioProduto,
+  type DadosProdutoValidados,
+} from '../esquemas'
 import { criarProduto, atualizarProduto, obterProduto } from '../api'
 
 export function FormularioProduto() {
@@ -36,8 +40,8 @@ export function FormularioProduto() {
     reset,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm<DadosFormularioProduto>({
-    resolver: zodResolver(esquemaProduto),
+  } = useForm<DadosFormularioProduto, unknown, DadosProdutoValidados>({
+    resolver: resolverZod<DadosFormularioProduto, DadosProdutoValidados>(esquemaProduto),
     defaultValues: {
       nome: '',
       codigo: '',
@@ -78,10 +82,8 @@ export function FormularioProduto() {
   const margem = temMargem ? (lucro / venda) * 100 : 0
 
   const salvar = useMutation({
-    mutationFn: (bruto: DadosFormularioProduto) => {
-      const dados = esquemaProduto.parse(bruto)
-      return editando ? atualizarProduto(id!, dados) : criarProduto(dados)
-    },
+    mutationFn: (dados: DadosProdutoValidados) =>
+      editando ? atualizarProduto(id!, dados) : criarProduto(dados),
     onSuccess: () => {
       void cache.invalidateQueries({ queryKey: ['produtos'] })
       void cache.invalidateQueries({ queryKey: ['produto', id] })

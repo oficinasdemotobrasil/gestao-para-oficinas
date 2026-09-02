@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { resolverZod } from '@/lib/formulario'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Gauge, ClipboardList, User, History } from 'lucide-react'
 import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
@@ -16,7 +16,11 @@ import { useToast } from '@/componentes/ui/Toast'
 import { traduzirErro } from '@/lib/erros'
 import { exibirPlaca, quilometragem, data } from '@/lib/formato'
 import { usePermissoes } from '@/auth/usePermissoes'
-import { esquemaKm, type DadosFormularioKm } from '../esquemas'
+import {
+  esquemaKm,
+  type DadosFormularioKm,
+  type DadosKmValidados,
+} from '../esquemas'
 import { obterMoto, proprietariosDaMoto, atualizarKm } from '../api'
 
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
@@ -47,13 +51,13 @@ export function DetalheMoto() {
     enabled: Boolean(moto),
   })
 
-  const formularioKm = useForm<DadosFormularioKm>({
-    resolver: zodResolver(esquemaKm),
+  const formularioKm = useForm<DadosFormularioKm, unknown, DadosKmValidados>({
+    resolver: resolverZod<DadosFormularioKm, DadosKmValidados>(esquemaKm),
     defaultValues: { km_atual: '' },
   })
 
   const salvarKm = useMutation({
-    mutationFn: (dados: DadosFormularioKm) => atualizarKm(id!, esquemaKm.parse(dados).km_atual),
+    mutationFn: (dados: DadosKmValidados) => atualizarKm(id!, dados.km_atual),
     onSuccess: () => {
       void cache.invalidateQueries({ queryKey: ['moto', id] })
       void cache.invalidateQueries({ queryKey: ['motos'] })

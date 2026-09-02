@@ -51,6 +51,22 @@ export const esquemaKm = z.object({
     .refine((v) => Number.isFinite(v) && v >= 0, 'Informe a quilometragem.'),
 })
 
+/**
+ * Dois tipos por esquema, e a diferença importa:
+ *
+ * - `Formulario`  é o que a pessoa digita: tudo texto, porque campo de HTML só
+ *   devolve texto.
+ * - `Validados`   é o que sai do Zod: ano virou número, placa virou maiúscula.
+ *
+ * O React Hook Form entrega ao onSubmit os dados JÁ convertidos. Converter de
+ * novo quebra — foi o que fazia o cadastro de moto falhar com "invalid_type,
+ * expected string, received number" no campo ano.
+ */
 export type DadosFormularioMoto = z.input<typeof esquemaMoto>
 export type DadosFormularioNovaMoto = z.input<typeof esquemaNovaMoto>
 export type DadosFormularioKm = z.input<typeof esquemaKm>
+
+export type DadosMotoValidados = z.output<typeof esquemaMoto>
+export type DadosKmValidados = z.output<typeof esquemaKm>
+/** Na edição não há cliente_id: o dono não muda por aqui. */
+export type DadosMotoSubmetidos = DadosMotoValidados & { cliente_id?: string }

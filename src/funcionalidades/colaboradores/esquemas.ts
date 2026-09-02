@@ -35,3 +35,12 @@ export const esquemaColaborador = z.object({
 
 export type DadosFormularioNovoColaborador = z.input<typeof esquemaNovoColaborador>
 export type DadosFormularioColaborador = z.input<typeof esquemaColaborador>
+
+/** O que sai do Zod, já convertido — é isto que chega no onSubmit. */
+export type DadosNovoColaboradorValidados = z.output<typeof esquemaNovoColaborador>
+export type DadosColaboradorValidados = z.output<typeof esquemaColaborador>
+/** Na edição não há e-mail nem senha: o acesso já existe. */
+export type DadosColaboradorSubmetidos = DadosColaboradorValidados & {
+  email?: string
+  senha?: string
+}

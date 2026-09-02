@@ -20,3 +20,5 @@ export const esquemaProduto = z.object({
 })
 
 export type DadosFormularioProduto = z.input<typeof esquemaProduto>
+/** O que sai do Zod, já convertido — é isto que chega no onSubmit. */
+export type DadosProdutoValidados = z.output<typeof esquemaProduto>

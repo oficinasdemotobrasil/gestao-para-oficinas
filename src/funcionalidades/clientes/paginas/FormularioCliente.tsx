@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { resolverZod } from '@/lib/formulario'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Tela, CabecalhoInterno } from '@/componentes/layout/Tela'
 import { Campo, AreaTexto } from '@/componentes/ui/Campo'
@@ -10,7 +10,11 @@ import { Carregando } from '@/componentes/ui/Carregando'
 import { useToast } from '@/componentes/ui/Toast'
 import { traduzirErro } from '@/lib/erros'
 import { mascararTelefone } from '@/lib/formato'
-import { esquemaCliente, type DadosFormularioCliente } from '../esquemas'
+import {
+  esquemaCliente,
+  type DadosFormularioCliente,
+  type DadosClienteValidados,
+} from '../esquemas'
 import { criarCliente, atualizarCliente, obterCliente, type DadosCliente } from '../api'
 
 export function FormularioCliente() {
@@ -33,8 +37,8 @@ export function FormularioCliente() {
     reset,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm<DadosFormularioCliente>({
-    resolver: zodResolver(esquemaCliente),
+  } = useForm<DadosFormularioCliente, unknown, DadosClienteValidados>({
+    resolver: resolverZod<DadosFormularioCliente, DadosClienteValidados>(esquemaCliente),
     defaultValues: {
       nome: '',
       telefone: '',
@@ -77,7 +81,7 @@ export function FormularioCliente() {
       <CabecalhoInterno titulo={editando ? 'Editar cliente' : 'Novo cliente'} />
 
       <form
-        onSubmit={handleSubmit((dados) => salvar.mutate(esquemaCliente.parse(dados)))}
+        onSubmit={handleSubmit((dados) => salvar.mutate(dados))}
         noValidate
         className="flex flex-col gap-4 rounded-card bg-superficie p-5 shadow-card"
       >

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { resolverZod } from '@/lib/formulario'
 import { useMutation } from '@tanstack/react-query'
 import { z } from 'zod'
 import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
@@ -47,6 +47,8 @@ const esquemaOficina = z
   })
 
 type DadosOficina = z.input<typeof esquemaOficina>
+/** O que sai do Zod, já convertido — é isto que chega no onSubmit. */
+type DadosOficinaValidados = z.output<typeof esquemaOficina>
 
 export function Configuracoes() {
   const { oficina, recarregarUsuario } = useAuth()
@@ -59,8 +61,8 @@ export function Configuracoes() {
     reset,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm<DadosOficina>({
-    resolver: zodResolver(esquemaOficina),
+  } = useForm<DadosOficina, unknown, DadosOficinaValidados>({
+    resolver: resolverZod<DadosOficina, DadosOficinaValidados>(esquemaOficina),
     defaultValues: {
       nome: '',
       telefone: '',
@@ -85,8 +87,7 @@ export function Configuracoes() {
   }, [oficina, reset])
 
   const salvar = useMutation({
-    mutationFn: async (bruto: DadosOficina) => {
-      const dados = esquemaOficina.parse(bruto)
+    mutationFn: async (dados: DadosOficinaValidados) => {
       const { error } = await supabase
         .from('oficinas')
         .update(dados)

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { resolverZod } from '@/lib/formulario'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Tela, CabecalhoInterno } from '@/componentes/layout/Tela'
 import { Campo, Selecao } from '@/componentes/ui/Campo'
@@ -16,6 +16,7 @@ import {
   esquemaMoto,
   esquemaNovaMoto,
   type DadosFormularioNovaMoto,
+  type DadosMotoSubmetidos,
 } from '../esquemas'
 import { criarMoto, atualizarMoto, obterMoto } from '../api'
 
@@ -47,8 +48,13 @@ export function FormularioMoto() {
     reset,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm<DadosFormularioNovaMoto>({
-    resolver: zodResolver(editando ? esquemaMoto : esquemaNovaMoto),
+    // O terceiro tipo é o que chega no onSubmit: os dados JÁ convertidos pelo
+    // Zod. Sem ele, a tela recebia texto e convertia de novo — que é o defeito
+    // que derrubava o cadastro.
+  } = useForm<DadosFormularioNovaMoto, unknown, DadosMotoSubmetidos>({
+    resolver: resolverZod<DadosFormularioNovaMoto, DadosMotoSubmetidos>(
+      editando ? esquemaMoto : esquemaNovaMoto,
+    ),
     defaultValues: {
       cliente_id: parametros.get('cliente') ?? '',
       placa: '',
@@ -77,12 +83,10 @@ export function FormularioMoto() {
   }, [moto, reset])
 
   const salvar = useMutation({
-    mutationFn: async (bruto: DadosFormularioNovaMoto) => {
-      if (editando) {
-        return atualizarMoto(id!, esquemaMoto.parse(bruto))
-      }
-      const { cliente_id, ...dados } = esquemaNovaMoto.parse(bruto)
-      return criarMoto(cliente_id, dados)
+    mutationFn: async (validados: DadosMotoSubmetidos) => {
+      const { cliente_id, ...dados } = validados
+      if (editando) return atualizarMoto(id!, dados)
+      return criarMoto(cliente_id!, dados)
     },
     onSuccess: (salva) => {
       void cache.invalidateQueries({ queryKey: ['motos'] })

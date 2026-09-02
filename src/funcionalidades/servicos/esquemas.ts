@@ -14,3 +14,5 @@ export const esquemaServico = z.object({
 })
 
 export type DadosFormularioServico = z.input<typeof esquemaServico>
+/** O que sai do Zod, já convertido — é isto que chega no onSubmit. */
+export type DadosServicoValidados = z.output<typeof esquemaServico>

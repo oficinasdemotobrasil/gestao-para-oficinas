@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { resolverZod } from '@/lib/formulario'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Eye, EyeOff } from 'lucide-react'
 import { Tela, CabecalhoInterno } from '@/componentes/layout/Tela'
@@ -16,6 +16,7 @@ import {
   esquemaColaborador,
   esquemaNovoColaborador,
   type DadosFormularioNovoColaborador,
+  type DadosColaboradorSubmetidos,
 } from '../esquemas'
 import {
   criarColaborador,
@@ -48,8 +49,10 @@ export function FormularioColaborador() {
     reset,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm<DadosFormularioNovoColaborador>({
-    resolver: zodResolver(editando ? esquemaColaborador : esquemaNovoColaborador),
+  } = useForm<DadosFormularioNovoColaborador, unknown, DadosColaboradorSubmetidos>({
+    resolver: resolverZod<DadosFormularioNovoColaborador, DadosColaboradorSubmetidos>(
+      editando ? esquemaColaborador : esquemaNovoColaborador,
+    ),
     defaultValues: { nome: '', email: '', senha: '', telefone: '', perfil: 'vendedor' },
   })
 
@@ -66,11 +69,18 @@ export function FormularioColaborador() {
   }, [colaborador, reset])
 
   const salvar = useMutation({
-    mutationFn: async (bruto: DadosFormularioNovoColaborador) => {
+    mutationFn: async (dados: DadosColaboradorSubmetidos) => {
       if (editando) {
-        return atualizarColaborador(id!, esquemaColaborador.parse(bruto))
+        const { email: _email, senha: _senha, ...edicao } = dados
+        return atualizarColaborador(id!, edicao)
       }
-      return criarColaborador(esquemaNovoColaborador.parse(bruto))
+      return criarColaborador({
+        nome: dados.nome,
+        email: dados.email!,
+        senha: dados.senha!,
+        telefone: dados.telefone,
+        perfil: dados.perfil,
+      })
     },
     onSuccess: () => {
       void cache.invalidateQueries({ queryKey: ['colaboradores'] })
