@@ -134,6 +134,38 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
     }
   }, [carregarPerfil])
 
+  /**
+   * Renova a sessão quando o app volta para a frente.
+   *
+   * O token do Supabase vale uma hora e se renova sozinho por um cronômetro —
+   * que o navegador do celular congela quando o app fica em segundo plano. Na
+   * oficina, o celular volta do bolso meia hora depois com o token vencido, e a
+   * primeira coisa que a pessoa faz é tentar salvar. Pedir a sessão aqui força a
+   * renovação antes disso, e o erro nunca chega a acontecer.
+   */
+  useEffect(() => {
+    async function renovar() {
+      if (document.visibilityState !== 'visible') return
+      const { data } = await supabase.auth.getSession()
+      if (!data.session) return
+      // Faltando menos de cinco minutos, renova já: é tempo de sobra para a
+      // pessoa começar a preencher um formulário e ele vencer no meio.
+      const expiraEm = (data.session.expires_at ?? 0) * 1000 - Date.now()
+      if (expiraEm < 5 * 60 * 1000) {
+        await supabase.auth.refreshSession().catch(() => undefined)
+      }
+    }
+
+    document.addEventListener('visibilitychange', renovar)
+    window.addEventListener('online', renovar)
+    void renovar()
+
+    return () => {
+      document.removeEventListener('visibilitychange', renovar)
+      window.removeEventListener('online', renovar)
+    }
+  }, [])
+
   const entrar = useCallback(
     async (email: string, senha: string) => {
       const { data, error } = await supabase.auth.signInWithPassword({

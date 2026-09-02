@@ -1,6 +1,31 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 
 /**
+ * Reconhece o erro de sessão vencida.
+ *
+ * O token do Supabase vale uma hora e se renova sozinho — mas só com o app em
+ * primeiro plano. Na oficina o celular fica no bolso e volta depois: o token
+ * venceu, as listas continuam na tela porque vêm do cache, e só a gravação
+ * falha. Sem tratar isso, a pessoa vê "não foi possível concluir" e acha que
+ * perdeu o que digitou.
+ */
+export function ehSessaoExpirada(erro: unknown): boolean {
+  if (!erro) return false
+  const e = erro as { message?: string; code?: string; status?: number }
+  const mensagem = (e.message ?? '').toLowerCase()
+  return (
+    e.status === 401 ||
+    e.code === 'PGRST301' ||
+    e.code === '401' ||
+    mensagem.includes('jwt expired') ||
+    mensagem.includes('jwt is expired') ||
+    mensagem.includes('token is expired') ||
+    mensagem.includes('invalid claim') ||
+    mensagem.includes('refresh_token_not_found')
+  )
+}
+
+/**
  * Traduz o erro do banco para uma frase que diz o que fazer.
  *
  * Os códigos vêm do Postgres: 23505 é chave duplicada, 23503 é referência que
@@ -9,6 +34,10 @@ import type { PostgrestError } from '@supabase/supabase-js'
  */
 export function traduzirErro(erro: unknown): string {
   if (!erro) return 'Não foi possível concluir. Tente de novo.'
+
+  if (ehSessaoExpirada(erro)) {
+    return 'Sua sessão expirou por inatividade. Entre de novo — nada do que você digitou foi perdido no servidor.'
+  }
 
   const e = erro as Partial<PostgrestError> & { message?: string }
   const mensagem = e.message ?? ''
