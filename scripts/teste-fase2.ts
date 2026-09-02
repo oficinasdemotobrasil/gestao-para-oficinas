@@ -17,6 +17,7 @@ import { config } from 'dotenv'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { limparOficina, limparContasDeTeste } from './limpar-teste'
 
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: path.join(raiz, '.env.test.local'), quiet: true })
@@ -219,19 +220,17 @@ async function main() {
     erro('execução do teste', (e as Error).message)
   } finally {
     console.log('\n\x1b[1mLimpeza\x1b[0m')
-    for (const id of oficinas) {
-      for (const t of ['os_itens', 'ordens_servico', 'orcamento_itens', 'orcamentos',
-                       'movimentacoes_estoque', 'notas_fiscais_entrada', 'moto_proprietarios',
-                       'motos', 'clientes', 'produtos', 'servicos', 'usuarios']) {
-        await admin.from(t).delete().eq('oficina_id', id)
-      }
-      await admin.from('oficinas').delete().eq('id', id)
-    }
-    const { data: lista } = await admin.auth.admin.listUsers()
-    for (const usuario of lista.users) {
-      if (usuario.email?.startsWith('fase2.')) await admin.auth.admin.deleteUser(usuario.id)
-    }
-    ok('oficina de teste removida')
+    const problemas: string[] = []
+    for (const id of oficinas) problemas.push(...(await limparOficina(admin, id)))
+    problemas.push(...(await limparContasDeTeste(admin, ['fase2.'])))
+
+    // Limpeza que falha em silêncio deixa oficina de teste no banco do cliente.
+    // Já aconteceu: três ficaram para trás porque o extrato de estoque precisa
+    // ser desfeito do mais novo para o mais antigo, e o delete em bloco não faz
+    // isso. Agora a falha aparece como falha.
+    problemas.length === 0
+      ? ok('oficina de teste removida')
+      : erro('limpeza', `sobrou dado de teste no banco: ${problemas.join('; ')}`)
   }
 
   console.log(`\n\x1b[1mResultado:\x1b[0m ${passou} passaram, ${falhou} falharam`)

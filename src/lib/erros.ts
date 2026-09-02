@@ -81,7 +81,17 @@ export function traduzirErro(erro: unknown): string {
     return 'Sem conexão com a internet. Verifique o sinal e tente de novo.'
   }
 
-  return 'Não foi possível concluir. Tente de novo em instantes.'
+  // Erro que eu não previ. Em vez de esconder atrás de uma frase genérica —
+  // que não ajuda nem quem está na oficina nem quem vai consertar —, o texto
+  // leva a pista técnica no fim e o erro inteiro vai para o console.
+  //
+  // "Tente de novo" sozinho já custou uma tarde de diagnóstico às cegas.
+  console.error('[erro não previsto]', erro)
+
+  const pista = [codigo, mensagem].filter(Boolean).join(': ').slice(0, 120)
+  return pista
+    ? `Não foi possível concluir. Mostre esta mensagem ao suporte: ${pista}`
+    : 'Não foi possível concluir. Tente de novo em instantes.'
 }
 
 /**
