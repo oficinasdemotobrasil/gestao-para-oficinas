@@ -61,6 +61,11 @@ export const Campo = forwardRef<HTMLInputElement, PropsCampo>(function Campo(
         aria-invalid={erro ? true : undefined}
         aria-describedby={erro ? `${idCampo}-erro` : undefined}
         className={cn(controle, 'h-campo', erro ? comErro : semErro, className)}
+        // O navegador lembra o que já foi digitado em cada campo pelo nome/id, e
+        // sugere de volta em outro cadastro — foi o que empilhou o e-mail do
+        // login dentro de "Observações". Desligado por padrão; a tela de login
+        // religa explicitamente para o gerenciador de senha funcionar.
+        autoComplete="off"
         {...resto}
       />
     </Envolver>
@@ -88,6 +93,7 @@ export const Selecao = forwardRef<HTMLSelectElement, PropsSelecao>(function Sele
         aria-invalid={erro ? true : undefined}
         aria-describedby={erro ? `${idCampo}-erro` : undefined}
         className={cn(controle, 'h-campo appearance-none', erro ? comErro : semErro, className)}
+        autoComplete="off"
         {...resto}
       >
         {children}
@@ -118,6 +124,7 @@ export const AreaTexto = forwardRef<HTMLTextAreaElement, PropsTexto>(function Ar
         aria-invalid={erro ? true : undefined}
         aria-describedby={erro ? `${idCampo}-erro` : undefined}
         className={cn(controle, 'py-3', erro ? comErro : semErro, className)}
+        autoComplete="off"
         {...resto}
       />
     </Envolver>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
 import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
 import { Campo, AreaTexto } from '@/componentes/ui/Campo'
 import { Abas } from '@/componentes/ui/Abas'
@@ -14,7 +14,7 @@ import { moeda } from '@/lib/formato'
 import { paraNumero } from '@/lib/numero'
 import { SeletorClienteMoto, type EscolhaClienteMoto } from '../SeletorClienteMoto'
 import { ItensDoOrcamento } from '../ItensDoOrcamento'
-import { obterOrcamento, salvarOrcamento, type ItemEmEdicao } from '../api'
+import { obterOrcamento, salvarOrcamento, gerarTextoComercial, type ItemEmEdicao } from '../api'
 
 type TipoDesconto = 'valor' | 'percentual'
 
@@ -40,6 +40,7 @@ export function EditorOrcamento() {
   const [observacoes, setObservacoes] = useState('')
   const [maisOpcoes, setMaisOpcoes] = useState(false)
   const [erroGeral, setErroGeral] = useState<string | null>(null)
+  const [gerandoTexto, setGerandoTexto] = useState(false)
 
   const { data: orcamento, isPending, isError, refetch } = useQuery({
     queryKey: ['orcamento', id],
@@ -121,6 +122,38 @@ export function EditorOrcamento() {
     },
     onError: (e) => setErroGeral(traduzirErro(e)),
   })
+
+  /**
+   * Uso opcional do admin/vendedor: nunca dispara sozinho. Some com o que já
+   * estiver escrito, em vez de apagar — se a pessoa já tinha digitado algo.
+   */
+  async function gerarComIA() {
+    if (itens.length === 0) {
+      setErroGeral('Adicione pelo menos um item antes de gerar o texto.')
+      return
+    }
+    setErroGeral(null)
+    setGerandoTexto(true)
+    try {
+      const texto = await gerarTextoComercial({
+        itens: itens.map((i) => ({
+          descricao: i.descricao,
+          tipo: i.tipo,
+          quantidade: i.quantidade,
+          valor_unitario: i.valor_unitario,
+        })),
+        desconto: valorDoDesconto,
+        total,
+      })
+      setObservacoes((atual) => (atual.trim() ? `${atual.trim()}\n\n${texto}` : texto))
+      setMaisOpcoes(true)
+      toast.sucesso('Texto gerado. Revise antes de enviar ao cliente.')
+    } catch (e) {
+      toast.erro(traduzirErro(e))
+    } finally {
+      setGerandoTexto(false)
+    }
+  }
 
   function enviar() {
     setErroGeral(null)
@@ -223,12 +256,24 @@ export function EditorOrcamento() {
               onChange={(e) => setGarantia(e.target.value.replace(/\D/g, ''))}
             />
           </div>
-          <AreaTexto
-            rotulo="Observações"
-            placeholder="O que o cliente precisa saber"
-            value={observacoes}
-            onChange={(e) => setObservacoes(e.target.value)}
-          />
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => void gerarComIA()}
+              disabled={gerandoTexto || itens.length === 0}
+              className="flex min-h-toque w-fit items-center gap-1.5 self-end rounded-badge bg-acento-suave px-3 text-apoio font-medium text-claro disabled:opacity-50"
+            >
+              <Sparkles aria-hidden size={14} className={gerandoTexto ? 'animate-pulse' : undefined} />
+              {gerandoTexto ? 'Gerando…' : 'Gerar com IA'}
+            </button>
+            <AreaTexto
+              rotulo="Observações"
+              placeholder="O que o cliente precisa saber"
+              dica="Opcional. O botão acima monta um texto de venda a partir dos itens — sempre revise antes de mandar."
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+            />
+          </div>
         </div>
       )}
 

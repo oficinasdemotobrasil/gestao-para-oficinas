@@ -147,7 +147,21 @@ indicadores, white-label, assinatura, IA e áudio.
    **Não desligue o "Verify JWT"** dessa função. Ela já valida a sessão por conta
    própria, e a verificação do portão é uma camada a mais que está funcionando —
    o teste prova que um token de admin real passa.
-5. **URLs de autenticação** — Authentication › URL Configuration:
+5. **Edge Function do texto por IA** (opcional — o app funciona sem ela, o
+   botão só mostra erro se for clicado):
+   ```bash
+   npx supabase functions deploy gerar-texto-orcamento
+   ```
+   Em **Edge Functions → gerar-texto-orcamento → Secrets**, adicione:
+   - `GEMINI_API_KEY` — a chave da sua conta Google AI Studio / Gemini
+   - `GEMINI_MODEL` — o id do modelo mais barato disponível *hoje*. Confira em
+     ai.google.dev/pricing antes de definir; não existe um valor certo para
+     sempre, os modelos e preços mudam. Em fev/2025 algo como
+     `gemini-2.0-flash-lite` era a opção mais barata — pode já ter mudado.
+
+   A chave nunca passa pelo navegador: fica só nesta função, que confere sessão
+   e perfil (admin ou vendedor) antes de gastar um único token.
+6. **URLs de autenticação** — Authentication › URL Configuration:
    - *Site URL*: a URL da Vercel (em desenvolvimento, `http://localhost:5173`)
    - *Redirect URLs*: `http://localhost:5173/redefinir-senha` e
      `https://SEU-APP.vercel.app/redefinir-senha`

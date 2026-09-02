@@ -188,6 +188,37 @@ export async function recusarOrcamento(id: string, motivo: string | null): Promi
   if (error) throw error
 }
 
+/**
+ * Pede ao Gemini um texto comercial para o campo Observações, a partir dos
+ * itens que já estão na tela — funciona tanto num orçamento novo (ainda não
+ * salvo) quanto num em edição. Uso opcional: nunca é chamado sozinho.
+ */
+export async function gerarTextoComercial(dados: {
+  itens: Array<{ descricao: string; tipo: string; quantidade: number; valor_unitario: number }>
+  desconto: number
+  total: number
+}): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('gerar-texto-orcamento', {
+    body: dados,
+  })
+
+  if (error) {
+    let mensagem = 'Não foi possível gerar o texto agora.'
+    const resposta = (error as { context?: Response }).context
+    if (resposta && typeof resposta.json === 'function') {
+      try {
+        const corpo = await resposta.json()
+        if (corpo?.erro) mensagem = corpo.erro
+      } catch {
+        // mantém a mensagem genérica se o corpo não for JSON
+      }
+    }
+    throw new Error(mensagem)
+  }
+  if (data?.erro) throw new Error(data.erro)
+  return data.texto as string
+}
+
 /** Marca como enviado ao mandar pelo WhatsApp ou copiar o texto. */
 export async function marcarComoEnviado(id: string): Promise<void> {
   const { error } = await supabase

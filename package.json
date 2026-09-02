@@ -13,7 +13,8 @@
     "validar:banco": "tsx scripts/validar-banco.ts",
     "migrations:juntar": "tsx scripts/juntar-migrations.ts",
     "teste:funcao": "tsx scripts/teste-edge-function.ts",
-    "teste:fase2": "tsx scripts/teste-fase2.ts"
+    "teste:fase2": "tsx scripts/teste-fase2.ts",
+    "teste:ia": "tsx scripts/teste-ia-orcamento.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
