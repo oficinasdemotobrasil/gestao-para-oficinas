@@ -4,6 +4,16 @@ import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
 
 export default defineConfig({
+  // O Vite crava a 5173 por padrão e ignora a variável PORT. Quando a porta já
+  // está ocupada, o ambiente atribui outra e a informa por aqui — sem isto, o
+  // servidor tenta subir na porta errada e falha.
+  //
+  // Atenção: a URL de recuperação de senha cadastrada no Supabase aponta para
+  // http://localhost:5173/redefinir-senha. Rodando em outra porta, só esse
+  // fluxo específico deixa de funcionar em desenvolvimento; o resto do app
+  // funciona igual.
+  server: { port: Number(process.env.PORT) || 5173 },
+  preview: { port: Number(process.env.PORT) || 4173 },
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') },
   },
