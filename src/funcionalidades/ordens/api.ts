@@ -8,11 +8,12 @@ export interface OrdemCompleta extends OrdemServico {
   /**
    * O orçamento que deu origem à ordem, quando houve um.
    *
-   * A OS copia os itens, mas não o desconto — ele mora no orçamento. Sem ler
-   * daqui, a tela somaria os itens e mostraria um valor maior do que o que o
-   * cliente aprovou. Vem nulo para o mecânico, que não lê orçamento.
+   * O valor da OS já não sai daqui — ela guarda o próprio (migration 0026).
+   * Este continua vindo por dois motivos: o link "ver o orçamento aprovado", e
+   * o aviso de que a ordem passou do que o cliente aceitou. Vem nulo para o
+   * mecânico, que não lê orçamento — e para ele nenhum dos dois faz falta.
    */
-  orcamento: Pick<Orcamento, 'numero' | 'desconto' | 'desconto_percentual' | 'valor_total'> | null
+  orcamento: Pick<Orcamento, 'numero' | 'valor_total'> | null
   itens: OsItem[]
 }
 
@@ -24,7 +25,7 @@ export async function obterOrdemServico(id: string): Promise<OrdemCompleta | nul
        cliente:clientes(id, nome, telefone),
        moto:motos(id, placa, marca, modelo),
        responsavel:usuarios(id, nome, perfil),
-       orcamento:orcamentos(numero, desconto, desconto_percentual, valor_total),
+       orcamento:orcamentos(numero, valor_total),
        itens:os_itens(*)`,
     )
     .eq('id', id)

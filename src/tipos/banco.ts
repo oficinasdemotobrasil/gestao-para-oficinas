@@ -216,6 +216,14 @@ type OrdemServico = {
   /** Qualquer colaborador pode ser o responsável, não só mecânico (0017). */
   responsavel_id: string | null
   status: StatusOS
+  /** O número digitado. Em reais ou em porcentagem, conforme desconto_tipo. */
+  desconto: number
+  desconto_tipo: 'valor' | 'percentual' | null
+  /**
+   * Valor da ordem, já com o desconto — a fonte de verdade do financeiro.
+   * O orçamento de origem é histórico: a OS muda durante o serviço.
+   */
+  valor_total: number
   km_entrada: number | null
   data_abertura: string
   data_conclusao: string | null

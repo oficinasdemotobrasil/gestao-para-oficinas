@@ -131,11 +131,6 @@ indicadores, white-label, assinatura, IA e áudio.
   inserção em lote, todas as linhas mandam todas as colunas.** Isso vai importar
   na Fase 2, que grava itens de orçamento e de OS em lote. A `moto_proprietarios`
   já está protegida por gatilho (migration `0015`).
-- **O desconto mora no orçamento, não na ordem de serviço.** A OS copia os itens,
-  mas não o desconto — ela não tem essa coluna. A tela da ordem lê o valor
-  aprovado do orçamento de origem justamente por isso. **Quando a Fase 3 for
-  faturar, o valor a cobrar tem que sair do orçamento**, ou a OS precisa ganhar
-  a coluna. Somar os itens da OS cobra a mais.
 - **"Copiar texto" depende do navegador.** Em https funciona; fora de contexto
   seguro o app cai no caminho antigo e, se ele também falhar, avisa em vez de
   fingir que copiou. Vale conferir uma vez no celular do cliente.

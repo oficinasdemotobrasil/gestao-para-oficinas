@@ -651,6 +651,69 @@ async function testarOrcamento() {
     `select public.aprovar_orcamento('${orcamentoId}', '${ID.adminA}')`,
   )
 
+  // O desconto tem que atravessar a aprovação -------------------------------
+  // Este bloco existe por causa de um defeito real: a OS copiava os itens e
+  // esquecia o desconto, e a ordem passava a valer mais do que o cliente
+  // aceitou. O centavo aqui não é preciosismo — é o que vai para a cobrança.
+  console.log('\n\x1b[1mO desconto atravessa a aprovação\x1b[0m')
+
+  const comDesconto = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', 24500,
+       7, 90, null, $2::numeric, 15.21, $1::jsonb) as id`,
+    // 15,21% sobre a soma dos itens (190), do mesmo jeito que a tela calcula:
+    // ela manda o percentual e o valor em reais que ele dá, sobre a mesma soma.
+    [itens, 190 * 0.1521],
+  )
+  const orcDesconto = comDesconto.rows[0].id
+  const totalOrcado = await contar(
+    `select (valor_total * 100)::int as n from public.orcamentos where id = '${orcDesconto}'`,
+  )
+
+  // Direcionada ao admin de propósito: responsável pode ser qualquer perfil, e
+  // assim este bloco não muda a conta de OS do mecânico que outro teste confere.
+  const osDesconto = await db.query<{ id: string }>(
+    `select public.aprovar_orcamento('${orcDesconto}', '${ID.adminA}') as id`,
+  )
+  const osDescontoId = osDesconto.rows[0].id
+
+  const totalDaOs = await contar(
+    `select (valor_total * 100)::int as n from public.ordens_servico where id = '${osDescontoId}'`,
+  )
+  totalDaOs === totalOrcado
+    ? ok(`a OS nasce com o valor aprovado, ao centavo (R$ ${(totalDaOs / 100).toFixed(2)})`)
+    : erro('valor da OS', `orçamento ${totalOrcado}, OS ${totalDaOs}`)
+
+  await esperaLinhas(
+    'a OS guarda o desconto como percentual, e não em reais',
+    `select count(*) as n from public.ordens_servico
+     where id = '${osDescontoId}' and desconto_tipo = 'percentual' and desconto = 15.21`,
+    1,
+  )
+
+  // Peça a mais no meio do serviço: o percentual acompanha a soma nova.
+  await db.query(
+    `insert into public.os_itens
+       (oficina_id, ordem_servico_id, tipo, descricao, quantidade, valor_unitario, valor_total)
+     values ('${ID.oficinaA}', '${osDescontoId}', 'avulso', 'Peça que apareceu no meio', 1, 100, 100)`,
+  )
+  const totalDepois = await contar(
+    `select (valor_total * 100)::int as n from public.ordens_servico where id = '${osDescontoId}'`,
+  )
+  // (190 + 100) menos 15,21% = 245,891 → 245,89
+  totalDepois === 24589
+    ? ok('acrescentar item recalcula o total, e o desconto percentual acompanha')
+    : erro('recálculo da OS', `esperava 24589 centavos, veio ${totalDepois}`)
+
+  await db.query(
+    `delete from public.os_itens where ordem_servico_id = '${osDescontoId}' and tipo = 'avulso' and valor_unitario = 100`,
+  )
+  const totalDeVolta = await contar(
+    `select (valor_total * 100)::int as n from public.ordens_servico where id = '${osDescontoId}'`,
+  )
+  totalDeVolta === totalOrcado
+    ? ok('remover o item devolve o total ao valor aprovado')
+    : erro('recálculo ao remover', `esperava ${totalOrcado}, veio ${totalDeVolta}`)
+
   // Duplicar
   const copia = await db.query<{ id: string }>(`select public.duplicar_orcamento('${orcamentoId}') as id`)
   await esperaLinhas(

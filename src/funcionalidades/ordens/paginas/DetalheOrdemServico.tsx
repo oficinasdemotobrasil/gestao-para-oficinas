@@ -52,7 +52,11 @@ export function DetalheOrdemServico() {
     (a, i) => a + Number(i.quantidade) * Number(i.valor_unitario),
     0,
   )
-  const desconto = Number(ordem.orcamento?.desconto ?? 0)
+  // O desconto sai da própria ordem, não do orçamento: durante o serviço a OS
+  // muda, e o orçamento deixa de descrever o que está sendo feito.
+  const desconto = ordem.desconto_tipo === 'percentual'
+    ? (soma * Number(ordem.desconto)) / 100
+    : Number(ordem.desconto)
 
   return (
     <Tela>
@@ -130,21 +134,17 @@ export function DetalheOrdemServico() {
         {desconto > 0 && (
           <Linha
             rotulo={
-              ordem.orcamento?.desconto_percentual != null
-                ? `Desconto (${porcentagem(ordem.orcamento.desconto_percentual)})`
+              ordem.desconto_tipo === 'percentual'
+                ? `Desconto (${porcentagem(ordem.desconto)})`
                 : 'Desconto'
             }
             valor={`− ${moeda(desconto)}`}
           />
         )}
-        {ordem.orcamento && (
-          <div className="flex items-baseline justify-between gap-4 border-t border-borda-clara py-3">
-            <span className="text-secao text-claro">Valor aprovado</span>
-            <span className="text-destaque text-claro">
-              {moeda(ordem.orcamento.valor_total)}
-            </span>
-          </div>
-        )}
+        <div className="flex items-baseline justify-between gap-4 border-t border-borda-clara py-3">
+          <span className="text-secao text-claro">Total</span>
+          <span className="text-destaque text-claro">{moeda(ordem.valor_total)}</span>
+        </div>
         <Linha
           rotulo="Garantia até"
           valor={ordem.garantia_ate ? data(ordem.garantia_ate) : '—'}
