@@ -175,6 +175,37 @@ Deno.serve(async (req: Request) => {
     if (!resposta.ok) {
       const detalhe = await resposta.text()
       console.error('Gemini respondeu com erro:', resposta.status, detalhe)
+
+      // 404 aqui quase sempre é o id do modelo errado no segredo GEMINI_MODEL —
+      // um nome comercial em vez do identificador da API, ou um modelo que foi
+      // descontinuado. Dizer isso poupa horas de caça ao erro errado.
+      if (resposta.status === 404) {
+        return responder(
+          {
+            erro:
+              `O modelo de IA configurado ("${modeloGemini}") não existe ou não está ` +
+              `disponível para esta chave. Corrija o segredo GEMINI_MODEL no Supabase.`,
+          },
+          502,
+        )
+      }
+
+      // 401/403: chave inválida, revogada, ou sem a API do Gemini habilitada.
+      if (resposta.status === 401 || resposta.status === 403) {
+        return responder(
+          { erro: 'A chave de IA foi recusada pelo Google. Verifique a GEMINI_API_KEY no Supabase.' },
+          502,
+        )
+      }
+
+      // 429: cota estourada — é dinheiro, e a pessoa precisa saber que é isso.
+      if (resposta.status === 429) {
+        return responder(
+          { erro: 'A cota de IA do mês acabou ou o limite por minuto foi atingido. Tente mais tarde.' },
+          502,
+        )
+      }
+
       return responder({ erro: 'Não foi possível gerar o texto agora. Tente de novo em instantes.' }, 502)
     }
 
