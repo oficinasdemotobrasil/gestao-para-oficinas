@@ -7,19 +7,43 @@ interface PropsTela {
   children: ReactNode
   /** Reserva o espaço da tab bar. Telas internas sem barra passam false. */
   comTabBar?: boolean
+  /**
+   * A tela tem uma barra fixa embaixo, acima da tab bar — o total do orçamento,
+   * por exemplo. Reserva o espaço dela para o conteúdo não terminar escondido.
+   *
+   * É uma propriedade e não um `className` de fora de propósito: dois
+   * `pb-[...]` concorrentes não se resolvem pela ordem em que são escritos, e
+   * sim pela ordem no CSS gerado. Já aconteceu — o fim do orçamento ficava
+   * embaixo do rodapé e a tela parecia ter travado de rolar.
+   */
+  comRodapeFixo?: boolean
   className?: string
 }
 
-export function Tela({ children, comTabBar = true, className }: PropsTela) {
+/** Altura do rodapé fixo: linha do total (34) + espaço (8) + botão (56) + padding (24). */
+const ALTURA_RODAPE = 130
+/** Ar entre o fim do conteúdo e o rodapé. Encostar um no outro parece defeito. */
+const RESPIRO = 24
+
+export function Tela({
+  children,
+  comTabBar = true,
+  comRodapeFixo = false,
+  className,
+}: PropsTela) {
+  // Os espaços em volta do "+" não são estilo: calc() sem eles é inválido e o
+  // navegador descarta a regra inteira, virando zero. O Tailwind normaliza isso
+  // sozinho nas classes; escrito à mão, é por nossa conta.
+  const espacoDeBaixo = [
+    comTabBar ? 'var(--altura-tabbar)' : '0px',
+    comRodapeFixo ? `${ALTURA_RODAPE + RESPIRO}px` : '24px',
+    'env(safe-area-inset-bottom)',
+  ].join(' + ')
+
   return (
     <main
-      className={cn(
-        'mx-auto min-h-dvh w-full max-w-lg px-5 pt-seguro',
-        comTabBar
-          ? 'pb-[calc(var(--altura-tabbar)+24px+env(safe-area-inset-bottom))]'
-          : 'pb-[calc(24px+env(safe-area-inset-bottom))]',
-        className,
-      )}
+      className={cn('mx-auto min-h-dvh w-full max-w-lg px-5 pt-seguro', className)}
+      style={{ paddingBottom: `calc(${espacoDeBaixo})` }}
     >
       {children}
     </main>

@@ -167,7 +167,7 @@ export function EditorOrcamento() {
   if (editando && isError) return <EstadoErro aoTentarDeNovo={() => void refetch()} />
 
   return (
-    <Tela className="pb-[calc(var(--altura-tabbar)+132px+env(safe-area-inset-bottom))]">
+    <Tela comRodapeFixo>
       <CabecalhoInterno
         titulo={
           editando && orcamento
