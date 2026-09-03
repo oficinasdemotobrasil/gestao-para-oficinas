@@ -8,7 +8,7 @@ import { Carregando } from '@/componentes/ui/Carregando'
 import { EstadoErro } from '@/componentes/ui/EstadoVazio'
 import { useToast } from '@/componentes/ui/Toast'
 import { traduzirErro } from '@/lib/erros'
-import { moeda, exibirPlaca, data, quilometragem, telefone } from '@/lib/formato'
+import { moeda, exibirPlaca, data, quilometragem, telefone, porcentagem } from '@/lib/formato'
 import { usePermissoes } from '@/auth/usePermissoes'
 import { ItensDoOrcamento } from '../ItensDoOrcamento'
 import { StatusOrcamentoBadge } from '../StatusOrcamentoBadge'
@@ -129,7 +129,7 @@ export function DetalheOrcamento() {
           <Linha
             rotulo={
               orcamento.desconto_percentual != null
-                ? `Desconto (${orcamento.desconto_percentual}%)`
+                ? `Desconto (${porcentagem(orcamento.desconto_percentual)})`
                 : 'Desconto'
             }
             valor={`− ${moeda(orcamento.desconto)}`}

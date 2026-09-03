@@ -18,6 +18,14 @@ export function quantidade(valor: number | string | null | undefined): string {
   )
 }
 
+/** 15,21% — o ponto decimal do banco não é como se escreve preço no Brasil. */
+export function porcentagem(valor: number | string | null | undefined): string {
+  const n = typeof valor === 'string' ? Number(valor) : (valor ?? 0)
+  return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(
+    Number.isFinite(n) ? n : 0,
+  )}%`
+}
+
 /** 31/12/2025 */
 export function data(valor: string | Date | null | undefined): string {
   if (!valor) return '—'

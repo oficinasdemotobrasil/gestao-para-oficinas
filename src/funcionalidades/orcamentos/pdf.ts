@@ -1,6 +1,14 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { moeda, exibirPlaca, data, telefone, cpfCnpj, quantidade as formatarQuantidade } from '@/lib/formato'
+import {
+  moeda,
+  exibirPlaca,
+  data,
+  telefone,
+  cpfCnpj,
+  porcentagem,
+  quantidade as formatarQuantidade,
+} from '@/lib/formato'
 import type { Oficina } from '@/tipos/banco'
 import type { OrcamentoCompleto } from './api'
 
@@ -18,6 +26,36 @@ const ESCURO: [number, number, number] = [17, 17, 19]
 const CINZA: [number, number, number] = [107, 107, 112]
 
 const MARGEM = 14
+
+/**
+ * Tira do texto o que a fonte do PDF não sabe desenhar.
+ *
+ * As fontes padrão do jsPDF (helvetica e companhia) escrevem no alfabeto
+ * WinAnsi — acento, cedilha e travessão entram; emoji, não. E o estrago não é
+ * só o símbolo errado: o jsPDF erra a medida da linha que contém o caractere
+ * desconhecido, a quebra automática não acontece e a frase sai pela borda da
+ * página, com as letras espaçadas. Foi exatamente o que apareceu no rodapé de
+ * um orçamento cujo texto a IA terminou com um emoji.
+ *
+ * O emoji continua inteiro no WhatsApp, que sabe mostrá-lo. Aqui ele some, e é
+ * a decisão certa: melhor a frase limpa do que a frase quebrada.
+ */
+const FORA_DA_FONTE =
+  // eslint-disable-next-line no-control-regex
+  /[^\n\x20-\x7E\u00A0-\u00FF\u0152\u0153\u0160\u0161\u0178\u017D\u017E\u0192\u02C6\u02DC\u2013\u2014\u2018\u2019\u201A\u201C\u201D\u201E\u2020\u2021\u2022\u2026\u2030\u2039\u203A\u20AC\u2122]/g
+
+function paraPdf(texto: string | null | undefined): string {
+  if (!texto) return ''
+  return (
+    texto
+      .normalize('NFC')
+      .replace(FORA_DA_FONTE, '')
+      // O emoji costuma vir depois de um espaço; sem isto sobra o espaço solto.
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/[ \t]+\n/g, '\n')
+      .trim()
+  )
+}
 
 export function gerarPdfDoOrcamento(
   orcamento: OrcamentoCompleto,
@@ -42,15 +80,16 @@ export function gerarPdfDoOrcamento(
 
   y += 6
   doc.setTextColor(...ESCURO)
+  const nomeDaOficina = paraPdf(oficina.nome)
   let corpoDoNome = 18
   doc.setFontSize(corpoDoNome)
-  while (corpoDoNome > 11 && doc.getTextWidth(oficina.nome) > espacoDoNome) {
+  while (corpoDoNome > 11 && doc.getTextWidth(nomeDaOficina) > espacoDoNome) {
     corpoDoNome -= 1
     doc.setFontSize(corpoDoNome)
   }
   // Ainda não coube nem no menor corpo: corta, porque quebrar em duas linhas
   // empurraria o resto do cabeçalho para baixo do endereço.
-  let nomeVisivel = oficina.nome
+  let nomeVisivel = nomeDaOficina
   if (doc.getTextWidth(nomeVisivel) > espacoDoNome) {
     while (nomeVisivel.length > 4 && doc.getTextWidth(`${nomeVisivel}…`) > espacoDoNome) {
       nomeVisivel = nomeVisivel.slice(0, -1)
@@ -73,7 +112,7 @@ export function gerarPdfDoOrcamento(
     y += 4
   }
   if (oficina.endereco) {
-    doc.text(oficina.endereco, MARGEM, y, { maxWidth: largura - MARGEM * 2 })
+    doc.text(paraPdf(oficina.endereco), MARGEM, y, { maxWidth: largura - MARGEM * 2 })
     y += 4
   }
 
@@ -104,9 +143,9 @@ export function gerarPdfDoOrcamento(
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
   doc.setTextColor(...ESCURO)
-  doc.text(orcamento.cliente?.nome ?? '—', MARGEM, y)
+  doc.text(paraPdf(orcamento.cliente?.nome) || '—', MARGEM, y)
 
-  const modelo = [orcamento.moto?.marca, orcamento.moto?.modelo].filter(Boolean).join(' ')
+  const modelo = paraPdf([orcamento.moto?.marca, orcamento.moto?.modelo].filter(Boolean).join(' '))
   doc.text(orcamento.moto ? exibirPlaca(orcamento.moto.placa) : '—', meio, y)
 
   y += 5
@@ -133,7 +172,7 @@ export function gerarPdfDoOrcamento(
     startY: y,
     head: [['Descrição', 'Tipo', 'Qtd.', 'Valor un.', 'Total']],
     body: orcamento.itens.map((i) => [
-      i.descricao,
+      paraPdf(i.descricao),
       rotuloDoTipo[i.tipo],
       formatarQuantidade(Number(i.quantidade)),
       moeda(Number(i.valor_unitario)),
@@ -183,7 +222,7 @@ export function gerarPdfDoOrcamento(
     doc.setTextColor(...CINZA)
     const rotuloDesconto =
       orcamento.desconto_percentual != null
-        ? `Desconto (${orcamento.desconto_percentual}%)`
+        ? `Desconto (${porcentagem(orcamento.desconto_percentual)})`
         : 'Desconto'
     doc.text(rotuloDesconto, colunaRotulo, y, { align: 'right' })
     doc.setTextColor(...ESCURO)
@@ -206,18 +245,38 @@ export function gerarPdfDoOrcamento(
   y += 14
 
   // --- Observações ----------------------------------------------------------
-  if (orcamento.observacoes?.trim()) {
+  const observacoes = paraPdf(orcamento.observacoes)
+  if (observacoes) {
+    const ALTURA_LINHA = 4.5
+    const LIMITE = doc.internal.pageSize.getHeight() - 34
+
+    if (y + 12 > LIMITE) {
+      doc.addPage()
+      y = MARGEM + 6
+    }
+
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8)
     doc.setTextColor(...CINZA)
     doc.text('OBSERVAÇÕES', MARGEM, y)
     y += 5
+
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
     doc.setTextColor(...ESCURO)
-    const linhas = doc.splitTextToSize(orcamento.observacoes.trim(), largura - MARGEM * 2)
-    doc.text(linhas, MARGEM, y)
-    y += linhas.length * 4.5 + 4
+
+    // Uma linha por vez, e não o bloco inteiro de uma vez: um texto comprido
+    // desenhado em bloco continua descendo depois do fim da página, e some.
+    const linhas: string[] = doc.splitTextToSize(observacoes, largura - MARGEM * 2)
+    for (const linha of linhas) {
+      if (y > LIMITE) {
+        doc.addPage()
+        y = MARGEM + 6
+      }
+      doc.text(linha, MARGEM, y)
+      y += ALTURA_LINHA
+    }
+    y += 4
   }
 
   // --- Rodapé: validade e garantia -----------------------------------------

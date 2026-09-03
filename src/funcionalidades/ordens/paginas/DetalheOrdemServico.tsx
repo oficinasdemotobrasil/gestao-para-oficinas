@@ -5,7 +5,7 @@ import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
 import { Card } from '@/componentes/ui/Card'
 import { Carregando } from '@/componentes/ui/Carregando'
 import { EstadoErro } from '@/componentes/ui/EstadoVazio'
-import { moeda, exibirPlaca, data, quilometragem, telefone } from '@/lib/formato'
+import { moeda, exibirPlaca, data, quilometragem, telefone, porcentagem } from '@/lib/formato'
 import { nomeDoPerfil } from '@/auth/usePermissoes'
 import { ItensDoOrcamento } from '@/funcionalidades/orcamentos/ItensDoOrcamento'
 import { StatusOsBadge } from '../StatusOsBadge'
@@ -131,7 +131,7 @@ export function DetalheOrdemServico() {
           <Linha
             rotulo={
               ordem.orcamento?.desconto_percentual != null
-                ? `Desconto (${ordem.orcamento.desconto_percentual}%)`
+                ? `Desconto (${porcentagem(ordem.orcamento.desconto_percentual)})`
                 : 'Desconto'
             }
             valor={`− ${moeda(desconto)}`}
