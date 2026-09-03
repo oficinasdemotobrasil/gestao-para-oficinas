@@ -38,8 +38,21 @@ interface Props {
  * digitado continua ali atrás. Com a moto na frente e o cliente esperando, cada
  * tela a menos conta.
  */
-export function FolhaDeBusca({
-  aberto,
+export function FolhaDeBusca(props: Props) {
+  // A folha inteira é remontada a cada abertura.
+  //
+  // Sem isto, o estado da vez anterior sobrevive: ao reabrir, o campo aparecia
+  // vazio mas a lista ainda mostrava o resultado da última busca — e só se
+  // corrigia sozinha depois do tempo do debounce. Numa internet lenta essa
+  // janela é longa o bastante para a pessoa concluir que a tela quebrou.
+  //
+  // Montar do zero elimina a classe inteira de problema, em vez de zerar cada
+  // estado na mão e esquecer um.
+  if (!props.aberto) return null
+  return <ConteudoDaFolha {...props} />
+}
+
+function ConteudoDaFolha({
   aoFechar,
   titulo,
   placeholder,
@@ -56,25 +69,19 @@ export function FolhaDeBusca({
   const [erro, setErro] = useState(false)
 
   useEffect(() => {
-    if (!aberto) return
     let ativo = true
     setErro(false)
-    setOpcoes(null)
     buscar(termoAtrasado)
       .then((r) => ativo && setOpcoes(r))
       .catch(() => ativo && setErro(true))
     return () => {
       ativo = false
     }
-  }, [aberto, termoAtrasado, buscar])
-
-  useEffect(() => {
-    if (aberto) setTermo('')
-  }, [aberto])
+  }, [termoAtrasado, buscar])
 
   return (
     <Modal
-      aberto={aberto}
+      aberto
       aoFechar={aoFechar}
       titulo={titulo}
       rodape={
@@ -96,14 +103,15 @@ export function FolhaDeBusca({
 
         {erro ? (
           <EstadoErro
+            sobreClaro
             titulo="Não foi possível buscar"
             descricao="Verifique a conexão e digite de novo."
           />
         ) : opcoes === null ? (
-          <EsqueletoLista linhas={3} />
+          <EsqueletoLista sobreClaro linhas={3} />
         ) : opcoes.length === 0 ? (
           <EstadoVazio
-            icone={null}
+            sobreClaro
             titulo={termo ? 'Nada encontrado' : vazio.titulo}
             descricao={termo ? `Nenhum resultado para "${termo}".` : vazio.descricao}
           />
