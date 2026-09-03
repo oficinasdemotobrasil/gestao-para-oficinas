@@ -23,6 +23,7 @@ import { Configuracoes } from '@/funcionalidades/configuracoes/Configuracoes'
 import { ListaOrcamentos } from '@/funcionalidades/orcamentos/paginas/ListaOrcamentos'
 import { EditorOrcamento } from '@/funcionalidades/orcamentos/paginas/EditorOrcamento'
 import { DetalheOrcamento } from '@/funcionalidades/orcamentos/paginas/DetalheOrcamento'
+import { DetalheOrdemServico } from '@/funcionalidades/ordens/paginas/DetalheOrdemServico'
 
 export const rotas = createBrowserRouter([
   {
@@ -67,6 +68,10 @@ export const rotas = createBrowserRouter([
               { path: '/orcamentos/:id', element: <DetalheOrcamento /> },
               { path: '/orcamentos/:id/editar', element: <EditorOrcamento /> },
             ],
+          },
+          {
+            element: <RotaPorPerfil permitido={(p) => p.verOrdens} />,
+            children: [{ path: '/ordens/:id', element: <DetalheOrdemServico /> }],
           },
           {
             element: <RotaPorPerfil permitido={(p) => p.verMotos} />,

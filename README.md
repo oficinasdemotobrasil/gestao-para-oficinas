@@ -6,7 +6,8 @@ oficina, com a mão suja de graxa.
 
 Primeiro cliente: **Oficina Tiago Carvalho**.
 
-**Fase 1 de 4** — cadastros, acesso e a base de segurança multi-tenant.
+**Fase 2 de 4** — estoque, orçamento, PDF, WhatsApp e aprovação virando ordem
+de serviço. A Fase 1 (cadastros, acesso e a base multi-tenant) está fechada.
 
 Em produção: **https://gestao-para-oficinas.vercel.app**
 
@@ -28,6 +29,7 @@ npm run dev
 | `npm run validar:banco` | Roda as migrations num Postgres local e testa o RLS. Não precisa de internet nem de projeto Supabase |
 | `npm run teste:isolamento` | Teste oficial de isolamento, contra o Supabase real. Precisa de `.env.test.local` |
 | `npm run teste:funcao` | Ataca a Edge Function `criar-colaborador`, o único lugar onde a service_role roda. Precisa de `.env.test.local` |
+| `npm run teste:ia` | Prova a Edge Function do texto comercial. Precisa de `.env.test.local` e da chave do Gemini configurada |
 | `npm run teste:fase2` | Prova estoque, nota, orçamento e aprovação contra o Supabase real. Precisa de `.env.test.local` |
 | `npm run checar-tipos` | TypeScript sem gerar arquivos |
 | `npm run migrations:juntar` | Regera `supabase/_todas_migrations_em_ordem.sql`, o arquivo colável no SQL Editor. Rode sempre que criar uma migration |
@@ -86,6 +88,23 @@ outra.
 - Dois níveis de teste de isolamento entre oficinas, mais um teste de ataque à
   Edge Function (tenta plantar colaborador na oficina de outro cliente)
 
+### Pronto na Fase 2
+
+- Motor de estoque no banco: entrada, saída e ajuste com trava contra saldo
+  negativo, extrato que nunca é apagado e recálculo a partir do extrato
+- Orçamento: editor de uma tela só, itens de catálogo e itens avulsos, desconto,
+  validade e garantia, numeração por oficina
+- Texto comercial opcional gerado por IA para o campo de observações
+- Envio ao cliente: mensagem pronta de WhatsApp, cópia do texto e PDF de uma
+  página com cabeçalho da oficina, tabela de itens, desconto, total, validade e
+  garantia. No celular, o botão de compartilhar usa o menu do próprio aparelho
+- Aprovação: o orçamento vira ordem de serviço aberta, com todos os itens
+  copiados e um responsável escolhido na hora — qualquer perfil, não só mecânico.
+  O estoque **não** é baixado nesse momento
+- Recusa com motivo, e o orçamento decidido fica só de leitura
+- Tela de ordem de serviço de leitura, e a lista de ordens do mecânico na tela
+  inicial dele
+
 ### Fora do escopo da Fase 1 (de propósito)
 
 Movimentação de estoque, notas fiscais, orçamentos, PDF, WhatsApp, ordens de
@@ -112,6 +131,14 @@ indicadores, white-label, assinatura, IA e áudio.
   inserção em lote, todas as linhas mandam todas as colunas.** Isso vai importar
   na Fase 2, que grava itens de orçamento e de OS em lote. A `moto_proprietarios`
   já está protegida por gatilho (migration `0015`).
+- **O desconto mora no orçamento, não na ordem de serviço.** A OS copia os itens,
+  mas não o desconto — ela não tem essa coluna. A tela da ordem lê o valor
+  aprovado do orçamento de origem justamente por isso. **Quando a Fase 3 for
+  faturar, o valor a cobrar tem que sair do orçamento**, ou a OS precisa ganhar
+  a coluna. Somar os itens da OS cobra a mais.
+- **"Copiar texto" depende do navegador.** Em https funciona; fora de contexto
+  seguro o app cai no caminho antigo e, se ele também falhar, avisa em vez de
+  fingir que copiou. Vale conferir uma vez no celular do cliente.
 - **Não existe transferência de moto entre donos** ainda. A estrutura suporta
   (`moto_proprietarios` com `data_fim`), mas não há tela. Entra na Fase 2.
 

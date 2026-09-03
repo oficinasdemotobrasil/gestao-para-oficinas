@@ -13,6 +13,7 @@ import { usePermissoes } from '@/auth/usePermissoes'
 import { ItensDoOrcamento } from '../ItensDoOrcamento'
 import { StatusOrcamentoBadge } from '../StatusOrcamentoBadge'
 import { obterOrcamento, duplicarOrcamento, statusEfetivo } from '../api'
+import { AcoesDoOrcamento } from '../AcoesDoOrcamento'
 
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
@@ -167,7 +168,13 @@ export function DetalheOrcamento() {
         </>
       )}
 
-      <div className="flex flex-col gap-3 pt-8">
+      <AcoesDoOrcamento
+        orcamento={orcamento}
+        statusEfetivo={efetivo}
+        podeAgir={p.editarOrcamentos}
+      />
+
+      <div className="flex flex-col gap-3 pt-6">
         {podeEditar && (
           <Botao
             largo
@@ -190,10 +197,6 @@ export function DetalheOrcamento() {
           </Botao>
         )}
       </div>
-
-      <p className="px-1 pt-6 text-apoio text-escuro-secundario">
-        Enviar por WhatsApp, gerar o PDF e aprovar entram no próximo bloco.
-      </p>
     </Tela>
   )
 }

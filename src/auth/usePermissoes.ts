@@ -33,6 +33,10 @@ export function usePermissoes() {
     verOrcamentos: ehAtendimento,
     editarOrcamentos: ehAtendimento,
 
+    // O mecânico também abre ordem de serviço: é o trabalho dele. Quais ele
+    // enxerga quem decide é o RLS — só as que estão no nome dele.
+    verOrdens: true,
+
     verCatalogo: ehAtendimento,
     /** Só o admin enxerga preço de custo e margem. */
     verCusto: ehAdmin,

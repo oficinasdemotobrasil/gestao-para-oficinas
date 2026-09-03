@@ -63,6 +63,10 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // O jsPDF traz html2canvas e dompurify para converter HTML em PDF —
+        // recurso que este app não usa (o PDF é desenhado direto). São mais de
+        // 200 KB que o service worker baixaria na instalação para nunca abrir.
+        globIgnores: ['**/html2canvas*.js', '**/purify*.js'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],
         // O shell do app fica em cache; dados do Supabase nunca são cacheados,

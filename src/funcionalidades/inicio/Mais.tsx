@@ -111,7 +111,7 @@ export function Mais() {
 
       <p className="flex items-start gap-2 px-1 pt-8 text-apoio text-escuro-secundario">
         <Info aria-hidden size={16} className="mt-0.5 shrink-0" />
-        Gestão para Oficinas · Fase 1
+        Gestão para Oficinas · Fase 2
       </p>
     </Tela>
   )

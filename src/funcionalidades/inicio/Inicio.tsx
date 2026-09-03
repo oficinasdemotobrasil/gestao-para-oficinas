@@ -4,10 +4,15 @@ import { Users, Bike, Package, Wrench, ClipboardList, UserPlus, TriangleAlert, F
 import type { LucideIcon } from 'lucide-react'
 import { Tela, CabecalhoTela, TituloSecao } from '@/componentes/layout/Tela'
 import { EstadoVazio } from '@/componentes/ui/EstadoVazio'
+import { EsqueletoLista } from '@/componentes/ui/Carregando'
+import { Card } from '@/componentes/ui/Card'
+import { exibirPlaca, quilometragem } from '@/lib/formato'
 import { useAuth } from '@/auth/ProvedorAuth'
 import { usePermissoes } from '@/auth/usePermissoes'
 import { primeiroNome } from '@/lib/formato'
 import { produtosParaRepor } from '@/funcionalidades/estoque/api'
+import { listarOrdensEmAberto } from '@/funcionalidades/ordens/api'
+import { StatusOsBadge } from '@/funcionalidades/ordens/StatusOsBadge'
 
 interface Atalho {
   para: string
@@ -29,9 +34,15 @@ export function Inicio() {
     enabled: p.verCatalogo,
   })
 
-  // O mecânico só enxerga as ordens atribuídas a ele — e ordem de serviço é
-  // assunto da Fase 2. Até lá esta é a tela inteira dele, o que é o correto,
-  // e não uma configuração faltando.
+  // O RLS já entrega só as ordens do próprio mecânico; para o atendimento
+  // viriam todas, e a lista completa é assunto da Fase 3.
+  const ordens = useQuery({
+    queryKey: ['ordens-em-aberto'],
+    queryFn: listarOrdensEmAberto,
+    enabled: p.ehMecanico,
+  })
+
+  // Para o mecânico, esta é a tela inteira: o que ele tem para fazer hoje.
   if (p.ehMecanico) {
     return (
       <Tela>
@@ -39,11 +50,45 @@ export function Inicio() {
           titulo={`Olá, ${primeiroNome(usuario?.nome)}!`}
           contexto={oficina?.nome}
         />
-        <EstadoVazio
-          icone={<ClipboardList aria-hidden size={28} />}
-          titulo="Nenhuma ordem de serviço"
-          descricao="Assim que o responsável atribuir um serviço a você, ele aparece aqui com a moto e o que precisa ser feito."
-        />
+
+        {ordens.isPending ? (
+          <EsqueletoLista linhas={3} />
+        ) : ordens.data && ordens.data.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            {ordens.data.map((os) => (
+              <button
+                key={os.id}
+                type="button"
+                onClick={() => navegar(`/ordens/${os.id}`)}
+                className="text-left"
+              >
+                <Card>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-corpo font-medium text-claro">
+                        {os.moto ? exibirPlaca(os.moto.placa) : 'Moto removida'}
+                      </p>
+                      <p className="truncate text-apoio text-claro-secundario">
+                        {[os.moto?.marca, os.moto?.modelo].filter(Boolean).join(' ')}
+                        {os.km_entrada ? ` · ${quilometragem(os.km_entrada)}` : ''}
+                      </p>
+                      <p className="truncate pt-2 text-apoio text-claro-secundario">
+                        OS {String(os.numero).padStart(3, '0')} · {os.cliente?.nome ?? '—'}
+                      </p>
+                    </div>
+                    <StatusOsBadge status={os.status} />
+                  </div>
+                </Card>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <EstadoVazio
+            icone={<ClipboardList aria-hidden size={28} />}
+            titulo="Nenhuma ordem de serviço"
+            descricao="Assim que o responsável atribuir um serviço a você, ele aparece aqui com a moto e o que precisa ser feito."
+          />
+        )}
       </Tela>
     )
   }
