@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Users, Plus, Phone } from 'lucide-react'
+import { Users, Plus, Phone, UserX } from 'lucide-react'
 import { Tela, CabecalhoTela } from '@/componentes/layout/Tela'
 import { CampoBusca } from '@/componentes/ui/CampoBusca'
 import { ListaCard, LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
@@ -44,9 +44,23 @@ export function ListaClientes() {
         />
 
         {p.editarClientes && (
-          <Botao largo icone={<Plus aria-hidden size={20} />} onClick={() => navegar('/clientes/novo')}>
-            Novo cliente
-          </Botao>
+          <>
+            <Botao
+              largo
+              variante="contorno"
+              icone={<UserX aria-hidden size={20} />}
+              onClick={() => navegar('/clientes/sumidos')}
+            >
+              Quem sumiu
+            </Botao>
+            <Botao
+              largo
+              icone={<Plus aria-hidden size={20} />}
+              onClick={() => navegar('/clientes/novo')}
+            >
+              Novo cliente
+            </Botao>
+          </>
         )}
       </div>
 

@@ -46,6 +46,8 @@ type Oficina = {
   cidade: string | null
   /** Categorias de despesa que a oficina usa nas contas a pagar. */
   categorias_despesa: string[]
+  /** Depois de quantos dias sem serviço concluído o cliente entra em "sumidos". */
+  dias_para_cliente_inativo: number
 }
 
 type Usuario = {
@@ -503,6 +505,68 @@ export type Database = {
       pagar_conta: {
         Args: { p_conta_id: string; p_data: string; p_forma_pagamento: string | null }
         Returns: ContaPagar
+      }
+      painel: {
+        Args: { p_de: string; p_ate: string }
+        Returns: {
+          de: string
+          ate: string
+          orcamentos: {
+            emitidos: number
+            aprovados: number
+            recusados: number
+            em_aberto: number
+            valor_aprovado: number
+            ticket_medio: number
+            conversao: number | null
+          }
+          servicos: {
+            abertas: number
+            em_andamento: number
+            aguardando_conferencia: number
+            finalizadas: number
+            canceladas: number
+            valor_finalizado: number
+            horas_medias: number
+          }
+          ranking: Array<{ nome: string; ordens: number; minutos: number }>
+          financeiro: {
+            a_receber: number
+            em_atraso: number
+            recebido: number
+            a_pagar: number
+            pago: number
+          }
+          evolucao: Array<{ dia: string; valor: number }>
+          produtos_para_repor: number
+        }
+      }
+      clientes_inativos: {
+        Args: { p_dias: number | null }
+        Returns: Array<{
+          cliente_id: string
+          nome: string
+          telefone: string | null
+          ultima_visita: string
+          dias_sem_voltar: number
+          placa: string | null
+          marca: string | null
+          modelo: string | null
+          ultimo_servico: string | null
+        }>
+      }
+      historico_da_placa: {
+        Args: { p_moto_id: string }
+        Returns: Array<{
+          id: string
+          numero: number
+          data: string
+          km: number | null
+          valor: number
+          dono_na_epoca: string | null
+          servicos: string[]
+          pecas: string[]
+        }>
       }
       tempo_da_os: {
         Args: { p_ordem_servico_id: string }

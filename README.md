@@ -6,8 +6,8 @@ oficina, com a mão suja de graxa.
 
 Primeiro cliente: **Oficina Tiago Carvalho**.
 
-**Fase 2 de 4** — estoque, orçamento, PDF, WhatsApp e aprovação virando ordem
-de serviço. A Fase 1 (cadastros, acesso e a base multi-tenant) está fechada.
+**Fase 3 de 4** — ordens de serviço, apontamento de tempo, financeiro, PIX,
+painel, clientes sumidos e histórico da placa. As Fases 1 e 2 estão fechadas.
 
 Em produção: **https://gestao-para-oficinas.vercel.app**
 
@@ -114,6 +114,25 @@ outra.
 - Recusa com motivo, e o orçamento decidido fica só de leitura
 - Tela de ordem de serviço de leitura, e a lista de ordens do mecânico na tela
   inicial dele
+
+### Pronto na Fase 3
+
+- Ciclo de vida da OS com histórico de quem fez cada passo, e trava contra
+  pular etapa
+- Baixa de estoque na finalização, com aviso do que falta e opção de finalizar
+  assim mesmo. Cancelar estorna
+- Apontamento de tempo pelo próprio andamento, com um relógio por mecânico
+  garantido por índice único
+- **O mecânico não alcança dinheiro nenhum**, nem chamando a API na mão: ele
+  perdeu a leitura das tabelas com valor e recebe a tela dele por função
+- Financeiro: cobrança parcelada nascendo da OS, baixa parcial, contas a pagar
+  com repetição, e `atrasada` calculada na leitura
+- PIX: BR Code gerado no navegador, sem servidor e sem custo por cobrança,
+  conferido contra o exemplo do Banco Central
+- Painel do dono com conversão, ticket médio, tempo médio, ranking e saldo
+- Clientes sumidos com mensagem de retorno editável
+- Histórico da placa, que segue a moto e não o dono — e mostra só o NOME de
+  quem era o dono na época
 
 ### Fora do escopo da Fase 1 (de propósito)
 

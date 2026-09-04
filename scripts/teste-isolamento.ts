@@ -66,6 +66,7 @@ function erro(nome: string, detalhe: string) {
 }
 
 interface Cenario {
+  ordemServicoId: string
   oficinaId: string
   adminId: string
   vendedorId: string
@@ -154,7 +155,45 @@ async function montarOficina(rotulo: string, placa: string): Promise<Cenario> {
     vencimento: new Date().toISOString().slice(0, 10),
   })
 
+  await admin.from('contas_pagar').insert({
+    oficina_id: oficina.id,
+    descricao: `Despesa da ${rotulo}`,
+    categoria: 'Aluguel',
+    valor: 500,
+    vencimento: new Date().toISOString().slice(0, 10),
+  })
+
+  // Uma ordem de serviço de verdade, atribuída ao mecânico: sem ela, metade do
+  // que a Fase 3 criou não teria linha nenhuma para o teste tentar alcançar.
+  const { data: os, error: erroOs } = await admin
+    .from('ordens_servico')
+    .insert({
+      oficina_id: oficina.id,
+      cliente_id: cliente.id,
+      moto_id: moto.id,
+      responsavel_id: mecanicoId,
+      status: 'aberta',
+      km_entrada: 1000,
+      valor_total: 150,
+    })
+    .select()
+    .single()
+  if (erroOs) throw erroOs
+
+  const { error: erroItem } = await admin.from('os_itens').insert({
+    oficina_id: oficina.id,
+    ordem_servico_id: os.id,
+    tipo: 'servico',
+    servico_id: servico.id,
+    descricao: `Serviço da ${rotulo}`,
+    quantidade: 1,
+    valor_unitario: 150,
+    valor_total: 150,
+  })
+  if (erroItem) throw erroItem
+
   return {
+    ordemServicoId: os.id,
     oficinaId: oficina.id,
     adminId,
     vendedorId,
@@ -241,6 +280,69 @@ async function testar(a: Cenario, b: Cenario) {
     0,
   )
 
+  // As tabelas que a Fase 3 encheu -------------------------------------------
+  await esperaLinhas(
+    'não lê a ordem de serviço da B',
+    adminA.from('ordens_servico').select('id').eq('oficina_id', b.oficinaId),
+    0,
+  )
+  await esperaLinhas(
+    'não lê os itens da ordem da B',
+    adminA.from('os_itens').select('id').eq('oficina_id', b.oficinaId),
+    0,
+  )
+  await esperaLinhas(
+    'não lê o histórico de status da B',
+    adminA.from('os_status_historico').select('id').eq('oficina_id', b.oficinaId),
+    0,
+  )
+  await esperaLinhas(
+    'não lê o apontamento de tempo da B',
+    adminA.from('apontamentos_tempo').select('id').eq('oficina_id', b.oficinaId),
+    0,
+  )
+  await esperaLinhas(
+    'não lê as contas a pagar da B',
+    adminA.from('contas_pagar').select('id').eq('oficina_id', b.oficinaId),
+    0,
+  )
+
+  // E as funções, que rodam como donas do banco — o lugar onde um esquecimento
+  // atravessaria o RLS sem fazer barulho.
+  await esperaBloqueio(
+    'não finaliza a ordem da B',
+    adminA.rpc('finalizar_os', { p_ordem_servico_id: b.ordemServicoId, p_permitir_negativo: false }),
+  )
+  await esperaBloqueio(
+    'não cancela a ordem da B',
+    adminA.rpc('cancelar_os', { p_ordem_servico_id: b.ordemServicoId, p_motivo: null }),
+  )
+  await esperaBloqueio(
+    'não mexe no status da ordem da B',
+    adminA.rpc('mudar_status_da_os', { p_ordem_servico_id: b.ordemServicoId, p_status: 'em_andamento' }),
+  )
+  await esperaBloqueio(
+    'não lança cobrança sobre a ordem da B',
+    adminA.rpc('criar_cobranca_da_os', {
+      p_ordem_servico_id: b.ordemServicoId, p_parcelas: 1,
+      p_primeiro_vencimento: new Date().toISOString().slice(0, 10), p_forma_pagamento: null,
+    }),
+  )
+  await esperaBloqueio(
+    'não abre o histórico da placa da B',
+    adminA.rpc('historico_da_placa', { p_moto_id: b.motoId }),
+  )
+
+  // O painel é por oficina: o da A não pode contar o movimento da B.
+  const { data: painel, error: erroPainel } = await adminA.rpc('painel', {
+    p_de: new Date(Date.now() - 86400000 * 30).toISOString().slice(0, 10),
+    p_ate: new Date().toISOString().slice(0, 10),
+  })
+  const total = Number(painel?.servicos?.abertas ?? -1)
+  total === 1
+    ? ok('o painel conta só o movimento da própria oficina (1 ordem aberta)')
+    : erro('painel', `contou ${total}${erroPainel ? ` — ${erroPainel.message}` : ''}`)
+
   await esperaBloqueio(
     'não altera o cliente da B',
     adminA.from('clientes').update({ nome: 'invadido' }).eq('id', b.clienteId).select(),
@@ -312,15 +414,47 @@ async function testar(a: Cenario, b: Cenario) {
   if (!('preco_custo' in primeiro)) ok('a view não devolve preco_custo no JSON')
   else erro('vazamento de custo', 'preco_custo veio na resposta da view')
 
-  console.log('\n\x1b[1mMecânico da Oficina A (sem ordem atribuída)\x1b[0m')
+  console.log('\n\x1b[1mMecânico da Oficina A (com uma ordem no nome dele)\x1b[0m')
   const mecanicoA = await entrarComo(a.emails[2])
-  await esperaLinhas('NÃO enxerga clientes', mecanicoA.from('clientes').select('id'), 0)
-  await esperaLinhas('NÃO enxerga motos', mecanicoA.from('motos').select('id'), 0)
+  // Ele enxerga o cliente e a moto DA ORDEM DELE, e só. É por derivação: sem
+  // isso, abriria a ordem sem saber de que moto se trata.
+  await esperaLinhas('enxerga só o cliente da ordem dele', mecanicoA.from('clientes').select('id'), 1)
+  await esperaLinhas('enxerga só a moto da ordem dele', mecanicoA.from('motos').select('id'), 1)
+  await esperaLinhas(
+    'e nenhum cliente da outra oficina',
+    mecanicoA.from('clientes').select('id').eq('oficina_id', b.oficinaId),
+    0,
+  )
   await esperaLinhas('NÃO enxerga produtos', mecanicoA.from('produtos').select('id'), 0)
   await esperaLinhas('NÃO enxerga o catálogo pela view', mecanicoA.from('vw_produtos').select('id'), 0)
   await esperaLinhas('NÃO enxerga financeiro', mecanicoA.from('contas_receber').select('id'), 0)
   await esperaLinhas('enxerga apenas o próprio cadastro', mecanicoA.from('usuarios').select('id'), 1)
-  await esperaLinhas('NÃO tem ordem de serviço', mecanicoA.from('ordens_servico').select('id'), 0)
+  // A tabela tem valor e desconto, então ele não a lê — nem a dele.
+  await esperaLinhas('NÃO lê a tabela de ordens', mecanicoA.from('ordens_servico').select('id'), 0)
+  await esperaLinhas('NÃO lê a tabela de itens', mecanicoA.from('os_itens').select('id'), 0)
+  await esperaLinhas('NÃO lê contas a pagar', mecanicoA.from('contas_pagar').select('id'), 0)
+
+  const { data: minhas } = await mecanicoA.rpc('ordens_do_mecanico')
+  Array.isArray(minhas) && minhas.length === 1
+    ? ok('recebe pela função dele a ordem que está no nome dele')
+    : erro('ordens do mecânico', `veio ${JSON.stringify(minhas)}`)
+
+  const { data: aDele } = await mecanicoA.rpc('os_do_mecanico', { p_ordem_servico_id: a.ordemServicoId })
+  aDele && !/valor|preco|custo|desconto|total/i.test(JSON.stringify(aDele))
+    ? ok('e ela chega sem um campo de dinheiro sequer')
+    : erro('dinheiro na ordem do mecânico', JSON.stringify(aDele).slice(0, 160))
+
+  await esperaBloqueio(
+    'não abre a ordem da outra oficina',
+    mecanicoA.rpc('os_do_mecanico', { p_ordem_servico_id: b.ordemServicoId }),
+  )
+  await esperaBloqueio(
+    'não abre o painel',
+    mecanicoA.rpc('painel', {
+      p_de: new Date().toISOString().slice(0, 10),
+      p_ate: new Date().toISOString().slice(0, 10),
+    }),
+  )
 
   console.log('\n\x1b[1mSem login\x1b[0m')
   const anonimo = createClient(URL!, ANON!, {
@@ -343,6 +477,10 @@ async function limpar(cenarios: Cenario[]) {
   for (const c of cenarios) {
     // A ordem importa: as tabelas filhas apontam para a oficina com restrict.
     await admin.from('contas_receber').delete().eq('oficina_id', c.oficinaId)
+    await admin.from('contas_pagar').delete().eq('oficina_id', c.oficinaId)
+    // os_itens e o histórico caem por cascata junto com a ordem.
+    await admin.from('apontamentos_tempo').delete().eq('oficina_id', c.oficinaId)
+    await admin.from('ordens_servico').delete().eq('oficina_id', c.oficinaId)
     await admin.from('moto_proprietarios').delete().eq('oficina_id', c.oficinaId)
     await admin.from('motos').delete().eq('oficina_id', c.oficinaId)
     await admin.from('clientes').delete().eq('oficina_id', c.oficinaId)

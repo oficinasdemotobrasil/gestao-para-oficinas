@@ -1380,6 +1380,140 @@ async function testarFinanceiro() {
   await logarComo(ID.adminA)
 }
 
+async function testarPainelEHistorico() {
+  console.log('\n\x1b[1mPainel, sumidos e histórico da placa\x1b[0m')
+  await logarComo(ID.adminA)
+
+  const p = await db.query<{ j: Record<string, any> }>(
+    `select public.painel(current_date - 365, current_date) as j`,
+  )
+  const painel = p.rows[0].j
+
+  // A conversão é a conta que o dono olha primeiro: aprovados sobre emitidos.
+  const orc = painel.orcamentos
+  const esperada = Math.round((1000 * orc.aprovados) / orc.emitidos) / 10
+  Number(orc.conversao) === esperada
+    ? ok(`a taxa de conversão bate com o que foi lançado (${orc.conversao}% de ${orc.emitidos})`)
+    : erro('conversão', `veio ${orc.conversao}, esperava ${esperada}`)
+
+  orc.ticket_medio > 0
+    ? ok(`o ticket médio dos aprovados sai calculado (R$ ${orc.ticket_medio})`)
+    : erro('ticket médio', `veio ${orc.ticket_medio}`)
+
+  painel.servicos.finalizadas > 0
+    ? ok(`conta as ordens finalizadas no período (${painel.servicos.finalizadas})`)
+    : erro('ordens finalizadas', JSON.stringify(painel.servicos))
+
+  Array.isArray(painel.ranking) && painel.ranking.length > 0
+    ? ok(`o ranking sai por colaborador (${painel.ranking.length} pessoas)`)
+    : erro('ranking', JSON.stringify(painel.ranking))
+
+  typeof painel.financeiro.a_receber !== 'undefined' && typeof painel.financeiro.a_pagar !== 'undefined'
+    ? ok('o financeiro do período vem junto, sem outra ida ao banco')
+    : erro('financeiro no painel', JSON.stringify(painel.financeiro))
+
+  Array.isArray(painel.evolucao) && painel.evolucao.length === 366
+    ? ok('a evolução vem com um ponto por dia, inclusive os dias sem movimento')
+    : erro('evolução', `${painel.evolucao?.length} pontos`)
+
+  // O painel é do dono.
+  await logarComo(ID.vendedorA)
+  await esperaErro(
+    'vendedor NÃO abre o painel',
+    `select public.painel(current_date - 30, current_date)`,
+  )
+  await logarComo(ID.mecanicoA)
+  await esperaErro(
+    'mecânico NÃO abre o painel',
+    `select public.painel(current_date - 30, current_date)`,
+  )
+
+  // Clientes sumidos ---------------------------------------------------------
+  await logarComo(ID.adminA)
+  const semSumidos = await db.query<{ j: unknown[] }>(
+    `select public.clientes_inativos(3650) as j`,
+  )
+  semSumidos.rows[0].j.length === 0
+    ? ok('com a régua em 10 anos, ninguém está sumido')
+    : erro('inativos com régua larga', JSON.stringify(semSumidos.rows[0].j))
+
+  // Um cliente que veio, terminou e não voltou. O cliente do resto do cenário
+  // tem moto na oficina agora, e por isso NÃO é um sumido — é justamente essa
+  // diferença que o teste precisa mostrar.
+  const cliSumido = await db.query<{ id: string }>(
+    `insert into public.clientes (oficina_id, nome, telefone)
+     values ('${ID.oficinaA}', 'Cliente Que Sumiu', '81999990000') returning id`,
+  )
+  const motoSumida = await db.query<{ id: string }>(
+    `select (public.criar_moto_com_proprietario(
+       '${cliSumido.rows[0].id}', 'SUM1D23', 'Yamaha', 'Factor 150', 2018, 'Prata', null, 12000)).id as id`,
+  )
+  const orcSumido = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${cliSumido.rows[0].id}', '${motoSumida.rows[0].id}',
+       12000, 7, 90, null, 0, null,
+       '[{"tipo":"servico","produto_id":null,"servico_id":"${ID.servicoA}","descricao":"Revisão","quantidade":1,"valor_unitario":150}]'::jsonb) as id`,
+  )
+  const osSumida = await db.query<{ id: string }>(
+    `select public.aprovar_orcamento('${orcSumido.rows[0].id}', '${ID.adminA}') as id`,
+  )
+  await db.query(`select public.mudar_status_da_os('${osSumida.rows[0].id}', 'em_andamento')`)
+  await db.query(`select public.finalizar_os('${osSumida.rows[0].id}')`)
+
+  const sumidos = await db.query<{ j: Array<Record<string, any>> }>(
+    `select public.clientes_inativos(0) as j`,
+  )
+  const lista = sumidos.rows[0].j
+  const oSumido = lista.find((c) => c.nome === 'Cliente Que Sumiu')
+  oSumido
+    ? ok('quem terminou e não voltou aparece na lista de sumidos')
+    : erro('inativos', `não achou o cliente: ${JSON.stringify(lista.map((c) => c.nome))}`)
+
+  if (oSumido) {
+    oSumido.placa === 'SUM1D23' && typeof oSumido.dias_sem_voltar === 'number' && oSumido.ultimo_servico
+      ? ok(`e a linha traz a moto, os dias e o último serviço (${oSumido.ultimo_servico})`)
+      : erro('linha do inativo', JSON.stringify(oSumido))
+  }
+
+  // E quem está com a moto na oficina agora não é sumido, por mais tempo que
+  // faça desde a última vez que terminou algo.
+  !lista.some((c) => c.cliente_id === ID.clienteA)
+    ? ok('quem tem moto na oficina agora não entra na lista, mesmo com a régua em zero')
+    : erro('inativo com serviço em aberto', 'apareceu na lista')
+
+  // Histórico da placa -------------------------------------------------------
+  const h = await db.query<{ j: Array<Record<string, any>> }>(
+    `select public.historico_da_placa('${ID.motoA}') as j`,
+  )
+  const historico = h.rows[0].j
+  historico.length > 0
+    ? ok(`o histórico da placa traz as ordens concluídas (${historico.length})`)
+    : erro('histórico da placa', 'veio vazio')
+
+  if (historico.length > 0) {
+    const primeira = historico[0]
+    primeira.dono_na_epoca
+      ? ok(`e diz quem era o dono na época (${primeira.dono_na_epoca})`)
+      : erro('dono na época', JSON.stringify(primeira))
+
+    const texto = JSON.stringify(historico)
+    !/telefone|email|cpf/i.test(texto)
+      ? ok('sem telefone, e-mail ou CPF do dono anterior — só o nome')
+      : erro('vazamento de dado pessoal no histórico', texto.slice(0, 200))
+  }
+
+  await esperaErro(
+    'moto de outra oficina não tem histórico para ver',
+    `select public.historico_da_placa('${ID.motoB}')`,
+  )
+
+  await logarComo(ID.mecanicoA)
+  await esperaErro(
+    'e o mecânico não consulta histórico de placa',
+    `select public.historico_da_placa('${ID.motoA}')`,
+  )
+  await logarComo(ID.adminA)
+}
+
 async function testarPerfisNaFase2() {
   console.log('\n\x1b[1mQuem alcança o que na Fase 2\x1b[0m')
 
@@ -1480,6 +1614,7 @@ async function main() {
     await testarMecanicoSemDinheiro()
     await testarFechamentoDaOs()
     await testarFinanceiro()
+    await testarPainelEHistorico()
     await testarPerfisNaFase2()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a

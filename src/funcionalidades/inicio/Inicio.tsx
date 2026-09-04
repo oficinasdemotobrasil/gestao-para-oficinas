@@ -13,6 +13,7 @@ import { primeiroNome } from '@/lib/formato'
 import { produtosParaRepor } from '@/funcionalidades/estoque/api'
 import { ordensDoMecanico } from '@/funcionalidades/ordens/apiDoMecanico'
 import { StatusOsBadge } from '@/funcionalidades/ordens/StatusOsBadge'
+import { Painel } from '@/funcionalidades/painel/Painel'
 
 interface Atalho {
   para: string
@@ -27,11 +28,12 @@ export function Inicio() {
   const navegar = useNavigate()
 
   // Contador de peça no fim: é o aviso que evita descobrir a falta com a moto
-  // desmontada em cima da bancada.
+  // desmontada em cima da bancada. Com o painel na tela, ele já mostra o mesmo
+  // número — então só aparece para quem não tem painel.
   const repor = useQuery({
     queryKey: ['repor'],
     queryFn: produtosParaRepor,
-    enabled: p.verCatalogo,
+    enabled: p.verCatalogo && !p.verFinanceiro,
   })
 
   // Pela função do mecânico, que não passa por nenhuma tabela com dinheiro
@@ -150,7 +152,7 @@ export function Inicio() {
         </span>
       </button>
 
-      {repor.data && repor.data.length > 0 && (
+      {!p.verFinanceiro && repor.data && repor.data.length > 0 && (
         <button
           type="button"
           onClick={() => navegar('/catalogo?repor=1')}
@@ -169,6 +171,8 @@ export function Inicio() {
           </span>
         </button>
       )}
+
+      {p.verFinanceiro && <Painel />}
 
       <TituloSecao>Atalhos</TituloSecao>
 

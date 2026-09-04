@@ -10,6 +10,7 @@ import { Mais } from '@/funcionalidades/inicio/Mais'
 import { ListaClientes } from '@/funcionalidades/clientes/paginas/ListaClientes'
 import { FormularioCliente } from '@/funcionalidades/clientes/paginas/FormularioCliente'
 import { DetalheCliente } from '@/funcionalidades/clientes/paginas/DetalheCliente'
+import { ClientesInativos } from '@/funcionalidades/clientes/paginas/ClientesInativos'
 import { ListaMotos } from '@/funcionalidades/motos/paginas/ListaMotos'
 import { FormularioMoto } from '@/funcionalidades/motos/paginas/FormularioMoto'
 import { DetalheMoto } from '@/funcionalidades/motos/paginas/DetalheMoto'
@@ -58,6 +59,7 @@ export const rotas = createBrowserRouter([
             children: [
               { path: '/clientes', element: <ListaClientes /> },
               { path: '/clientes/novo', element: <FormularioCliente /> },
+              { path: '/clientes/sumidos', element: <ClientesInativos /> },
               { path: '/clientes/:id', element: <DetalheCliente /> },
               { path: '/clientes/:id/editar', element: <FormularioCliente /> },
             ],
