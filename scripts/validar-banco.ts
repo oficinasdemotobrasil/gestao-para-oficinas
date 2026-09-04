@@ -725,6 +725,207 @@ async function testarOrcamento() {
   )
 }
 
+async function testarCicloDaOs() {
+  console.log('\n\x1b[1mO ciclo da ordem de serviço\x1b[0m')
+  await logarComo(ID.adminA)
+
+  const itens = JSON.stringify([
+    { tipo: 'produto', produto_id: ID.produtoA, servico_id: null, descricao: 'Óleo 10W30', quantidade: 1, valor_unitario: 45 },
+    { tipo: 'servico', produto_id: null, servico_id: ID.servicoA, descricao: 'Troca de óleo', quantidade: 1, valor_unitario: 60 },
+  ])
+  const orc = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', 25000,
+       7, 90, null, 0, null, $1::jsonb) as id`,
+    [itens],
+  )
+  const os = await db.query<{ id: string }>(
+    `select public.aprovar_orcamento('${orc.rows[0].id}', '${ID.mecanicoA}') as id`,
+  )
+  const osId = os.rows[0].id
+
+  await esperaLinhas(
+    'a ordem já nasce com a primeira linha de histórico',
+    `select count(*) as n from public.os_status_historico
+     where ordem_servico_id = '${osId}' and de is null and para = 'aberta'`,
+    1,
+  )
+
+  await esperaErro(
+    'não dá para pular de aberta direto para entregue',
+    `update public.ordens_servico set status = 'entregue' where id = '${osId}'`,
+  )
+  await esperaErro(
+    'nem de aberta para finalizada, sem passar pelo serviço',
+    `update public.ordens_servico set status = 'finalizada' where id = '${osId}'`,
+  )
+
+  // O mecânico toca no que é dele -------------------------------------------
+  await logarComo(ID.mecanicoA)
+  await db.query(`select public.mudar_status_da_os('${osId}', 'em_andamento')`)
+  await esperaLinhas(
+    'o mecânico começa o serviço',
+    `select count(*) as n from public.ordens_servico where id = '${osId}' and status = 'em_andamento'`,
+    1,
+  )
+  await db.query(`select public.mudar_status_da_os('${osId}', 'pausada')`)
+  await db.query(`select public.mudar_status_da_os('${osId}', 'em_andamento')`)
+  await esperaLinhas(
+    'pausar e retomar deixam rastro de quem foi',
+    `select count(*) as n from public.os_status_historico
+     where ordem_servico_id = '${osId}' and usuario_id = '${ID.mecanicoA}'`,
+    3,
+  )
+
+  // Pela porta certa, de propósito: assim o teste bate na regra do perfil, e
+  // não na trava do fechamento — que é a de fora e responderia primeiro.
+  await esperaErro(
+    'o mecânico NÃO finaliza a ordem — quem confere é quem finaliza',
+    `select public.finalizar_os('${osId}')`,
+  )
+  await esperaErro(
+    'o mecânico NÃO cancela a ordem',
+    `select public.cancelar_os('${osId}')`,
+  )
+
+  await db.query(`select public.mudar_status_da_os('${osId}', 'aguardando_conferencia')`)
+  await esperaLinhas(
+    'o mecânico marca como pronta para conferência',
+    `select count(*) as n from public.ordens_servico
+     where id = '${osId}' and status = 'aguardando_conferencia'`,
+    1,
+  )
+
+  // Conferência e fechamento -------------------------------------------------
+  await logarComo(ID.adminA)
+  await db.query(
+    `insert into public.os_itens (oficina_id, ordem_servico_id, tipo, descricao, quantidade, valor_unitario, valor_total)
+     values ('${ID.oficinaA}', '${osId}', 'avulso', 'Faltou apertar isto', 1, 10, 10)`,
+  )
+  await esperaLinhas(
+    'na conferência ainda dá para acrescentar o que faltou',
+    `select (valor_total * 100)::int as n from public.ordens_servico where id = '${osId}'`,
+    11500,
+  )
+
+  await esperaErro(
+    'update direto para finalizada não passa: baixaria a ordem sem baixar peça',
+    `update public.ordens_servico set status = 'finalizada' where id = '${osId}'`,
+  )
+  await db.query(`select public.finalizar_os('${osId}')`)
+  await esperaErro(
+    'ordem finalizada não aceita mais item novo',
+    `insert into public.os_itens (oficina_id, ordem_servico_id, tipo, descricao, quantidade, valor_unitario, valor_total)
+     values ('${ID.oficinaA}', '${osId}', 'avulso', 'Tarde demais', 1, 10, 10)`,
+  )
+  await esperaErro(
+    'nem que seja para apagar um item',
+    `delete from public.os_itens where ordem_servico_id = '${osId}' and tipo = 'avulso'`,
+  )
+
+  await db.query(`select public.mudar_status_da_os('${osId}', 'entregue')`)
+  await esperaErro(
+    'moto entregue não volta atrás: cancelar já não vale',
+    `select public.cancelar_os('${osId}')`,
+  )
+}
+
+async function testarFechamentoDaOs() {
+  console.log('\n\x1b[1mFinalizar e cancelar mexendo no estoque\x1b[0m')
+  await logarComo(ID.adminA)
+
+  const saldoInicial = await saldo(ID.produtoA)
+
+  async function novaOs(quantidade: number): Promise<string> {
+    const itens = JSON.stringify([
+      { tipo: 'produto', produto_id: ID.produtoA, servico_id: null, descricao: 'Óleo 10W30', quantidade, valor_unitario: 45 },
+      { tipo: 'servico', produto_id: null, servico_id: ID.servicoA, descricao: 'Mão de obra', quantidade: 1, valor_unitario: 60 },
+    ])
+    const orc = await db.query<{ id: string }>(
+      `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', 26000,
+         7, 90, null, 0, null, $1::jsonb) as id`,
+      [itens],
+    )
+    const os = await db.query<{ id: string }>(
+      `select public.aprovar_orcamento('${orc.rows[0].id}', '${ID.adminA}') as id`,
+    )
+    await db.query(`select public.mudar_status_da_os('${os.rows[0].id}', 'em_andamento')`)
+    return os.rows[0].id
+  }
+
+  // 1. Caminho normal: tem peça, finaliza, o estoque baixa --------------------
+  const os1 = await novaOs(2)
+  await db.query(`select public.finalizar_os('${os1}')`)
+
+  const depois = await saldo(ID.produtoA)
+  depois === saldoInicial - 2
+    ? ok(`finalizar baixa a peça do estoque (${saldoInicial} → ${depois})`)
+    : erro('baixa na finalização', `esperava ${saldoInicial - 2}, veio ${depois}`)
+
+  await esperaLinhas(
+    'a saída fica amarrada à ordem, com o número dela no motivo',
+    `select count(*) as n from public.movimentacoes_estoque
+     where ordem_servico_id = '${os1}' and tipo = 'saida' and motivo like 'Aplicado na OS nº %'`,
+    1,
+  )
+  await esperaLinhas(
+    'só a peça baixa: mão de obra não é estoque',
+    `select count(*) as n from public.movimentacoes_estoque where ordem_servico_id = '${os1}'`,
+    1,
+  )
+
+  // 2. Cancelar a ordem finalizada devolve a peça -----------------------------
+  await db.query(`select public.cancelar_os('${os1}', 'Cliente desistiu depois de pronta')`)
+  const devolvido = await saldo(ID.produtoA)
+  devolvido === saldoInicial
+    ? ok(`cancelar a ordem finalizada devolve a peça (${depois} → ${devolvido})`)
+    : erro('estorno no cancelamento', `esperava ${saldoInicial}, veio ${devolvido}`)
+
+  await esperaLinhas(
+    'o estorno é uma entrada nova, e não o apagamento da saída',
+    `select count(*) as n from public.movimentacoes_estoque where ordem_servico_id = '${os1}'`,
+    2,
+  )
+
+  // 3. Sem saldo: diz o que falta e recusa ------------------------------------
+  const os2 = await novaOs(saldoInicial + 5)
+  await esperaErro(
+    'sem peça suficiente, finalizar para e diz o que falta',
+    `select public.finalizar_os('${os2}')`,
+  )
+  const naoMexeu = await saldo(ID.produtoA)
+  naoMexeu === saldoInicial
+    ? ok('a tentativa recusada não deixou meia baixa para trás')
+    : erro('baixa parcial', `saldo foi para ${naoMexeu}`)
+
+  await esperaLinhas(
+    'a lista do que falta sai pronta para a tela',
+    `select count(*) as n from public.faltas_para_finalizar_os('${os2}')`,
+    1,
+  )
+
+  // 4. Confirmando, finaliza mesmo assim e deixa o rastro ---------------------
+  await db.query(`select public.finalizar_os('${os2}', true)`)
+  const negativo = await saldo(ID.produtoA)
+  negativo === -5
+    ? ok(`finalizar com confirmação aceita o estoque negativo (${negativo})`)
+    : erro('estoque negativo', `esperava -5, veio ${negativo}`)
+
+  await esperaLinhas(
+    'a movimentação sai marcada, para o dono achar onde o cadastro descolou',
+    `select count(*) as n from public.movimentacoes_estoque
+     where ordem_servico_id = '${os2}' and motivo like '%saldo insuficiente%'`,
+    1,
+  )
+
+  // A brecha não fica aberta para o resto do sistema.
+  await esperaErro(
+    'fora da finalização, a trava do estoque negativo continua de pé',
+    `select public.registrar_movimentacao('${ID.produtoA}', 'saida', 1, 'Saída avulsa')`,
+  )
+
+  await db.query(`select public.cancelar_os('${os2}')`)
+}
+
 async function testarPerfisNaFase2() {
   console.log('\n\x1b[1mQuem alcança o que na Fase 2\x1b[0m')
 
@@ -764,11 +965,13 @@ async function testarPerfisNaFase2() {
   await logarComo(ID.mecanicoA)
   await esperaLinhas('mecânico NÃO enxerga orçamento', 'select count(*) as n from public.orcamentos', 0)
   await esperaLinhas('mecânico NÃO enxerga movimentação', 'select count(*) as n from public.vw_movimentacoes', 0)
-  // Duas: a que o teste de perfis criou antes e a que nasceu da aprovação.
+  // Três: a do teste de perfis, a que nasceu da aprovação e a do ciclo de vida.
+  // A quarta, do teste de desconto, foi direcionada ao admin de propósito — e
+  // por isso não aparece aqui, que é justamente o que este número prova.
   await esperaLinhas(
     'mecânico enxerga só as OS em que ele é o responsável',
     'select count(*) as n from public.ordens_servico',
-    2,
+    3,
   )
 
   console.log('\n\x1b[1mIsolamento das tabelas novas\x1b[0m')
@@ -814,6 +1017,8 @@ async function main() {
     await testarEstoque()
     await testarNotaFiscal()
     await testarOrcamento()
+    await testarCicloDaOs()
+    await testarFechamentoDaOs()
     await testarPerfisNaFase2()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a

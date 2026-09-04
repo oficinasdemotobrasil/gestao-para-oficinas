@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Home, FileText, Bike, Package, Menu } from 'lucide-react'
+import { Home, FileText, Bike, Wrench, Menu } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { usePermissoes } from '@/auth/usePermissoes'
 import { cn } from '@/lib/cn'
@@ -27,7 +27,10 @@ export function TabBar() {
     { para: '/', rotulo: 'Início', Icone: Home, visivel: true },
     { para: '/orcamentos', rotulo: 'Orçamentos', Icone: FileText, visivel: p.verOrcamentos },
     { para: '/motos', rotulo: 'Motos', Icone: Bike, visivel: p.verMotos },
-    { para: '/catalogo', rotulo: 'Catálogo', Icone: Package, visivel: p.verCatalogo },
+    // Serviços entrou no lugar do Catálogo na Fase 3: a ordem de serviço é
+    // aberta e consultada o dia inteiro, e o catálogo é cadastro — mexe-se nele
+    // de vez em quando. O atalho do catálogo continua na Início e em Mais.
+    { para: '/ordens', rotulo: 'Serviços', Icone: Wrench, visivel: p.verOrdensDaOficina },
     { para: '/mais', rotulo: 'Mais', Icone: Menu, visivel: true },
   ]
 

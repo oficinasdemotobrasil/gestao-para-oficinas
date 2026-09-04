@@ -14,12 +14,10 @@ import { Botao } from '@/componentes/ui/Botao'
 import { Modal } from '@/componentes/ui/Modal'
 import { AreaTexto } from '@/componentes/ui/Campo'
 import { useToast } from '@/componentes/ui/Toast'
-import { EsqueletoLista } from '@/componentes/ui/Carregando'
 import { traduzirErro } from '@/lib/erros'
 import { useAuth } from '@/auth/ProvedorAuth'
-import { nomeDoPerfil } from '@/auth/usePermissoes'
-import { listarColaboradores } from '@/funcionalidades/colaboradores/api'
 import { obterOrdemDoOrcamento } from '@/funcionalidades/ordens/api'
+import { ListaDeColaboradores } from '@/funcionalidades/ordens/EscolherResponsavel'
 import { aprovarOrcamento, recusarOrcamento, marcarComoEnviado } from './api'
 import { textoDoOrcamento, enderecoDoWhatsApp } from './textoWhatsApp'
 import type { OrcamentoCompleto } from './api'
@@ -121,12 +119,6 @@ export function AcoesDoOrcamento({ orcamento, statusEfetivo, podeAgir }: Props) 
     enabled: orcamento.status === 'aprovado',
   })
 
-  const { data: equipe, isPending: equipeCarregando } = useQuery({
-    queryKey: ['colaboradores'],
-    queryFn: listarColaboradores,
-    enabled: aprovando,
-  })
-
   const texto = oficina ? textoDoOrcamento(orcamento, oficina.nome) : ''
 
   /** Rascunho vira "enviado" ao sair para o cliente — sem pedir confirmação. */
@@ -203,8 +195,6 @@ export function AcoesDoOrcamento({ orcamento, statusEfetivo, podeAgir }: Props) 
       toast.erro(traduzirErro(e))
     }
   }
-
-  const ativos = (equipe ?? []).filter((c) => c.ativo)
 
   return (
     <div className="flex flex-col gap-3 pt-8">
@@ -312,40 +302,11 @@ export function AcoesDoOrcamento({ orcamento, statusEfetivo, podeAgir }: Props) 
           </p>
         )}
 
-        {equipeCarregando ? (
-          <EsqueletoLista linhas={3} sobreClaro />
-        ) : (
-          <div className="flex flex-col gap-2 pb-2">
-            {ativos.map((c) => {
-              const escolhido = c.id === responsavelId
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setResponsavelId(c.id)}
-                  aria-pressed={escolhido}
-                  className={`flex min-h-toque items-center justify-between gap-3 rounded-controle border px-4 py-3 text-left ${
-                    escolhido
-                      ? 'border-acento bg-acento-suave'
-                      : 'border-borda-clara bg-transparent'
-                  }`}
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-corpo font-medium text-claro">
-                      {c.nome}
-                    </span>
-                    <span className="block text-apoio text-claro-secundario">
-                      {nomeDoPerfil[c.perfil]}
-                    </span>
-                  </span>
-                  {escolhido && (
-                    <CheckCircle2 aria-hidden size={22} className="shrink-0 text-acento" />
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        )}
+        <ListaDeColaboradores
+          ativa={aprovando}
+          escolhidoId={responsavelId}
+          aoEscolher={setResponsavelId}
+        />
       </Modal>
 
       <Modal

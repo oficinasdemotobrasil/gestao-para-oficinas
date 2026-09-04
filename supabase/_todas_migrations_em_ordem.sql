@@ -5,7 +5,7 @@
 -- no SQL Editor do Supabase. A fonte da verdade são os arquivos numerados;
 -- este aqui é só a cópia colável. Para atualizar: npm run migrations:juntar
 --
--- Migrations incluídas: 26
+-- Migrations incluídas: 29
 -- ============================================================
 
 -- ============================================================
@@ -2495,4 +2495,563 @@ update public.ordens_servico os
    set desconto_tipo = coalesce(os.desconto_tipo, 'valor'),
        valor_total = public.total_da_os(os.id)
  where os.orcamento_id is null;
+
+-- ============================================================
+-- 0027_status_aguardando_conferencia.sql
+-- ============================================================
+
+-- 0027 — O status que faltava entre o mecânico e o gerente
+--
+-- O mecânico não finaliza a ordem: ele avisa que terminou. Quem finaliza é
+-- quem confere o serviço e cobra — e finalizar dá baixa no estoque, o que não
+-- é decisão de quem está com a chave na mão.
+--
+-- 'aguardando_conferencia' entra ANTES de 'finalizada' na ordem do enum porque
+-- o Postgres ordena enum pela ordem de declaração, e as listas de OS ordenam
+-- por status. Entrando no fim, a ordem ficaria "finalizada, entregue,
+-- cancelada, aguardando conferência" — errada na tela sem nenhum aviso.
+--
+-- Sozinho neste arquivo por obrigação do Postgres: valor novo de enum não pode
+-- ser usado na mesma transação em que foi criado. Foi a mesma razão da 0016.
+
+alter type public.status_os add value if not exists 'aguardando_conferencia' before 'finalizada';
+
+-- ============================================================
+-- 0028_ciclo_da_os.sql
+-- ============================================================
+
+-- 0028 — O ciclo de vida da ordem de serviço
+--
+-- Até aqui a OS nascia 'aberta' e ficava. Agora ela anda, e cada passo fica
+-- registrado com quem deu e quando. Três regras moram no banco, e não na tela:
+--
+-- 1. Não se pula etapa. De 'aberta' não se vai direto para 'entregue'.
+-- 2. O mecânico anda só no pedaço dele. Ele começa, pausa, retoma e avisa que
+--    terminou. Finalizar, entregar e cancelar são de quem confere e cobra.
+-- 3. Ordem finalizada não muda mais de itens. O que foi cobrado foi cobrado.
+--
+-- Na tela essas regras também aparecem, escondendo botão. Mas é aqui que elas
+-- valem: dois celulares abrem a mesma OS ao mesmo tempo, e a tela do segundo
+-- não sabe o que o primeiro acabou de fazer.
+
+-- Observação técnica separada da comercial ------------------------------------
+-- A OS herda 'observacoes' do orçamento — que hoje costuma ser o texto de venda
+-- escrito para convencer o cliente. Mandar isso para o mecânico como se fosse
+-- instrução de serviço é confundir quem está trabalhando.
+alter table public.ordens_servico
+  add column if not exists observacoes_tecnicas text;
+
+comment on column public.ordens_servico.observacoes is
+  'Veio do orçamento: é o texto que o cliente leu. Histórico, não instrução.';
+comment on column public.ordens_servico.observacoes_tecnicas is
+  'O que o mecânico escreveu enquanto trabalhava. É isto que sai no PDF da OS.';
+
+-- Histórico de status ---------------------------------------------------------
+create table if not exists public.os_status_historico (
+  id uuid primary key default gen_random_uuid(),
+  oficina_id uuid not null default public.oficina_do_usuario()
+    references public.oficinas (id) on delete cascade,
+  ordem_servico_id uuid not null,
+  -- Nulo na primeira linha: a ordem não vinha de status nenhum.
+  de public.status_os,
+  para public.status_os not null,
+  -- Nulo se a linha nasceu de um processo do banco e não de uma pessoa.
+  usuario_id uuid,
+  criado_em timestamptz not null default now(),
+  constraint os_status_historico_os_fk
+    foreign key (ordem_servico_id, oficina_id) references public.ordens_servico (id, oficina_id) on delete cascade,
+  constraint os_status_historico_usuario_fk
+    foreign key (usuario_id, oficina_id) references public.usuarios (id, oficina_id) on delete set null
+);
+
+create index if not exists os_status_historico_oficina_id_idx
+  on public.os_status_historico (oficina_id);
+create index if not exists os_status_historico_os_idx
+  on public.os_status_historico (ordem_servico_id, criado_em);
+
+alter table public.os_status_historico enable row level security;
+
+-- Quem enxerga a ordem enxerga o andamento dela. Ninguém escreve pela mão: as
+-- linhas nascem só do gatilho, que roda como dono do banco.
+create policy "atendimento le o historico da os"
+  on public.os_status_historico for select to authenticated
+  using (oficina_id = public.oficina_do_usuario() and public.eh_atendimento());
+
+create policy "mecanico le o historico das proprias ordens"
+  on public.os_status_historico for select to authenticated
+  using (
+    oficina_id = public.oficina_do_usuario()
+    and public.eh_mecanico()
+    and exists (
+      select 1 from public.ordens_servico os
+      where os.id = os_status_historico.ordem_servico_id
+        and os.responsavel_id = auth.uid()
+    )
+  );
+
+-- Quais passos existem --------------------------------------------------------
+create or replace function public.transicao_de_os_valida(
+  p_de public.status_os,
+  p_para public.status_os
+)
+returns boolean
+language sql
+immutable
+as $$
+  select case p_de
+    when 'aberta' then p_para in ('em_andamento', 'cancelada')
+    when 'em_andamento' then p_para in ('pausada', 'aguardando_conferencia', 'finalizada', 'cancelada')
+    when 'pausada' then p_para in ('em_andamento', 'cancelada')
+    -- Volta para 'em_andamento' quando a conferência acha que faltou algo.
+    when 'aguardando_conferencia' then p_para in ('em_andamento', 'finalizada', 'cancelada')
+    when 'finalizada' then p_para in ('entregue', 'cancelada')
+    -- Entregue e cancelada são fim de linha. Ordem entregue que voltou é ordem
+    -- nova, com o histórico da anterior à vista — não a mesma reaberta.
+    else false
+  end;
+$$;
+
+comment on function public.transicao_de_os_valida is
+  'Os passos permitidos do ciclo da OS. Cancelar vale até a entrega; depois dela, não.';
+
+create or replace function public.nome_do_status_os(p_status public.status_os)
+returns text
+language sql
+immutable
+as $$
+  select case p_status
+    when 'aberta' then 'aberta'
+    when 'em_andamento' then 'em andamento'
+    when 'pausada' then 'pausada'
+    when 'aguardando_conferencia' then 'aguardando conferência'
+    when 'finalizada' then 'finalizada'
+    when 'entregue' then 'entregue'
+    when 'cancelada' then 'cancelada'
+  end;
+$$;
+
+-- A trava ---------------------------------------------------------------------
+create or replace function public.conferir_mudanca_de_status_da_os()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.status = old.status then
+    return new;
+  end if;
+
+  if not public.transicao_de_os_valida(old.status, new.status) then
+    raise exception 'A ordem está % e não pode passar para %.',
+      public.nome_do_status_os(old.status), public.nome_do_status_os(new.status)
+      using errcode = 'check_violation';
+  end if;
+
+  -- O mecânico anda só no pedaço dele. Sem isto, bastaria uma chamada direta à
+  -- API para ele finalizar a própria ordem e dar baixa no estoque.
+  if public.eh_mecanico()
+     and new.status not in ('em_andamento', 'pausada', 'aguardando_conferencia') then
+    if new.status = 'cancelada' then
+      raise exception 'Cancelar a ordem é de quem atende o cliente.'
+        using errcode = 'insufficient_privilege';
+    end if;
+    raise exception 'Marque a ordem como pronta para conferência. Finalizar é de quem confere o serviço.'
+      using errcode = 'insufficient_privilege';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists ordens_servico_conferir_status on public.ordens_servico;
+create trigger ordens_servico_conferir_status
+  before update on public.ordens_servico
+  for each row execute function public.conferir_mudanca_de_status_da_os();
+
+-- O registro ------------------------------------------------------------------
+-- Definer: a linha do histórico não é escrita por ninguém, é consequência. Se
+-- dependesse da política de quem mudou o status, a ordem mudaria e o registro
+-- não apareceria — que é a única forma de perder essa informação.
+create or replace function public.registrar_status_da_os()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    insert into public.os_status_historico (oficina_id, ordem_servico_id, de, para, usuario_id)
+    values (new.oficina_id, new.id, null, new.status, auth.uid());
+    return new;
+  end if;
+
+  if new.status is distinct from old.status then
+    insert into public.os_status_historico (oficina_id, ordem_servico_id, de, para, usuario_id)
+    values (new.oficina_id, new.id, old.status, new.status, auth.uid());
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists ordens_servico_registrar_status on public.ordens_servico;
+create trigger ordens_servico_registrar_status
+  after insert or update on public.ordens_servico
+  for each row execute function public.registrar_status_da_os();
+
+-- Ordem fechada não muda de itens ---------------------------------------------
+create or replace function public.conferir_edicao_de_item_da_os()
+returns trigger
+language plpgsql
+as $$
+declare
+  v_os_id uuid := coalesce(new.ordem_servico_id, old.ordem_servico_id);
+  v_status public.status_os;
+begin
+  select status into v_status from public.ordens_servico where id = v_os_id;
+
+  if v_status is null then
+    return coalesce(new, old);
+  end if;
+
+  if v_status not in ('aberta', 'em_andamento', 'pausada', 'aguardando_conferencia') then
+    raise exception 'A ordem está % e não aceita mais mudança de itens.',
+      public.nome_do_status_os(v_status)
+      using errcode = 'check_violation';
+  end if;
+
+  return coalesce(new, old);
+end;
+$$;
+
+drop trigger if exists os_itens_conferir_edicao on public.os_itens;
+create trigger os_itens_conferir_edicao
+  before insert or update or delete on public.os_itens
+  for each row execute function public.conferir_edicao_de_item_da_os();
+
+-- Mudar de status -------------------------------------------------------------
+-- Existe para a tela ter uma porta só, e para a mensagem de erro sair pronta.
+-- As regras continuam nos gatilhos: quem chamar a tabela direto passa por elas
+-- do mesmo jeito.
+create or replace function public.mudar_status_da_os(
+  p_ordem_servico_id uuid,
+  p_status public.status_os
+)
+returns public.ordens_servico
+language plpgsql
+as $$
+declare
+  v_os public.ordens_servico;
+begin
+  if p_status in ('finalizada', 'cancelada') then
+    raise exception 'Finalizar e cancelar têm caminho próprio, que mexe no estoque.'
+      using errcode = 'check_violation';
+  end if;
+
+  update public.ordens_servico
+     set status = p_status,
+         data_conclusao = case when p_status = 'entregue' then now() else data_conclusao end
+   where id = p_ordem_servico_id
+  returning * into v_os;
+
+  if not found then
+    raise exception 'Ordem de serviço não encontrada.' using errcode = 'no_data_found';
+  end if;
+
+  return v_os;
+end;
+$$;
+
+-- A fechadura, agora reaproveitável -------------------------------------------
+-- O mesmo conteúdo da 0014, virado função para as migrations desta fase
+-- poderem chamar. O comentário de lá continua valendo: deixar isso na mão de
+-- conferência manual significa que, na décima tabela nova, alguém esquece.
+create or replace function public.conferir_fechadura()
+returns void
+language plpgsql
+as $$
+declare
+  pendentes text;
+begin
+  select string_agg(c.relname, ', ' order by c.relname) into pendentes
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity;
+  if pendentes is not null then
+    raise exception 'Tabelas sem RLS ativado: %', pendentes;
+  end if;
+
+  select string_agg(c.relname, ', ' order by c.relname) into pendentes
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public' and c.relkind = 'r'
+    and not exists (select 1 from pg_policy p where p.polrelid = c.oid);
+  if pendentes is not null then
+    raise exception 'Tabelas com RLS mas sem nenhuma política: %', pendentes;
+  end if;
+
+  select string_agg(c.relname, ', ' order by c.relname) into pendentes
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public' and c.relkind = 'r' and c.relname not in ('oficinas')
+    and not exists (
+      select 1 from pg_attribute a
+      where a.attrelid = c.oid and a.attname = 'oficina_id' and not a.attisdropped
+    );
+  if pendentes is not null then
+    raise exception 'Tabelas sem coluna oficina_id: %', pendentes;
+  end if;
+end;
+$$;
+
+select public.conferir_fechadura();
+
+-- ============================================================
+-- 0029_finalizar_e_cancelar_os.sql
+-- ============================================================
+
+-- 0029 — Finalizar dá baixa no estoque; cancelar devolve
+--
+-- A baixa acontece na finalização, e não na aprovação, porque entre uma coisa
+-- e outra a moto pode nem ter entrado na oficina. Peça reservada não é peça
+-- consumida.
+--
+-- A parte delicada é o saldo insuficiente. Hoje o banco recusa qualquer
+-- movimentação que deixe o estoque negativo, e essa trava já evitou erro nos
+-- testes. Mas na finalização ela mente: a peça FOI aplicada na moto: negar
+-- isso é o sistema discordando da realidade, e quem perde é o dono, que fica
+-- sem saber o que saiu.
+--
+-- Então a trava continua valendo em todo lugar — entrada, saída avulsa,
+-- ajuste, cancelamento de nota — e só a finalização pode passar por cima, com
+-- pedido explícito de quem está finalizando. A movimentação nasce marcada, e o
+-- extrato mostra exatamente onde o cadastro descolou da realidade.
+
+-- A brecha, estreita de propósito ---------------------------------------------
+-- 'app.estoque_pode_negativar' só existe dentro da transação que a liga, e só
+-- finalizar_os a liga. Mesma técnica do 'app.estoque_interno' da 0024.
+create or replace function public.aplicar_no_estoque(
+  p_produto_id uuid,
+  p_delta numeric
+)
+returns void
+language plpgsql
+as $$
+declare
+  v_saldo numeric(12, 3);
+  v_novo numeric(12, 3);
+  v_nome text;
+  v_unidade text;
+begin
+  if p_delta = 0 then return; end if;
+
+  select estoque_atual, nome, unidade
+    into v_saldo, v_nome, v_unidade
+  from public.produtos
+  where id = p_produto_id
+  for update;
+
+  if not found then
+    raise exception 'Produto não encontrado.' using errcode = 'foreign_key_violation';
+  end if;
+
+  v_novo := v_saldo + p_delta;
+
+  if v_novo < 0 and coalesce(current_setting('app.estoque_pode_negativar', true), '') <> 'sim' then
+    raise exception 'Não há estoque suficiente de %: tem % %, você pediu %.',
+      v_nome,
+      public.formatar_quantidade(v_saldo),
+      v_unidade,
+      public.formatar_quantidade(abs(p_delta))
+      using errcode = 'check_violation';
+  end if;
+
+  update public.produtos set estoque_atual = v_novo where id = p_produto_id;
+end;
+$$;
+
+-- O que falta para finalizar --------------------------------------------------
+-- Devolve uma linha por peça sem saldo. A tela chama antes de finalizar para
+-- dizer o que falta; finalizar_os chama de novo, porque entre a pergunta e a
+-- resposta outra pessoa pode ter dado saída na mesma peça.
+create or replace function public.faltas_para_finalizar_os(p_ordem_servico_id uuid)
+returns table (
+  produto_id uuid,
+  nome text,
+  unidade text,
+  necessario numeric,
+  em_estoque numeric,
+  falta numeric
+)
+language sql
+stable
+as $$
+  select p.id, p.nome, p.unidade,
+         sum(i.quantidade) as necessario,
+         p.estoque_atual,
+         sum(i.quantidade) - p.estoque_atual as falta
+  from public.os_itens i
+  join public.produtos p on p.id = i.produto_id
+  where i.ordem_servico_id = p_ordem_servico_id
+    and i.tipo = 'produto'
+  group by p.id, p.nome, p.unidade, p.estoque_atual
+  having sum(i.quantidade) > p.estoque_atual;
+$$;
+
+-- Só finaliza quem passa pela porta certa -------------------------------------
+-- Sem isto, um update direto na tabela levaria a ordem para 'finalizada' sem
+-- baixar peça nenhuma, e o estoque continuaria dizendo que a peça está na
+-- prateleira. A regra não pode depender de a tela chamar a função certa.
+create or replace function public.conferir_fechamento_da_os()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.status = old.status then
+    return new;
+  end if;
+
+  if new.status in ('finalizada', 'cancelada')
+     and coalesce(current_setting('app.os_fechamento', true), '') <> 'sim' then
+    raise exception 'Finalizar e cancelar mexem no estoque: use finalizar_os ou cancelar_os.'
+      using errcode = 'check_violation';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists ordens_servico_conferir_fechamento on public.ordens_servico;
+create trigger ordens_servico_conferir_fechamento
+  before update on public.ordens_servico
+  for each row execute function public.conferir_fechamento_da_os();
+
+-- Finalizar -------------------------------------------------------------------
+create or replace function public.finalizar_os(
+  p_ordem_servico_id uuid,
+  p_permitir_negativo boolean default false
+)
+returns public.ordens_servico
+language plpgsql
+as $$
+declare
+  v_os public.ordens_servico;
+  v_faltas text;
+  v_item record;
+  v_negativou boolean := false;
+begin
+  select * into v_os from public.ordens_servico where id = p_ordem_servico_id for update;
+  if not found then
+    raise exception 'Ordem de serviço não encontrada.' using errcode = 'no_data_found';
+  end if;
+
+  if not public.transicao_de_os_valida(v_os.status, 'finalizada') then
+    raise exception 'A ordem está % e não pode ser finalizada.',
+      public.nome_do_status_os(v_os.status) using errcode = 'check_violation';
+  end if;
+
+  select string_agg(
+           format('%s (tem %s %s, precisa de %s)',
+                  f.nome,
+                  public.formatar_quantidade(f.em_estoque),
+                  f.unidade,
+                  public.formatar_quantidade(f.necessario)),
+           E'\n')
+    into v_faltas
+  from public.faltas_para_finalizar_os(p_ordem_servico_id) f;
+
+  if v_faltas is not null then
+    if not p_permitir_negativo then
+      -- A mensagem já sai pronta para a tela: quais peças e quanto falta de
+      -- cada uma. Sem isso, o dono descobre a falta uma peça por vez.
+      raise exception E'Falta peça em estoque para finalizar:\n%', v_faltas
+        using errcode = 'check_violation';
+    end if;
+    v_negativou := true;
+    perform set_config('app.estoque_pode_negativar', 'sim', true);
+  end if;
+
+  for v_item in
+    select i.produto_id, sum(i.quantidade) as quantidade
+    from public.os_itens i
+    where i.ordem_servico_id = p_ordem_servico_id and i.tipo = 'produto'
+      and i.produto_id is not null
+    group by i.produto_id
+  loop
+    insert into public.movimentacoes_estoque
+      (oficina_id, produto_id, tipo, quantidade, motivo, ordem_servico_id, usuario_id)
+    values
+      (v_os.oficina_id, v_item.produto_id, 'saida', v_item.quantidade,
+       case when v_negativou
+            then format('Aplicado na OS nº %s (saldo insuficiente no cadastro)',
+                        lpad(v_os.numero::text, 4, '0'))
+            else format('Aplicado na OS nº %s', lpad(v_os.numero::text, 4, '0'))
+       end,
+       p_ordem_servico_id, auth.uid());
+  end loop;
+
+  perform set_config('app.estoque_pode_negativar', '', true);
+
+  perform set_config('app.os_fechamento', 'sim', true);
+  update public.ordens_servico
+     set status = 'finalizada',
+         data_conclusao = now()
+   where id = p_ordem_servico_id
+  returning * into v_os;
+  perform set_config('app.os_fechamento', '', true);
+
+  return v_os;
+end;
+$$;
+
+-- Cancelar --------------------------------------------------------------------
+-- Estorna com movimentação de entrada, nunca apagando o extrato. Mesma razão da
+-- nota fiscal cancelada (0021): o extrato conta o que aconteceu, e o que
+-- aconteceu foi uma saída seguida de uma devolução.
+create or replace function public.cancelar_os(
+  p_ordem_servico_id uuid,
+  p_motivo text default null
+)
+returns public.ordens_servico
+language plpgsql
+as $$
+declare
+  v_os public.ordens_servico;
+  v_mov record;
+begin
+  select * into v_os from public.ordens_servico where id = p_ordem_servico_id for update;
+  if not found then
+    raise exception 'Ordem de serviço não encontrada.' using errcode = 'no_data_found';
+  end if;
+
+  if not public.transicao_de_os_valida(v_os.status, 'cancelada') then
+    raise exception 'A ordem está % e não pode mais ser cancelada.',
+      public.nome_do_status_os(v_os.status) using errcode = 'check_violation';
+  end if;
+
+  for v_mov in
+    select produto_id, quantidade
+    from public.movimentacoes_estoque
+    where ordem_servico_id = p_ordem_servico_id and tipo = 'saida'
+  loop
+    insert into public.movimentacoes_estoque
+      (oficina_id, produto_id, tipo, quantidade, motivo, ordem_servico_id, usuario_id)
+    values
+      (v_os.oficina_id, v_mov.produto_id, 'entrada', v_mov.quantidade,
+       format('Devolvido do cancelamento da OS nº %s', lpad(v_os.numero::text, 4, '0')),
+       p_ordem_servico_id, auth.uid());
+  end loop;
+
+  perform set_config('app.os_fechamento', 'sim', true);
+  update public.ordens_servico
+     set status = 'cancelada',
+         observacoes_tecnicas = case
+           when coalesce(trim(p_motivo), '') = '' then observacoes_tecnicas
+           else concat_ws(E'\n\n', observacoes_tecnicas,
+                          format('Cancelada: %s', trim(p_motivo)))
+         end
+   where id = p_ordem_servico_id
+  returning * into v_os;
+  perform set_config('app.os_fechamento', '', true);
+
+  return v_os;
+end;
+$$;
+
+select public.conferir_fechadura();
 

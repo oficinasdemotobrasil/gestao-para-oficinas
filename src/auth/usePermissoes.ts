@@ -36,6 +36,10 @@ export function usePermissoes() {
     // O mecânico também abre ordem de serviço: é o trabalho dele. Quais ele
     // enxerga quem decide é o RLS — só as que estão no nome dele.
     verOrdens: true,
+    /** A lista da oficina inteira. O mecânico só tem as dele, na tela inicial. */
+    verOrdensDaOficina: ehAtendimento,
+    /** Atribuir, conferir, finalizar, cancelar e cobrar. */
+    gerenciarOrdens: ehAtendimento,
 
     verCatalogo: ehAtendimento,
     /** Só o admin enxerga preço de custo e margem. */

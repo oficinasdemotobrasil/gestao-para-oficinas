@@ -19,6 +19,8 @@ export type StatusOS =
   | 'aberta'
   | 'em_andamento'
   | 'pausada'
+  /** O mecânico terminou e avisou. Quem confere é que finaliza (0027). */
+  | 'aguardando_conferencia'
   | 'finalizada'
   | 'entregue'
   | 'cancelada'
@@ -228,9 +230,22 @@ type OrdemServico = {
   data_abertura: string
   data_conclusao: string | null
   garantia_ate: string | null
+  /** Veio do orçamento: é o texto que o cliente leu. Histórico, não instrução. */
   observacoes: string | null
+  /** O que o mecânico escreveu enquanto trabalhava. É o que sai no PDF da OS. */
+  observacoes_tecnicas: string | null
   criado_em: string
   atualizado_em: string
+}
+
+type OsStatusHistorico = {
+  id: string
+  oficina_id: string
+  ordem_servico_id: string
+  de: StatusOS | null
+  para: StatusOS
+  usuario_id: string | null
+  criado_em: string
 }
 
 /** Campos que o banco preenche sozinho e que nunca são enviados na inserção. */
@@ -289,6 +304,7 @@ export type Database = {
       orcamento_itens: Tabela<OrcamentoItem>
       ordens_servico: TabelaNumerada<OrdemServico>
       os_itens: Tabela<OsItem>
+      os_status_historico: Tabela<OsStatusHistorico>
     }
     Views: {
       vw_produtos: { Row: ProdutoSemCusto; Relationships: [] }
@@ -354,6 +370,29 @@ export type Database = {
         Args: { p_orcamento_id: string; p_motivo: string | null }
         Returns: undefined
       }
+      mudar_status_da_os: {
+        Args: { p_ordem_servico_id: string; p_status: StatusOS }
+        Returns: OrdemServico
+      }
+      faltas_para_finalizar_os: {
+        Args: { p_ordem_servico_id: string }
+        Returns: Array<{
+          produto_id: string
+          nome: string
+          unidade: string
+          necessario: number
+          em_estoque: number
+          falta: number
+        }>
+      }
+      finalizar_os: {
+        Args: { p_ordem_servico_id: string; p_permitir_negativo: boolean }
+        Returns: OrdemServico
+      }
+      cancelar_os: {
+        Args: { p_ordem_servico_id: string; p_motivo: string | null }
+        Returns: OrdemServico
+      }
       oficina_do_usuario: { Args: Record<string, never>; Returns: string }
       perfil_do_usuario: { Args: Record<string, never>; Returns: PerfilUsuario }
     }
@@ -388,6 +427,7 @@ export type {
   Orcamento,
   OrcamentoItem,
   OrdemServico,
+  OsStatusHistorico,
   OsItem,
   ItemOrcamento,
   ItemNota,

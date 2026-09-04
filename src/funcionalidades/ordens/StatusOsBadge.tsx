@@ -5,6 +5,9 @@ const aparencia: Record<StatusOS, { rotulo: string; tom: 'sucesso' | 'atencao' |
   aberta: { rotulo: 'Aberta', tom: 'atencao' },
   em_andamento: { rotulo: 'Em andamento', tom: 'atencao' },
   pausada: { rotulo: 'Pausada', tom: 'neutro' },
+  // "Pronta" e não "aguardando conferência": é o que o mecânico quer dizer, e
+  // cabe no espaço de um badge no celular.
+  aguardando_conferencia: { rotulo: 'Pronta', tom: 'atencao' },
   finalizada: { rotulo: 'Finalizada', tom: 'sucesso' },
   entregue: { rotulo: 'Entregue', tom: 'sucesso' },
   cancelada: { rotulo: 'Cancelada', tom: 'erro' },

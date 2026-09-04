@@ -24,6 +24,7 @@ import { ListaOrcamentos } from '@/funcionalidades/orcamentos/paginas/ListaOrcam
 import { EditorOrcamento } from '@/funcionalidades/orcamentos/paginas/EditorOrcamento'
 import { DetalheOrcamento } from '@/funcionalidades/orcamentos/paginas/DetalheOrcamento'
 import { DetalheOrdemServico } from '@/funcionalidades/ordens/paginas/DetalheOrdemServico'
+import { ListaOrdens } from '@/funcionalidades/ordens/paginas/ListaOrdens'
 
 export const rotas = createBrowserRouter([
   {
@@ -71,7 +72,12 @@ export const rotas = createBrowserRouter([
           },
           {
             element: <RotaPorPerfil permitido={(p) => p.verOrdens} />,
-            children: [{ path: '/ordens/:id', element: <DetalheOrdemServico /> }],
+            children: [
+              // A lista é do atendimento: o mecânico chega às ordens dele pela
+              // tela inicial, que já é só delas.
+              { path: '/ordens', element: <ListaOrdens /> },
+              { path: '/ordens/:id', element: <DetalheOrdemServico /> },
+            ],
           },
           {
             element: <RotaPorPerfil permitido={(p) => p.verMotos} />,

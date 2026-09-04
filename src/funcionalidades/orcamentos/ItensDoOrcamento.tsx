@@ -16,11 +16,22 @@ interface Props {
   itens: ItemEmEdicao[]
   aoMudar: (itens: ItemEmEdicao[]) => void
   somenteLeitura?: boolean
+  /**
+   * Esconde preço e subtotal. É a lista que o mecânico vê na ordem dele: o que
+   * fazer, sem quanto custa. Esconder na tela é conveniência — quem recusa o
+   * dado é o RLS, no banco.
+   */
+  semValores?: boolean
 }
 
 const novaChave = () => Math.random().toString(36).slice(2)
 
-export function ItensDoOrcamento({ itens, aoMudar, somenteLeitura = false }: Props) {
+export function ItensDoOrcamento({
+  itens,
+  aoMudar,
+  somenteLeitura = false,
+  semValores = false,
+}: Props) {
   const p = usePermissoes()
   const [escolhendo, setEscolhendo] = useState<'produto' | 'servico' | null>(null)
   const [avulso, setAvulso] = useState(false)
@@ -108,7 +119,13 @@ export function ItensDoOrcamento({ itens, aoMudar, somenteLeitura = false }: Pro
                 )}
               </div>
 
-              {somenteLeitura ? (
+              {semValores ? (
+                item.quantidade !== 1 && (
+                  <p className="pt-3 text-apoio text-claro-secundario">
+                    {String(item.quantidade).replace('.', ',')} unidades
+                  </p>
+                )
+              ) : somenteLeitura ? (
                 <div className="flex items-baseline justify-between gap-4 pt-3">
                   <span className="text-apoio text-claro-secundario">
                     {item.quantidade} × {moeda(item.valor_unitario)}
