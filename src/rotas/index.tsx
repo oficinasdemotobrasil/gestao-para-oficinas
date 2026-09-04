@@ -73,14 +73,16 @@ export const rotas = createBrowserRouter([
               { path: '/orcamentos/:id/editar', element: <EditorOrcamento /> },
             ],
           },
+          // A lista é do atendimento. O mecânico chega às ordens dele pela tela
+          // inicial, que já é só delas — e digitando /ordens ele via a lista da
+          // oficina vazia, sem vazar nada, mas numa tela que não é dele.
+          {
+            element: <RotaPorPerfil permitido={(p) => p.verOrdensDaOficina} />,
+            children: [{ path: '/ordens', element: <ListaOrdens /> }],
+          },
           {
             element: <RotaPorPerfil permitido={(p) => p.verOrdens} />,
-            children: [
-              // A lista é do atendimento: o mecânico chega às ordens dele pela
-              // tela inicial, que já é só delas.
-              { path: '/ordens', element: <ListaOrdens /> },
-              { path: '/ordens/:id', element: <OrdemDeServico /> },
-            ],
+            children: [{ path: '/ordens/:id', element: <OrdemDeServico /> }],
           },
           {
             element: <RotaPorPerfil permitido={(p) => p.verMotos} />,
