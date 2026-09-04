@@ -5,7 +5,8 @@ import { FileText, Plus } from 'lucide-react'
 import { Tela, CabecalhoTela } from '@/componentes/layout/Tela'
 import { CampoBusca } from '@/componentes/ui/CampoBusca'
 import { Abas } from '@/componentes/ui/Abas'
-import { ListaCard, LinhaLista } from '@/componentes/ui/Card'
+import { LinhaLista } from '@/componentes/ui/Card'
+import { ListaResponsiva } from '@/componentes/ui/ListaResponsiva'
 import { Botao } from '@/componentes/ui/Botao'
 import { EstadoVazio, EstadoErro } from '@/componentes/ui/EstadoVazio'
 import { EsqueletoLista } from '@/componentes/ui/Carregando'
@@ -86,25 +87,61 @@ export function ListaOrcamentos() {
             aoAgir={buscando ? undefined : () => navegar('/orcamentos/novo')}
           />
         ) : (
-          <ListaCard>
-            {orcamentos.map((o) => {
-              const efetivo = statusEfetivo(o)
-              return (
-                <LinhaLista
-                  key={o.id}
-                  inicio={
-                    <span className="flex h-10 min-w-[52px] items-center justify-center rounded-badge bg-acento-suave px-2 text-rotulo font-semibold text-claro">
-                      {String(o.numero).padStart(3, '0')}
-                    </span>
-                  }
-                  titulo={o.cliente?.nome ?? 'Cliente removido'}
-                  descricao={`${o.moto ? exibirPlaca(o.moto.placa) : 'sem moto'} · ${moeda(o.valor_total)} · ${data(o.criado_em)}`}
-                  fim={<StatusOrcamentoBadge status={efetivo} />}
-                  aoTocar={() => navegar(`/orcamentos/${o.id}`)}
-                />
-              )
-            })}
-          </ListaCard>
+          <ListaResponsiva
+            descricao="Orçamentos da oficina"
+            itens={orcamentos}
+            chaveDoItem={(o) => o.id}
+            aoTocar={(o) => navegar(`/orcamentos/${o.id}`)}
+            // O cartão do celular é o mesmo de sempre, linha por linha.
+            cartao={(o) => (
+              <LinhaLista
+                inicio={
+                  <span className="flex h-10 min-w-[52px] items-center justify-center rounded-badge bg-acento-suave px-2 text-rotulo font-semibold text-claro">
+                    {String(o.numero).padStart(3, '0')}
+                  </span>
+                }
+                titulo={o.cliente?.nome ?? 'Cliente removido'}
+                descricao={`${o.moto ? exibirPlaca(o.moto.placa) : 'sem moto'} · ${moeda(o.valor_total)} · ${data(o.criado_em)}`}
+                fim={<StatusOrcamentoBadge status={statusEfetivo(o)} />}
+                aoTocar={() => navegar(`/orcamentos/${o.id}`)}
+              />
+            )}
+            colunas={[
+              {
+                chave: 'numero',
+                titulo: 'Nº',
+                largura: 'w-20',
+                celula: (o) => (
+                  <span className="font-semibold">{String(o.numero).padStart(3, '0')}</span>
+                ),
+              },
+              { chave: 'cliente', titulo: 'Cliente', celula: (o) => o.cliente?.nome ?? 'Cliente removido' },
+              {
+                chave: 'moto',
+                titulo: 'Moto',
+                celula: (o) => (o.moto ? exibirPlaca(o.moto.placa) : '—'),
+              },
+              {
+                chave: 'data',
+                titulo: 'Criado em',
+                peso: 'apoio',
+                celula: (o) => data(o.criado_em),
+              },
+              {
+                chave: 'valor',
+                titulo: 'Valor',
+                alinhar: 'direita',
+                largura: 'w-32',
+                celula: (o) => <span className="font-semibold">{moeda(o.valor_total)}</span>,
+              },
+              {
+                chave: 'status',
+                titulo: 'Situação',
+                largura: 'w-32',
+                celula: (o) => <StatusOrcamentoBadge status={statusEfetivo(o)} />,
+              },
+            ]}
+          />
         )}
       </div>
     </Tela>

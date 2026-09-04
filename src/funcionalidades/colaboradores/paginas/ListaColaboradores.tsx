@@ -2,7 +2,8 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Users2, Plus, ShieldCheck, Store, Wrench } from 'lucide-react'
 import { Tela, CabecalhoInterno } from '@/componentes/layout/Tela'
-import { ListaCard, LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
+import { LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
+import { ListaResponsiva } from '@/componentes/ui/ListaResponsiva'
 import { Botao } from '@/componentes/ui/Botao'
 import { BadgeAtivo } from '@/componentes/ui/Badge'
 import { EstadoVazio, EstadoErro } from '@/componentes/ui/EstadoVazio'
@@ -57,13 +58,16 @@ export function ListaColaboradores() {
             aoAgir={() => navegar('/colaboradores/novo')}
           />
         ) : (
-          <ListaCard>
-            {colaboradores.map((colaborador) => {
+          <ListaResponsiva
+            descricao="Equipe da oficina"
+            itens={colaboradores}
+            chaveDoItem={(c) => c.id}
+            aoTocar={(c) => navegar(`/colaboradores/${c.id}`)}
+            cartao={(colaborador) => {
               const Icone = iconePorPerfil[colaborador.perfil]
               const souEu = colaborador.id === usuario?.id
               return (
                 <LinhaLista
-                  key={colaborador.id}
                   inicio={
                     <IconeCirculo>
                       <Icone aria-hidden size={20} />
@@ -75,8 +79,32 @@ export function ListaColaboradores() {
                   aoTocar={() => navegar(`/colaboradores/${colaborador.id}`)}
                 />
               )
-            })}
-          </ListaCard>
+            }}
+            colunas={[
+              {
+                chave: 'nome',
+                titulo: 'Nome',
+                celula: (c) => (
+                  <span className="font-medium">
+                    {c.id === usuario?.id ? `${c.nome} (você)` : c.nome}
+                  </span>
+                ),
+              },
+              {
+                chave: 'perfil',
+                titulo: 'Perfil',
+                largura: 'w-44',
+                celula: (c) => nomeDoPerfil[c.perfil],
+              },
+              { chave: 'email', titulo: 'E-mail', peso: 'apoio', celula: (c) => c.email },
+              {
+                chave: 'ativo',
+                titulo: 'Situação',
+                largura: 'w-32',
+                celula: (c) => <BadgeAtivo ativo={c.ativo} />,
+              },
+            ]}
+          />
         )}
       </div>
 

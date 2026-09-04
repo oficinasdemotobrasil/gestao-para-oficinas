@@ -5,7 +5,8 @@ import { Package, Wrench, Plus, TriangleAlert, X } from 'lucide-react'
 import { Tela, CabecalhoTela } from '@/componentes/layout/Tela'
 import { CampoBusca } from '@/componentes/ui/CampoBusca'
 import { Abas } from '@/componentes/ui/Abas'
-import { ListaCard, LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
+import { LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
+import { ListaResponsiva } from '@/componentes/ui/ListaResponsiva'
 import { Botao } from '@/componentes/ui/Botao'
 import { Badge } from '@/componentes/ui/Badge'
 import { EstadoVazio, EstadoErro } from '@/componentes/ui/EstadoVazio'
@@ -155,13 +156,16 @@ export function Catalogo() {
                   }
                 />
               ) : (
-                <ListaCard>
-                  {listaProdutos.map((produto) => {
+                <ListaResponsiva
+                  descricao="Produtos do catálogo"
+                  itens={listaProdutos}
+                  chaveDoItem={(x) => x.id}
+                  aoTocar={(x) => navegar(`/catalogo/produtos/${x.id}`)}
+                  cartao={(produto) => {
                     const minimo = Number(produto.estoque_minimo)
                     const abaixoDoMinimo = minimo > 0 && Number(produto.estoque_atual) <= minimo
                     return (
                       <LinhaLista
-                        key={produto.id}
                         inicio={
                           <IconeCirculo>
                             <Package aria-hidden size={20} />
@@ -186,8 +190,51 @@ export function Catalogo() {
                         aoTocar={() => navegar(`/catalogo/produtos/${produto.id}`)}
                       />
                     )
-                  })}
-                </ListaCard>
+                  }}
+                  colunas={[
+                    {
+                      chave: 'nome',
+                      titulo: 'Produto',
+                      celula: (x) => <span className="font-medium">{x.nome}</span>,
+                    },
+                    {
+                      chave: 'estoque',
+                      titulo: 'Em estoque',
+                      alinhar: 'direita',
+                      largura: 'w-40',
+                      celula: (x) => `${quantidade(x.estoque_atual)} ${x.unidade}`,
+                    },
+                    {
+                      chave: 'minimo',
+                      titulo: 'Mínimo',
+                      alinhar: 'direita',
+                      peso: 'apoio',
+                      largura: 'w-32',
+                      celula: (x) =>
+                        Number(x.estoque_minimo) > 0 ? quantidade(x.estoque_minimo) : '—',
+                    },
+                    {
+                      chave: 'preco',
+                      titulo: 'Venda',
+                      alinhar: 'direita',
+                      largura: 'w-32',
+                      celula: (x) => <span className="font-semibold">{moeda(x.preco_venda)}</span>,
+                    },
+                    {
+                      chave: 'situacao',
+                      titulo: 'Situação',
+                      largura: 'w-32',
+                      celula: (x) => {
+                        const minimo = Number(x.estoque_minimo)
+                        if (!x.ativo) return <Badge>Inativo</Badge>
+                        if (minimo > 0 && Number(x.estoque_atual) <= minimo) {
+                          return <Badge tom="atencao">Repor</Badge>
+                        }
+                        return null
+                      },
+                    },
+                  ]}
+                />
               )}
             </>
           ) : servicos.isPending ? (
@@ -211,10 +258,15 @@ export function Catalogo() {
               aoAgir={p.editarCatalogo ? () => navegar('/catalogo/servicos/novo') : undefined}
             />
           ) : (
-            <ListaCard>
-              {servicos.data.map((servico) => (
+            <ListaResponsiva
+              descricao="Serviços do catálogo"
+              itens={servicos.data}
+              chaveDoItem={(x) => x.id}
+              aoTocar={
+                p.editarCatalogo ? (x) => navegar(`/catalogo/servicos/${x.id}`) : undefined
+              }
+              cartao={(servico) => (
                 <LinhaLista
-                  key={servico.id}
                   inicio={
                     <IconeCirculo>
                       <Wrench aria-hidden size={20} />
@@ -231,8 +283,37 @@ export function Catalogo() {
                     p.editarCatalogo ? () => navegar(`/catalogo/servicos/${servico.id}`) : undefined
                   }
                 />
-              ))}
-            </ListaCard>
+              )}
+              colunas={[
+                {
+                  chave: 'nome',
+                  titulo: 'Serviço',
+                  celula: (x) => <span className="font-medium">{x.nome}</span>,
+                },
+                {
+                  chave: 'tempo',
+                  titulo: 'Tempo estimado',
+                  alinhar: 'direita',
+                  peso: 'apoio',
+                  largura: 'w-48',
+                  celula: (x) =>
+                    x.tempo_estimado_minutos ? `${x.tempo_estimado_minutos} min` : '—',
+                },
+                {
+                  chave: 'preco',
+                  titulo: 'Preço',
+                  alinhar: 'direita',
+                  largura: 'w-32',
+                  celula: (x) => <span className="font-semibold">{moeda(x.preco)}</span>,
+                },
+                {
+                  chave: 'situacao',
+                  titulo: 'Situação',
+                  largura: 'w-32',
+                  celula: (x) => (x.ativo ? null : <Badge>Inativo</Badge>),
+                },
+              ]}
+            />
           )}
         </div>
       )}

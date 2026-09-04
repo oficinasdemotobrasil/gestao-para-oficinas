@@ -5,7 +5,8 @@ import { Wrench, SlidersHorizontal } from 'lucide-react'
 import { Tela, CabecalhoTela } from '@/componentes/layout/Tela'
 import { CampoBusca } from '@/componentes/ui/CampoBusca'
 import { Abas } from '@/componentes/ui/Abas'
-import { ListaCard, LinhaLista } from '@/componentes/ui/Card'
+import { LinhaLista } from '@/componentes/ui/Card'
+import { ListaResponsiva } from '@/componentes/ui/ListaResponsiva'
 import { Botao } from '@/componentes/ui/Botao'
 import { Campo, Selecao } from '@/componentes/ui/Campo'
 import { EstadoVazio, EstadoErro } from '@/componentes/ui/EstadoVazio'
@@ -155,10 +156,13 @@ export function ListaOrdens() {
             }
           />
         ) : (
-          <ListaCard>
-            {ordens.map((o) => (
+          <ListaResponsiva
+            descricao="Ordens de serviço da oficina"
+            itens={ordens}
+            chaveDoItem={(o) => o.id}
+            aoTocar={(o) => navegar(`/ordens/${o.id}`)}
+            cartao={(o) => (
               <LinhaLista
-                key={o.id}
                 inicio={
                   <span className="flex h-10 min-w-[52px] items-center justify-center rounded-badge bg-acento-suave px-2 text-rotulo font-semibold text-claro">
                     {String(o.numero).padStart(3, '0')}
@@ -169,8 +173,47 @@ export function ListaOrdens() {
                 fim={<StatusOsBadge status={o.status} />}
                 aoTocar={() => navegar(`/ordens/${o.id}`)}
               />
-            ))}
-          </ListaCard>
+            )}
+            colunas={[
+              {
+                chave: 'numero',
+                titulo: 'Nº',
+                largura: 'w-20',
+                celula: (o) => (
+                  <span className="font-semibold">{String(o.numero).padStart(3, '0')}</span>
+                ),
+              },
+              {
+                chave: 'moto',
+                titulo: 'Moto',
+                celula: (o) => (
+                  <span className="font-medium">
+                    {o.moto ? exibirPlaca(o.moto.placa) : 'Moto removida'}
+                  </span>
+                ),
+              },
+              { chave: 'cliente', titulo: 'Cliente', celula: (o) => o.cliente?.nome ?? '—' },
+              {
+                chave: 'abertura',
+                titulo: 'Aberta em',
+                peso: 'apoio',
+                celula: (o) => data(o.data_abertura),
+              },
+              {
+                chave: 'valor',
+                titulo: 'Valor',
+                alinhar: 'direita',
+                largura: 'w-32',
+                celula: (o) => <span className="font-semibold">{moeda(o.valor_total)}</span>,
+              },
+              {
+                chave: 'status',
+                titulo: 'Situação',
+                largura: 'w-40',
+                celula: (o) => <StatusOsBadge status={o.status} />,
+              },
+            ]}
+          />
         )}
       </div>
     </Tela>

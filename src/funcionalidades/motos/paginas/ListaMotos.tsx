@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Bike, Plus } from 'lucide-react'
 import { Tela, CabecalhoTela } from '@/componentes/layout/Tela'
 import { CampoBusca } from '@/componentes/ui/CampoBusca'
-import { ListaCard, LinhaLista } from '@/componentes/ui/Card'
+import { LinhaLista } from '@/componentes/ui/Card'
+import { ListaResponsiva } from '@/componentes/ui/ListaResponsiva'
 import { Botao } from '@/componentes/ui/Botao'
 import { EstadoVazio, EstadoErro } from '@/componentes/ui/EstadoVazio'
 import { EsqueletoLista } from '@/componentes/ui/Carregando'
@@ -82,17 +83,44 @@ export function ListaMotos() {
             aoAgir={p.editarMotos ? () => navegar('/motos/nova') : undefined}
           />
         ) : (
-          <ListaCard>
-            {motos.map((moto) => (
+          <ListaResponsiva
+            descricao="Motos atendidas pela oficina"
+            itens={motos}
+            chaveDoItem={(m) => m.id}
+            aoTocar={(m) => navegar(`/motos/${m.id}`)}
+            cartao={(moto) => (
               <LinhaLista
-                key={moto.id}
                 inicio={<Placa placa={moto.placa} />}
                 titulo={[moto.marca, moto.modelo].filter(Boolean).join(' ') || 'Moto sem modelo'}
                 descricao={quilometragem(moto.km_atual)}
                 aoTocar={() => navegar(`/motos/${moto.id}`)}
               />
-            ))}
-          </ListaCard>
+            )}
+            colunas={[
+              {
+                chave: 'placa',
+                titulo: 'Placa',
+                largura: 'w-40',
+                celula: (m) => <Placa placa={m.placa} />,
+              },
+              {
+                chave: 'modelo',
+                titulo: 'Moto',
+                celula: (m) => (
+                  <span className="font-medium">
+                    {[m.marca, m.modelo].filter(Boolean).join(' ') || 'Moto sem modelo'}
+                  </span>
+                ),
+              },
+              {
+                chave: 'km',
+                titulo: 'Quilometragem',
+                alinhar: 'direita',
+                largura: 'w-48',
+                celula: (m) => quilometragem(m.km_atual),
+              },
+            ]}
+          />
         )}
       </div>
     </Tela>

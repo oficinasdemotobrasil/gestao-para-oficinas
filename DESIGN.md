@@ -175,6 +175,30 @@ contando o "Mais"); o menu lateral mostra tudo.
 **A ordem dos itens não muda por capricho.** Na oficina se toca por posição, não
 por leitura.
 
+### Listas
+
+Cartões até 1023px, tabela de 1024px em diante — `ListaResponsiva`. No tablet
+ainda são cartões: em 768px uma tabela de cinco colunas já aperta o suficiente
+para ficar pior do que o cartão, e o ganho de varrer com o olho só aparece
+quando cabem as colunas todas.
+
+**O cartão do celular é escrito por quem chama, não derivado das colunas.** Cada
+lista arruma o cartão do seu jeito — a de ordens põe a placa em cima, a de contas
+põe o vencimento — e derivar isso de uma tabela daria um cartão morno em todas.
+Mais importante: é o que garante que o markup do celular continue sendo o mesmo,
+e não um equivalente.
+
+`formatoNoCelular` escolhe como os itens se agrupam: `'lista'` (um card branco
+com divisórias, o padrão do app) ou `'cartoes'` (cards separados, onde cada item
+tem ações próprias).
+
+Colunas com `peso: 'apoio'` só aparecem a partir de 1440px. Servem para o que
+ajuda mas não é o motivo de a pessoa estar olhando a lista — a data de criação,
+o e-mail, o tempo estimado.
+
+O cabeçalho da tabela acompanha a rolagem. Numa lista de duzentas linhas, sem
+isso a pessoa esquece o que é cada coluna.
+
 ---
 
 ## Composição

@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Users, Plus, Phone, UserX } from 'lucide-react'
 import { Tela, CabecalhoTela } from '@/componentes/layout/Tela'
 import { CampoBusca } from '@/componentes/ui/CampoBusca'
-import { ListaCard, LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
+import { LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
+import { ListaResponsiva } from '@/componentes/ui/ListaResponsiva'
 import { Botao } from '@/componentes/ui/Botao'
 import { EstadoVazio, EstadoErro } from '@/componentes/ui/EstadoVazio'
 import { EsqueletoLista } from '@/componentes/ui/Carregando'
@@ -86,10 +87,13 @@ export function ListaClientes() {
             aoAgir={p.editarClientes ? () => navegar('/clientes/novo') : undefined}
           />
         ) : (
-          <ListaCard>
-            {clientes.map((cliente) => (
+          <ListaResponsiva
+            descricao="Clientes da oficina"
+            itens={clientes}
+            chaveDoItem={(c) => c.id}
+            aoTocar={(c) => navegar(`/clientes/${c.id}`)}
+            cartao={(cliente) => (
               <LinhaLista
-                key={cliente.id}
                 inicio={
                   <IconeCirculo>
                     <span className="text-corpo font-semibold">
@@ -101,8 +105,21 @@ export function ListaClientes() {
                 descricao={cliente.telefone ? formatarTelefone(cliente.telefone) : 'Sem telefone'}
                 aoTocar={() => navegar(`/clientes/${cliente.id}`)}
               />
-            ))}
-          </ListaCard>
+            )}
+            colunas={[
+              {
+                chave: 'nome',
+                titulo: 'Cliente',
+                celula: (c) => <span className="font-medium">{c.nome}</span>,
+              },
+              {
+                chave: 'telefone',
+                titulo: 'Telefone',
+                largura: 'w-48',
+                celula: (c) => (c.telefone ? formatarTelefone(c.telefone) : '—'),
+              },
+            ]}
+          />
         )}
       </div>
 

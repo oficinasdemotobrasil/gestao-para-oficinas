@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { cn } from '@/lib/cn'
+import { ListaCard } from './Card'
 
 export interface Coluna<T> {
   /** Identifica a coluna. Não aparece na tela. */
@@ -33,6 +34,17 @@ interface Props<T> {
   aoTocar?: (item: T) => void
   /** Rótulo de leitor de tela para a tabela. */
   descricao: string
+  /**
+   * Como os itens se agrupam no celular.
+   *
+   * 'lista' é um card branco só, com divisórias entre as linhas — o formato de
+   * quase todas as listas do app. 'cartoes' são cards separados com respiro
+   * entre eles, usado onde cada item tem ações próprias, como no financeiro.
+   *
+   * Existe porque converter uma lista para o outro formato mudaria a cara dela
+   * no celular, e o celular não muda nesta fase.
+   */
+  formatoNoCelular?: 'lista' | 'cartoes'
 }
 
 /**
@@ -51,14 +63,25 @@ export function ListaResponsiva<T>({
   cartao,
   aoTocar,
   descricao,
+  formatoNoCelular = 'lista',
 }: Props<T>) {
+  // Fragment e não uma <div> em volta: o ListaCard desenha as divisórias com
+  // um seletor de filho direto (`> * + *`), e um elemento a mais no meio
+  // receberia a borda no lugar da linha — ou nenhuma, se ele fosse
+  // `display: contents`.
+  const noCelular = itens.map((item) => (
+    <Fragment key={chaveDoItem(item)}>{cartao(item)}</Fragment>
+  ))
+
   return (
     <>
-      {/* Celular e tablet: exatamente o que já existia. */}
-      <div className="flex flex-col gap-3 desktop:hidden">
-        {itens.map((item) => (
-          <div key={chaveDoItem(item)}>{cartao(item)}</div>
-        ))}
+      {/* Celular e tablet: exatamente o markup que já existia. */}
+      <div className="desktop:hidden">
+        {formatoNoCelular === 'lista' ? (
+          <ListaCard>{noCelular}</ListaCard>
+        ) : (
+          <div className="flex flex-col gap-3">{noCelular}</div>
+        )}
       </div>
 
       {/* Desktop: a mesma informação em colunas. */}
