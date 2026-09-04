@@ -375,6 +375,51 @@ export type Database = {
         /** { ordem, pausou_a_ordem } — o número da OS que parou, se parou alguma. */
         Returns: { ordem: OrdemServico; pausou_a_ordem: string | null }
       }
+      ordens_do_mecanico: {
+        Args: Record<string, never>
+        Returns: Array<{
+          id: string
+          numero: number
+          status: StatusOS
+          data_abertura: string
+          km_entrada: number | null
+          cliente_nome: string | null
+          placa: string | null
+          marca: string | null
+          modelo: string | null
+        }>
+      }
+      os_do_mecanico: {
+        Args: { p_ordem_servico_id: string }
+        Returns: {
+          id: string
+          numero: number
+          status: StatusOS
+          data_abertura: string
+          km_entrada: number | null
+          garantia_ate: string | null
+          observacoes_tecnicas: string | null
+          cliente_nome: string | null
+          placa: string | null
+          marca: string | null
+          modelo: string | null
+          itens: Array<{
+            id: string
+            tipo: TipoItem
+            descricao: string
+            quantidade: number
+            executado_em: string | null
+          }>
+        }
+      }
+      marcar_item_executado: {
+        Args: { p_item_id: string; p_feito: boolean }
+        Returns: undefined
+      }
+      salvar_observacoes_tecnicas: {
+        Args: { p_ordem_servico_id: string; p_texto: string | null }
+        Returns: undefined
+      }
       tempo_da_os: {
         Args: { p_ordem_servico_id: string }
         Returns: Array<{

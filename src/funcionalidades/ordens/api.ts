@@ -90,24 +90,6 @@ export interface OrdemNaLista extends OrdemServico {
   moto: Pick<Moto, 'id' | 'placa' | 'marca' | 'modelo'> | null
 }
 
-/**
- * As ordens em aberto, da mais antiga para a mais nova.
- *
- * Sem filtro por pessoa de propósito: o mecânico já recebe só as dele, pelo
- * RLS. Filtrar aqui de novo seria repetir no app uma regra que é do banco — e
- * duas cópias da mesma regra é como uma delas fica para trás.
- */
-export async function listarOrdensEmAberto(): Promise<OrdemNaLista[]> {
-  const { data, error } = await supabase
-    .from('ordens_servico')
-    .select('*, cliente:clientes(id, nome), moto:motos(id, placa, marca, modelo)')
-    .in('status', ['aberta', 'em_andamento', 'pausada'])
-    .order('data_abertura', { ascending: true })
-    .limit(100)
-  if (error) throw error
-  return (data ?? []) as unknown as OrdemNaLista[]
-}
-
 export interface FiltroDeOrdens {
   busca: string
   status: StatusOS | 'todas' | 'em_aberto'
@@ -223,11 +205,16 @@ export async function atribuirResponsavel(id: string, responsavelId: string): Pr
   if (error) throw error
 }
 
+/**
+ * Pela função, e não por update direto: quem não pode LER a tabela também não
+ * consegue achar a linha para atualizar, e o campo salvaria em silêncio sem
+ * gravar nada. Vale para os dois perfis, para não haver dois caminhos.
+ */
 export async function salvarObservacoesTecnicas(id: string, texto: string): Promise<void> {
-  const { error } = await supabase
-    .from('ordens_servico')
-    .update({ observacoes_tecnicas: texto.trim() || null })
-    .eq('id', id)
+  const { error } = await supabase.rpc('salvar_observacoes_tecnicas', {
+    p_ordem_servico_id: id,
+    p_texto: texto.trim() || null,
+  })
   if (error) throw error
 }
 

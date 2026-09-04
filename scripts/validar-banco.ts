@@ -344,7 +344,23 @@ async function testarPerfilMecanico() {
     values ('${ID.oficinaA}', 2, '${ID.clienteA}', '${ID.motoA}', null);
   `)
   await logarComo(ID.mecanicoA)
-  await esperaLinhas('enxerga só a OS atribuída a ele, não as duas', 'select count(*) as n from public.ordens_servico', 1)
+  // A tabela tem dinheiro, então ele não a lê mais — nem para ver a ordem dele.
+  await esperaLinhas(
+    'não lê a tabela de ordens, que tem valor e desconto',
+    'select count(*) as n from public.ordens_servico',
+    0,
+  )
+  const minhas = await ordensDoMecanico()
+  minhas.length === 1
+    ? ok('recebe pela função dele só a OS atribuída a ele, não as duas')
+    : erro('ordens do mecânico', `veio ${minhas.length}`)
+
+  const semDinheiro = minhas.every(
+    (o) => !('valor_total' in o) && !('desconto' in o),
+  )
+  semDinheiro
+    ? ok('e o que chega até ele não tem valor nenhum')
+    : erro('vazamento de valor', JSON.stringify(minhas[0]))
   await esperaLinhas('passa a enxergar o cliente daquela OS', 'select count(*) as n from public.clientes', 1)
   await esperaLinhas('passa a enxergar a moto daquela OS', 'select count(*) as n from public.motos', 1)
   await esperaLinhas('continua sem enxergar o preço de custo', 'select count(*) as n from public.produtos', 0)
@@ -429,6 +445,17 @@ async function testarRegrasDeNegocio() {
 }
 
 /** Lê o saldo do produto direto da coluna que o gatilho mantém. */
+/**
+ * As ordens como o mecânico as recebe: pela função do banco, sem passar por
+ * nenhuma tabela com dinheiro. É assim que a tela dele funciona desde a 0033.
+ */
+async function ordensDoMecanico(): Promise<Array<{ id: string; status: string }>> {
+  const r = await db.query<{ j: Array<{ id: string; status: string }> }>(
+    'select public.ordens_do_mecanico() as j',
+  )
+  return r.rows[0].j
+}
+
 async function saldo(produtoId: string): Promise<number> {
   return contar(`select estoque_atual as n from public.produtos where id = '${produtoId}'`)
 }
@@ -762,11 +789,10 @@ async function testarCicloDaOs() {
   // O mecânico toca no que é dele -------------------------------------------
   await logarComo(ID.mecanicoA)
   await db.query(`select public.mudar_status_da_os('${osId}', 'em_andamento')`)
-  await esperaLinhas(
-    'o mecânico começa o serviço',
-    `select count(*) as n from public.ordens_servico where id = '${osId}' and status = 'em_andamento'`,
-    1,
-  )
+  const comecada = (await ordensDoMecanico()).find((o) => o.id === osId)
+  comecada?.status === 'em_andamento'
+    ? ok('o mecânico começa o serviço')
+    : erro('início do serviço', `status ${comecada?.status ?? 'sumiu da lista'}`)
   await db.query(`select public.mudar_status_da_os('${osId}', 'pausada')`)
   await db.query(`select public.mudar_status_da_os('${osId}', 'em_andamento')`)
   await esperaLinhas(
@@ -788,12 +814,10 @@ async function testarCicloDaOs() {
   )
 
   await db.query(`select public.mudar_status_da_os('${osId}', 'aguardando_conferencia')`)
-  await esperaLinhas(
-    'o mecânico marca como pronta para conferência',
-    `select count(*) as n from public.ordens_servico
-     where id = '${osId}' and status = 'aguardando_conferencia'`,
-    1,
-  )
+  const pronta = (await ordensDoMecanico()).find((o) => o.id === osId)
+  pronta?.status === 'aguardando_conferencia'
+    ? ok('o mecânico marca como pronta para conferência')
+    : erro('pronta para conferência', `status ${pronta?.status ?? 'sumiu da lista'}`)
 
   // Conferência e fechamento -------------------------------------------------
   await logarComo(ID.adminA)
@@ -884,11 +908,10 @@ async function testarRelogio() {
     ? ok(`começar outra ordem avisa qual foi pausada (nº ${numeroPausado})`)
     : erro('aviso de ordem pausada', 'veio nulo')
 
-  await esperaLinhas(
-    'e a ordem de antes volta para pausada, sem ninguém nela',
-    `select count(*) as n from public.ordens_servico where id = '${osA}' and status = 'pausada'`,
-    1,
-  )
+  const deAntes = (await ordensDoMecanico()).find((o) => o.id === osA)
+  deAntes?.status === 'pausada'
+    ? ok('e a ordem de antes volta para pausada, sem ninguém nela')
+    : erro('pausa automática', `status ${deAntes?.status ?? 'sumiu da lista'}`)
   await esperaLinhas(
     'o mecânico fica com um relógio só ligado',
     `select count(*) as n from public.apontamentos_tempo
@@ -921,6 +944,140 @@ async function testarRelogio() {
      where mecanico_id = '${ID.mecanicoA}' and fim is null`,
     0,
   )
+
+  await logarComo(ID.adminA)
+}
+
+async function testarMecanicoSemDinheiro() {
+  console.log('\n\x1b[1mO mecânico não alcança dinheiro nenhum\x1b[0m')
+  await logarComo(ID.mecanicoA)
+
+  const minhas = await ordensDoMecanico()
+  if (minhas.length === 0) {
+    erro('cenário do mecânico', 'nenhuma ordem no nome dele para testar')
+    await logarComo(ID.adminA)
+    return
+  }
+  const osId = minhas[0].id
+
+  await esperaLinhas(
+    'não lê a tabela de ordens, onde está o total',
+    'select count(*) as n from public.ordens_servico',
+    0,
+  )
+  await esperaLinhas(
+    'não lê a tabela de itens, onde está o preço de cada peça',
+    'select count(*) as n from public.os_itens',
+    0,
+  )
+
+  const tela = await db.query<{ j: { itens: Array<Record<string, unknown>> } }>(
+    `select public.os_do_mecanico('${osId}') as j`,
+  )
+  const itens = tela.rows[0].j.itens
+  const campos = Object.keys(itens[0] ?? {})
+  const temDinheiro = campos.some((c) => /valor|preco|custo|desconto|total/.test(c))
+  !temDinheiro
+    ? ok(`o que chega na tela dele não tem campo de dinheiro (${campos.join(', ')})`)
+    : erro('vazamento na tela do mecânico', campos.join(', '))
+
+  const daOrdem = Object.keys(tela.rows[0].j)
+  !daOrdem.some((c) => /valor|desconto/.test(c))
+    ? ok('nem a ordem em si traz valor ou desconto')
+    : erro('vazamento na ordem', daOrdem.join(', '))
+
+  // Escrever no dinheiro, então, nem pensar.
+  //
+  // Aqui não basta esperar erro: o RLS que não casa a linha não reclama, apenas
+  // atualiza zero linhas em silêncio. O que precisa ser verdade é o valor não
+  // ter mudado — seja porque a política não deixou chegar, seja porque o
+  // gatilho recusou.
+  async function tentarEConferir(
+    nome: string,
+    escrita: string,
+    leitura: string,
+  ): Promise<void> {
+    await logarComo(ID.adminA)
+    const antes = await db.query<{ v: string }>(leitura)
+    await logarComo(ID.mecanicoA)
+    let recusou = ''
+    try {
+      await db.query(escrita)
+    } catch (e) {
+      recusou = (e as Error).message
+    }
+    await logarComo(ID.adminA)
+    const depois = await db.query<{ v: string }>(leitura)
+    await logarComo(ID.mecanicoA)
+
+    String(antes.rows[0]?.v) === String(depois.rows[0]?.v)
+      ? ok(`${nome}${recusou ? ` (${recusou})` : ' (não alcançou a linha)'}`)
+      : erro(nome, `mudou de ${antes.rows[0]?.v} para ${depois.rows[0]?.v}`)
+  }
+
+  await tentarEConferir(
+    'não muda o valor da ordem',
+    `update public.ordens_servico set valor_total = 0 where id = '${osId}'`,
+    `select valor_total as v from public.ordens_servico where id = '${osId}'`,
+  )
+  await tentarEConferir(
+    'não muda o preço de um item',
+    `update public.os_itens set valor_unitario = 0 where ordem_servico_id = '${osId}'`,
+    `select sum(valor_unitario) as v from public.os_itens where ordem_servico_id = '${osId}'`,
+  )
+  await tentarEConferir(
+    'não passa a ordem para outra pessoa',
+    `update public.ordens_servico set responsavel_id = '${ID.adminA}' where id = '${osId}'`,
+    `select responsavel_id as v from public.ordens_servico where id = '${osId}'`,
+  )
+
+  // O que ele PODE: dizer que fez.
+  const item = await db.query<{ j: { itens: Array<{ id: string }> } }>(
+    `select public.os_do_mecanico('${osId}') as j`,
+  )
+  const itemId = item.rows[0].j.itens[0].id
+  try {
+    await db.query(`select public.marcar_item_executado('${itemId}', true)`)
+    ok('marca um item como executado')
+  } catch (e) {
+    erro('marcar item executado', (e as Error).message)
+  }
+
+  const depois = await db.query<{ j: { itens: Array<{ executado_em: string | null }> } }>(
+    `select public.os_do_mecanico('${osId}') as j`,
+  )
+  depois.rows[0].j.itens[0].executado_em
+    ? ok('e a marca aparece de volta na tela dele')
+    : erro('item executado', 'executado_em continuou nulo')
+
+  // Escrever o que viu na moto também é dele — e precisou de função própria,
+  // porque um update precisa ler a linha para achá-la.
+  try {
+    await db.query(
+      `select public.salvar_observacoes_tecnicas('${osId}', 'Corrente folgada, ajustei.')`,
+    )
+    const salvo = await db.query<{ j: { observacoes_tecnicas: string | null } }>(
+      `select public.os_do_mecanico('${osId}') as j`,
+    )
+    salvo.rows[0].j.observacoes_tecnicas === 'Corrente folgada, ajustei.'
+      ? ok('escreve a observação técnica, e ela volta na tela')
+      : erro('observação técnica', `veio ${salvo.rows[0].j.observacoes_tecnicas}`)
+  } catch (e) {
+    erro('observação técnica', (e as Error).message)
+  }
+
+  // E a ordem de outra pessoa continua fechada.
+  await logarComo(ID.adminA)
+  const outra = await db.query<{ id: string }>(
+    `select id from public.ordens_servico where responsavel_id <> '${ID.mecanicoA}' limit 1`,
+  )
+  if (outra.rows.length > 0) {
+    await logarComo(ID.mecanicoA)
+    await esperaErro(
+      'a ordem que não é dele nem abre',
+      `select public.os_do_mecanico('${outra.rows[0].id}')`,
+    )
+  }
 
   await logarComo(ID.adminA)
 }
@@ -1095,14 +1252,17 @@ async function testarPerfisNaFase2() {
   await logarComo(ID.mecanicoA)
   await esperaLinhas('mecânico NÃO enxerga orçamento', 'select count(*) as n from public.orcamentos', 0)
   await esperaLinhas('mecânico NÃO enxerga movimentação', 'select count(*) as n from public.vw_movimentacoes', 0)
-  // Cinco: a do teste de perfis, a da aprovação, a do ciclo de vida e as duas
-  // do relógio. A do teste de desconto foi direcionada ao admin de propósito —
-  // e por isso não aparece aqui, que é justamente o que este número prova.
+  // Cinco ordens estão no nome dele. Ele não lê nenhuma pela tabela — que é o
+  // ponto — e recebe pela função só as que ainda têm serviço a fazer.
   await esperaLinhas(
-    'mecânico enxerga só as OS em que ele é o responsável',
+    'mecânico NÃO lê a tabela de ordens',
     'select count(*) as n from public.ordens_servico',
-    5,
+    0,
   )
+  const dele = await ordensDoMecanico()
+  dele.length > 0 && dele.every((o) => ['aberta', 'em_andamento', 'pausada', 'aguardando_conferencia'].includes(o.status))
+    ? ok(`recebe pela função dele as ordens em aberto (${dele.length})`)
+    : erro('ordens do mecânico', JSON.stringify(dele.map((o) => o.status)))
 
   console.log('\n\x1b[1mIsolamento das tabelas novas\x1b[0m')
   await logarComo(ID.adminB)
@@ -1149,6 +1309,7 @@ async function main() {
     await testarOrcamento()
     await testarCicloDaOs()
     await testarRelogio()
+    await testarMecanicoSemDinheiro()
     await testarFechamentoDaOs()
     await testarPerfisNaFase2()
   } catch (e) {

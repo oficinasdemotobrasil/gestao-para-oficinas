@@ -11,7 +11,7 @@ import { useAuth } from '@/auth/ProvedorAuth'
 import { usePermissoes } from '@/auth/usePermissoes'
 import { primeiroNome } from '@/lib/formato'
 import { produtosParaRepor } from '@/funcionalidades/estoque/api'
-import { listarOrdensEmAberto } from '@/funcionalidades/ordens/api'
+import { ordensDoMecanico } from '@/funcionalidades/ordens/apiDoMecanico'
 import { StatusOsBadge } from '@/funcionalidades/ordens/StatusOsBadge'
 
 interface Atalho {
@@ -34,11 +34,12 @@ export function Inicio() {
     enabled: p.verCatalogo,
   })
 
-  // O RLS já entrega só as ordens do próprio mecânico; para o atendimento
-  // viriam todas, e a lista completa é assunto da Fase 3.
+  // Pela função do mecânico, que não passa por nenhuma tabela com dinheiro
+  // (migration 0033). Ela já devolve só as dele e já vem ordenada: em andamento
+  // primeiro, que é a ordem em que o dia dele acontece.
   const ordens = useQuery({
-    queryKey: ['ordens-em-aberto'],
-    queryFn: listarOrdensEmAberto,
+    queryKey: ['ordens-do-mecanico'],
+    queryFn: ordensDoMecanico,
     enabled: p.ehMecanico,
   })
 
@@ -66,14 +67,14 @@ export function Inicio() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-corpo font-medium text-claro">
-                        {os.moto ? exibirPlaca(os.moto.placa) : 'Moto removida'}
+                        {os.placa ? exibirPlaca(os.placa) : 'Moto removida'}
                       </p>
                       <p className="truncate text-apoio text-claro-secundario">
-                        {[os.moto?.marca, os.moto?.modelo].filter(Boolean).join(' ')}
+                        {[os.marca, os.modelo].filter(Boolean).join(' ')}
                         {os.km_entrada ? ` · ${quilometragem(os.km_entrada)}` : ''}
                       </p>
                       <p className="truncate pt-2 text-apoio text-claro-secundario">
-                        OS {String(os.numero).padStart(3, '0')} · {os.cliente?.nome ?? '—'}
+                        OS {String(os.numero).padStart(3, '0')} · {os.cliente_nome ?? '—'}
                       </p>
                     </div>
                     <StatusOsBadge status={os.status} />

@@ -58,16 +58,24 @@ outra.
 6. **`preco_custo` é invisível para o vendedor** porque ele lê a view
    `vw_produtos`, e não a tabela. RLS filtra linha, não coluna — sem a view, o
    custo viria no JSON mesmo com a tela escondendo.
+7. **O mecânico não alcança dinheiro nenhum.** Ele perdeu a leitura de
+   `ordens_servico` e `os_itens`, que guardam valor e desconto, e recebe a tela
+   dele por funções que rodam como donas do banco e entregam campo por campo
+   (`ordens_do_mecanico`, `os_do_mecanico`). Pelo mesmo motivo do item 6: não
+   existe política que devolva a ordem sem o total. O que ele escreve — status,
+   item executado, anotação — também passa por função, porque um `update`
+   precisa **ler** a linha para achá-la.
 
 ### Perfis
 
 | | admin | vendedor | mecânico |
 |---|---|---|---|
-| Clientes e motos | tudo | tudo | só os das OS dele |
+| Clientes e motos | tudo | tudo | só os das OS dele, e só o nome |
 | Produtos | tudo, com custo e margem | sem preço de custo | nenhum |
 | Serviços | tudo | ver e usar | só os ativos |
 | Colaboradores | criar, editar, ativar/desativar | não | não |
 | Configurações da oficina | sim | não | não |
+| Ordens de serviço | tudo | tudo | só as dele, sem nenhum valor |
 | Financeiro (Fase 3) | sim | não | não |
 
 ---
