@@ -222,6 +222,26 @@ página quando alguém aperta Enter dentro dele, e o que estava digitado se perd
 — no celular quase ninguém aperta Enter, no teclado do balcão é o que se faz o
 dia inteiro.
 
+### Janelas e gavetas
+
+No celular, gaveta que sobe pela base, cantos arredondados só em cima — a mão
+que segura o telefone alcança a base, não o topo. Do tablet em diante, janela
+centralizada de 600px, arredondada dos quatro lados.
+
+Os dois formatos existem porque cada um resolve um problema do seu tamanho: a
+gaveta colada embaixo faz sentido no polegar e nenhum no mouse, onde vira uma
+faixa no rodapé longe de onde o olho está; e a janela centralizada no celular
+esconde metade do conteúdo atrás do teclado virtual, que é o motivo de a gaveta
+existir.
+
+Um componente só, `Modal`, e a `FolhaDeBusca` monta em cima dele — o que muda em
+um vale para os dois.
+
+**Teclado.** Esc fecha. O foco entra na janela ao abrir. E o Tab fica preso lá
+dentro: sem isso, a terceira batida no Tab sai para a tela de trás, que continua
+clicável, e a pessoa digita achando que está preenchendo a janela. No celular
+ninguém usa Tab; no balcão, é como se preenche.
+
 ---
 
 ## Composição
