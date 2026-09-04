@@ -266,7 +266,7 @@ function ModalAvulso({
       titulo="Item avulso"
       rodape={
         <Botao largo onClick={confirmar}>
-          Adicionar ao orçamento
+          Adicionar item
         </Botao>
       }
     >

@@ -14,7 +14,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 const ORDEM = [
-  'os_itens',
+  // os_itens e os_status_historico não entram: eles caem por cascata quando a
+  // ordem é apagada. Apagados direto, esbarram no gatilho que impede mexer nos
+  // itens de uma ordem já fechada — regra certa, no lugar errado para isto.
   'ordens_servico',
   'orcamento_itens',
   'orcamentos',
@@ -35,16 +37,39 @@ export async function limparOficina(
 ): Promise<string[]> {
   const problemas: string[] = []
 
-  // 1. Extrato de estoque, do mais novo para o mais antigo.
+  // 1. Extrato de estoque, do mais novo para o mais antigo, em passadas.
+  //
+  // Uma passada só não basta desde que a OS pode ser finalizada com saldo
+  // negativo: o extrato fica com pares saída/devolução em que apagar a
+  // devolução primeiro derrubaria o saldo abaixo de zero — e a trava recusa,
+  // com razão. Apagando o que dá em cada passada, a ordem se resolve sozinha:
+  // some a saída, o saldo sobe, e na volta a devolução já pode sair.
   const { data: movimentacoes } = await admin
     .from('movimentacoes_estoque')
     .select('id')
     .eq('oficina_id', oficinaId)
     .order('criado_em', { ascending: false })
 
-  for (const m of movimentacoes ?? []) {
-    const { error } = await admin.from('movimentacoes_estoque').delete().eq('id', m.id)
-    if (error) problemas.push(`movimentação ${m.id}: ${error.message}`)
+  let restantes = (movimentacoes ?? []).map((m) => m.id)
+
+  while (restantes.length > 0) {
+    const teimosas: string[] = []
+    const erros = new Map<string, string>()
+
+    for (const id of restantes) {
+      const { error } = await admin.from('movimentacoes_estoque').delete().eq('id', id)
+      if (error) {
+        teimosas.push(id)
+        erros.set(id, error.message)
+      }
+    }
+
+    // Nenhuma saiu nesta passada: insistir seria laço infinito.
+    if (teimosas.length === restantes.length) {
+      for (const id of teimosas) problemas.push(`movimentação ${id}: ${erros.get(id)}`)
+      break
+    }
+    restantes = teimosas
   }
 
   // 2. O resto, filho antes do pai.

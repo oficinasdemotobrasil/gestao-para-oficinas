@@ -917,6 +917,40 @@ async function testarFechamentoDaOs() {
     1,
   )
 
+  // Só a peça que faltou leva a marca. Uma ordem com uma peça em falta e outra
+  // sobrando marcava as duas — e marca em peça certa é ruído no extrato.
+  const outra = await db.query<{ id: string }>(
+    `insert into public.produtos (oficina_id, nome, unidade, preco_custo, preco_venda, estoque_atual)
+     values ('${ID.oficinaA}', 'Peça com saldo de sobra', 'un', 5, 20, 30) returning id`,
+  )
+  // O óleo continua negativo do teste anterior, então ele é a peça em falta.
+  const os3 = await novaOs(1)
+  await db.query(
+    `insert into public.os_itens (oficina_id, ordem_servico_id, tipo, produto_id, descricao, quantidade, valor_unitario, valor_total)
+     values ('${ID.oficinaA}', '${os3}', 'produto', '${outra.rows[0].id}', 'Peça com saldo de sobra', 1, 20, 20)`,
+  )
+  await db.query(`select public.finalizar_os('${os3}', true)`)
+  await esperaLinhas(
+    'a peça que faltou sai marcada',
+    `select count(*) as n from public.movimentacoes_estoque
+     where ordem_servico_id = '${os3}' and motivo like '%saldo insuficiente%'`,
+    1,
+  )
+  await esperaLinhas(
+    'e a marca NÃO sobra para a peça que tinha saldo',
+    `select count(*) as n from public.movimentacoes_estoque
+     where ordem_servico_id = '${os3}' and motivo not like '%saldo insuficiente%' and tipo = 'saida'`,
+    1,
+  )
+  // Cancelar uma ordem finalizada com saldo negativo tem de funcionar: a
+  // devolução é uma entrada, e entrada nunca piora o estoque de ninguém.
+  const antesDoEstorno = await saldo(ID.produtoA)
+  await db.query(`select public.cancelar_os('${os3}')`)
+  const depoisDoEstorno = await saldo(ID.produtoA)
+  depoisDoEstorno === antesDoEstorno + 1
+    ? ok(`a peça volta mesmo com o saldo ainda negativo (${antesDoEstorno} → ${depoisDoEstorno})`)
+    : erro('estorno com saldo negativo', `esperava ${antesDoEstorno + 1}, veio ${depoisDoEstorno}`)
+
   // A brecha não fica aberta para o resto do sistema.
   await esperaErro(
     'fora da finalização, a trava do estoque negativo continua de pé',
