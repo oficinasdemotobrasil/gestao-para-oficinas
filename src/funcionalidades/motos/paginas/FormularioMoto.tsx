@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Tela, CabecalhoInterno } from '@/componentes/layout/Tela'
 import { Campo, Selecao } from '@/componentes/ui/Campo'
 import { Botao } from '@/componentes/ui/Botao'
+import { Formulario, LinhaInteira } from '@/componentes/ui/Formulario'
 import { Carregando } from '@/componentes/ui/Carregando'
 import { EstadoVazio } from '@/componentes/ui/EstadoVazio'
 import { useToast } from '@/componentes/ui/Toast'
@@ -121,11 +122,7 @@ export function FormularioMoto() {
     <Tela>
       <CabecalhoInterno titulo={editando ? 'Editar moto' : 'Nova moto'} />
 
-      <form
-        onSubmit={handleSubmit((dados) => salvar.mutate(dados))}
-        noValidate
-        className="flex flex-col gap-4 rounded-card bg-superficie p-5 shadow-card"
-      >
+      <Formulario aoEnviar={handleSubmit((dados) => salvar.mutate(dados))}>
         {!editando && (
           <Selecao
             rotulo="Dono da moto"
@@ -209,15 +206,25 @@ export function FormularioMoto() {
         />
 
         {errors.root && (
-          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
-            {errors.root.message}
-          </p>
+          <LinhaInteira>
+            <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
+              {errors.root.message}
+            </p>
+          </LinhaInteira>
         )}
 
-        <Botao type="submit" largo carregando={isSubmitting || salvar.isPending} className="mt-2">
-          {editando ? 'Salvar alterações' : 'Cadastrar moto'}
-        </Botao>
-      </form>
+        <LinhaInteira className="tablet:flex tablet:justify-end">
+          <Botao
+            type="submit"
+            largo
+            compactoNoDesktop
+            carregando={isSubmitting || salvar.isPending}
+            className="mt-2"
+          >
+            {editando ? 'Salvar alterações' : 'Cadastrar moto'}
+          </Botao>
+        </LinhaInteira>
+      </Formulario>
     </Tela>
   )
 }

@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
 import { Campo, Selecao, AreaTexto } from '@/componentes/ui/Campo'
 import { Botao } from '@/componentes/ui/Botao'
+import { Formulario, LinhaInteira } from '@/componentes/ui/Formulario'
 import { Carregando } from '@/componentes/ui/Carregando'
 import { useToast } from '@/componentes/ui/Toast'
 import { supabase } from '@/lib/supabase'
@@ -120,11 +121,7 @@ export function Configuracoes() {
     <Tela>
       <CabecalhoInterno titulo="Configurações" contexto="Dados da oficina" />
 
-      <form
-        onSubmit={handleSubmit((d) => salvar.mutate(d))}
-        noValidate
-        className="flex flex-col gap-4 rounded-card bg-superficie p-5 shadow-card"
-      >
+      <Formulario aoEnviar={handleSubmit((d) => salvar.mutate(d))}>
         <Campo
           rotulo="Nome da oficina"
           obrigatorio
@@ -159,12 +156,14 @@ export function Configuracoes() {
           {...register('cnpj')}
         />
 
-        <AreaTexto
-          rotulo="Endereço"
-          placeholder="Rua, número, bairro"
-          erro={errors.endereco?.message}
-          {...register('endereco')}
-        />
+        <LinhaInteira>
+          <AreaTexto
+            rotulo="Endereço"
+            placeholder="Rua, número, bairro"
+            erro={errors.endereco?.message}
+            {...register('endereco')}
+          />
+        </LinhaInteira>
 
         <Campo
           rotulo="Cidade"
@@ -176,18 +175,31 @@ export function Configuracoes() {
         />
 
         {errors.root && (
-          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
-            {errors.root.message}
-          </p>
+          <LinhaInteira>
+            <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
+              {errors.root.message}
+            </p>
+          </LinhaInteira>
         )}
 
-        <Botao type="submit" largo carregando={isSubmitting || salvar.isPending} className="mt-2">
-          Salvar configurações
-        </Botao>
-      </form>
+        <LinhaInteira className="tablet:flex tablet:justify-end">
+          <Botao
+            type="submit"
+            largo
+            compactoNoDesktop
+            carregando={isSubmitting || salvar.isPending}
+            className="mt-2"
+          >
+            Salvar configurações
+          </Botao>
+        </LinhaInteira>
+      </Formulario>
 
       <TituloSecao>Recebimento por PIX</TituloSecao>
-      <div className="flex flex-col gap-4 rounded-card bg-superficie p-5 shadow-card">
+      {/* Formulário próprio, e com aoEnviar: um <form> sem tratador recarrega a
+          página quando alguém aperta Enter dentro dele, e o que estava digitado
+          se perde. Os dois blocos salvam o mesmo cadastro. */}
+      <Formulario aoEnviar={handleSubmit((d) => salvar.mutate(d))}>
         <Selecao
           rotulo="Tipo da chave"
           erro={errors.tipo_chave_pix?.message}
@@ -201,25 +213,30 @@ export function Configuracoes() {
           <option value="aleatoria">Chave aleatória</option>
         </Selecao>
 
-        <Campo
-          rotulo="Chave PIX"
-          autoCapitalize="none"
-          autoCorrect="off"
-          placeholder="A chave que a oficina usa para receber"
-          dica="Ela vai aparecer na cobrança quando o recebimento entrar, na Fase 3."
-          erro={errors.chave_pix?.message}
-          {...register('chave_pix')}
-        />
+        <LinhaInteira>
+          <Campo
+            rotulo="Chave PIX"
+            autoCapitalize="none"
+            autoCorrect="off"
+            placeholder="A chave que a oficina usa para receber"
+            dica="Ela vai aparecer na cobrança quando o recebimento entrar."
+            erro={errors.chave_pix?.message}
+            {...register('chave_pix')}
+          />
+        </LinhaInteira>
 
-        <Botao
-          largo
-          variante="secundario"
-          carregando={salvar.isPending}
-          onClick={handleSubmit((d) => salvar.mutate(d))}
-        >
-          Salvar chave PIX
-        </Botao>
-      </div>
+        <LinhaInteira className="tablet:flex tablet:justify-end">
+          <Botao
+            type="submit"
+            largo
+            compactoNoDesktop
+            variante="secundario"
+            carregando={salvar.isPending}
+          >
+            Salvar chave PIX
+          </Botao>
+        </LinhaInteira>
+      </Formulario>
     </Tela>
   )
 }

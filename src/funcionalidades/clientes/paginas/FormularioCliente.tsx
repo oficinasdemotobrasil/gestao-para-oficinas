@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Tela, CabecalhoInterno } from '@/componentes/layout/Tela'
 import { Campo, AreaTexto } from '@/componentes/ui/Campo'
 import { Botao } from '@/componentes/ui/Botao'
+import { Formulario, LinhaInteira } from '@/componentes/ui/Formulario'
 import { Carregando } from '@/componentes/ui/Carregando'
 import { useToast } from '@/componentes/ui/Toast'
 import { traduzirErro } from '@/lib/erros'
@@ -80,11 +81,7 @@ export function FormularioCliente() {
     <Tela>
       <CabecalhoInterno titulo={editando ? 'Editar cliente' : 'Novo cliente'} />
 
-      <form
-        onSubmit={handleSubmit((dados) => salvar.mutate(dados))}
-        noValidate
-        className="flex flex-col gap-4 rounded-card bg-superficie p-5 shadow-card"
-      >
+      <Formulario aoEnviar={handleSubmit((dados) => salvar.mutate(dados))}>
         <Campo
           rotulo="Nome"
           obrigatorio
@@ -133,23 +130,35 @@ export function FormularioCliente() {
           {...register('cpf_cnpj')}
         />
 
-        <AreaTexto
-          rotulo="Observações"
-          placeholder="Alguma coisa que a oficina precisa lembrar sobre este cliente"
-          erro={errors.observacoes?.message}
-          {...register('observacoes')}
-        />
+        <LinhaInteira>
+          <AreaTexto
+            rotulo="Observações"
+            placeholder="Alguma coisa que a oficina precisa lembrar sobre este cliente"
+            erro={errors.observacoes?.message}
+            {...register('observacoes')}
+          />
+        </LinhaInteira>
 
         {errors.root && (
-          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
-            {errors.root.message}
-          </p>
+          <LinhaInteira>
+            <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
+              {errors.root.message}
+            </p>
+          </LinhaInteira>
         )}
 
-        <Botao type="submit" largo carregando={isSubmitting || salvar.isPending} className="mt-2">
-          {editando ? 'Salvar alterações' : 'Cadastrar cliente'}
-        </Botao>
-      </form>
+        <LinhaInteira className="tablet:flex tablet:justify-end">
+          <Botao
+            type="submit"
+            largo
+            compactoNoDesktop
+            carregando={isSubmitting || salvar.isPending}
+            className="mt-2"
+          >
+            {editando ? 'Salvar alterações' : 'Cadastrar cliente'}
+          </Botao>
+        </LinhaInteira>
+      </Formulario>
     </Tela>
   )
 }

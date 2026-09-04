@@ -7,6 +7,7 @@ import { Eye, EyeOff } from 'lucide-react'
 import { Tela, CabecalhoInterno } from '@/componentes/layout/Tela'
 import { Campo, Selecao, Interruptor } from '@/componentes/ui/Campo'
 import { Botao } from '@/componentes/ui/Botao'
+import { Formulario, LinhaInteira } from '@/componentes/ui/Formulario'
 import { Carregando } from '@/componentes/ui/Carregando'
 import { useToast } from '@/componentes/ui/Toast'
 import { traduzirErro } from '@/lib/erros'
@@ -110,11 +111,7 @@ export function FormularioColaborador() {
         contexto={editando ? colaborador?.email : undefined}
       />
 
-      <form
-        onSubmit={handleSubmit((d) => salvar.mutate(d))}
-        noValidate
-        className="flex flex-col gap-4 rounded-card bg-superficie p-5 shadow-card"
-      >
+      <Formulario aoEnviar={handleSubmit((d) => salvar.mutate(d))}>
         <Campo
           rotulo="Nome"
           obrigatorio
@@ -201,15 +198,25 @@ export function FormularioColaborador() {
         </Selecao>
 
         {errors.root && (
-          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
-            {errors.root.message}
-          </p>
+          <LinhaInteira>
+            <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
+              {errors.root.message}
+            </p>
+          </LinhaInteira>
         )}
 
-        <Botao type="submit" largo carregando={isSubmitting || salvar.isPending} className="mt-2">
-          {editando ? 'Salvar alterações' : 'Cadastrar colaborador'}
-        </Botao>
-      </form>
+        <LinhaInteira className="tablet:flex tablet:justify-end">
+          <Botao
+            type="submit"
+            largo
+            compactoNoDesktop
+            carregando={isSubmitting || salvar.isPending}
+            className="mt-2"
+          >
+            {editando ? 'Salvar alterações' : 'Cadastrar colaborador'}
+          </Botao>
+        </LinhaInteira>
+      </Formulario>
 
       {editando && colaborador && !souEu && (
         <div className="mt-4 rounded-card bg-superficie p-5 shadow-card">

@@ -199,6 +199,29 @@ o e-mail, o tempo estimado.
 O cabeçalho da tabela acompanha a rolagem. Numa lista de duzentas linhas, sem
 isso a pessoa esquece o que é cada coluna.
 
+### Formulários
+
+Uma coluna no celular, duas do tablet em diante — `Formulario`. No balcão a tela
+é larga, e um formulário de coluna única vira uma fita fina no meio do monitor,
+com o olho subindo e descendo à toa.
+
+A troca de `flex flex-col gap-4` por `grid grid-cols-1 gap-4` não muda um pixel
+no celular — uma coluna com o mesmo respiro — e é ela que abre a segunda coluna
+depois.
+
+`LinhaInteira` para o que precisa da largura toda: observação, endereço,
+descrição, mensagem de erro. Campo de texto longo espremido em meia largura
+convida a escrever menos.
+
+O botão de salvar é `largo compactoNoDesktop`: largura total no celular, onde o
+alvo grande é o que importa, e do tamanho do texto no monitor, alinhado à
+direita. Um "Salvar" de 1200px de largura parece defeito.
+
+**Todo `<form>` precisa de `aoEnviar`.** Um formulário sem tratador recarrega a
+página quando alguém aperta Enter dentro dele, e o que estava digitado se perde
+— no celular quase ninguém aperta Enter, no teclado do balcão é o que se faz o
+dia inteiro.
+
 ---
 
 ## Composição

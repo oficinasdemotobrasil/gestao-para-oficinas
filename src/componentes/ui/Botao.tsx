@@ -14,6 +14,13 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   variante?: Variante
   /** Ocupa a largura toda. Padrão do app: o botão de ação principal é largo. */
   largo?: boolean
+  /**
+   * Largura total no celular, mas do tamanho do texto do tablet em diante.
+   *
+   * Um botão "Salvar" de 1200px de largura num monitor parece um erro. No
+   * celular ele continua largo, porque lá o alvo grande é o que importa.
+   */
+  compactoNoDesktop?: boolean
   carregando?: boolean
   icone?: ReactNode
 }
@@ -45,6 +52,7 @@ const variantes: Record<Variante, string> = {
 export function Botao({
   variante = 'principal',
   largo = false,
+  compactoNoDesktop = false,
   carregando = false,
   icone,
   children,
@@ -58,7 +66,16 @@ export function Botao({
       type={type}
       disabled={disabled || carregando}
       aria-busy={carregando || undefined}
-      className={cn(base, variantes[variante], largo && 'w-full', className)}
+      className={cn(
+        base,
+        variantes[variante],
+        largo && 'w-full',
+        // Prefixo de tamanho tem ordem previsível no CSS gerado: a variante de
+        // tablet vem depois da base, então ela vence acima de 768px sem depender
+        // da ordem em que as classes foram escritas.
+        compactoNoDesktop && 'tablet:w-auto tablet:px-8',
+        className,
+      )}
       {...resto}
     >
       {carregando ? (
