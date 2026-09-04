@@ -185,6 +185,59 @@ async function semear() {
   else erro('normalização de placa', `veio "${placa.rows[0].placa}"`)
 }
 
+/**
+ * A conferência que o painel do Supabase faz depois de mexer em RLS, feita aqui.
+ *
+ * Função 'security definer' roda com os poderes do dono do banco. Se ela não
+ * fixar o search_path, alguém pode criar um esquema com uma tabela de mesmo
+ * nome, colocá-lo na frente e fazer a função ler a tabela errada — com poderes
+ * de dono. É a falha clássica desse tipo de função, e nós temos várias.
+ */
+async function testarFuncoesDefiner() {
+  console.log('\n\x1b[1mFunções que rodam como dono do banco\x1b[0m')
+  await comoAdministradorDoBanco()
+
+  const soltas = await db.query<{ nome: string }>(`
+    select p.proname as nome
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.prosecdef
+      and not exists (
+        select 1 from unnest(coalesce(p.proconfig, '{}')) as c
+        where c like 'search_path=%'
+      )
+    order by p.proname
+  `)
+
+  soltas.rows.length === 0
+    ? ok('toda função definer fixa o search_path')
+    : erro(
+        'função definer sem search_path',
+        soltas.rows.map((r) => r.nome).join(', '),
+      )
+
+  const quantas = await contar(`
+    select count(*) as n from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.prosecdef
+  `)
+  quantas > 0
+    ? ok(`são ${quantas} funções com esse poder, e todas foram conferidas`)
+    : erro('contagem de definers', 'nenhuma encontrada')
+
+  // Views definer têm o mesmo risco de expor linha demais: o filtro de oficina
+  // mora dentro delas, e não numa política.
+  const views = await db.query<{ nome: string }>(`
+    select c.relname as nome
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind = 'v'
+    order by c.relname
+  `)
+  console.log(`      views do app: ${views.rows.map((r) => r.nome).join(', ') || 'nenhuma'}`)
+}
+
 async function testarIsolamentoEntreOficinas() {
   console.log('\n[1mIsolamento entre oficinas — logado como admin da Oficina A[0m')
   await logarComo(ID.adminA)
@@ -1414,6 +1467,7 @@ async function main() {
   try {
     await rodarMigrations()
     await semear()
+    await testarFuncoesDefiner()
     await testarIsolamentoEntreOficinas()
     await testarPerfilVendedor()
     await testarPerfilMecanico()

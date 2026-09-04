@@ -17,11 +17,13 @@ const ORDEM = [
   // os_itens e os_status_historico não entram: eles caem por cascata quando a
   // ordem é apagada. Apagados direto, esbarram no gatilho que impede mexer nos
   // itens de uma ordem já fechada — regra certa, no lugar errado para isto.
+  // As contas vêm ANTES da ordem: a conta a receber aponta para a OS com
+  // 'restrict', então apagar a ordem primeiro é recusado.
+  'contas_receber',
+  'contas_pagar',
   'ordens_servico',
   'orcamento_itens',
   'orcamentos',
-  'contas_receber',
-  'contas_pagar',
   'notas_fiscais_entrada',
   'moto_proprietarios',
   'motos',
