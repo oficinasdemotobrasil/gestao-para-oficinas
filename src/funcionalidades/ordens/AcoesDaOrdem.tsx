@@ -69,13 +69,22 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
 
   function recarregar() {
     void cache.invalidateQueries({ queryKey: ['ordem-servico', ordem.id] })
+    void cache.invalidateQueries({ queryKey: ['tempo-da-os', ordem.id] })
     void cache.invalidateQueries({ queryKey: ['ordens'] })
     void cache.invalidateQueries({ queryKey: ['ordens-em-aberto'] })
   }
 
   const mudar = useMutation({
     mutationFn: (status: StatusOS) => mudarStatusDaOs(ordem.id, status),
-    onSuccess: recarregar,
+    onSuccess: ({ pausouAOrdem }) => {
+      recarregar()
+      // Uma moto de cada vez: se o relógio estava ligado em outra ordem, ela
+      // parou sozinha — e ficar sabendo depois, pelo tempo que não contou, seria
+      // descobrir tarde demais.
+      if (pausouAOrdem) {
+        toast.aviso(`A OS ${pausouAOrdem.padStart(3, '0')} foi pausada: você só pode estar em uma moto por vez.`)
+      }
+    },
     onError: (e) => toast.erro(traduzirErro(e)),
   })
 

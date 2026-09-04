@@ -169,9 +169,9 @@ async function semear() {
       ('${ID.produtoA}', '${ID.oficinaA}', 'Óleo 10W30', 22.00, 45.00, 10),
       ('${ID.produtoB}', '${ID.oficinaB}', 'Pastilha de freio', 30.00, 79.90, 5);
 
-    insert into public.servicos (id, oficina_id, nome, preco) values
-      ('${ID.servicoA}', '${ID.oficinaA}', 'Troca de óleo', 60.00),
-      ('${ID.servicoB}', '${ID.oficinaB}', 'Revisão geral', 250.00);
+    insert into public.servicos (id, oficina_id, nome, preco, tempo_estimado_minutos) values
+      ('${ID.servicoA}', '${ID.oficinaA}', 'Troca de óleo', 60.00, 30),
+      ('${ID.servicoB}', '${ID.oficinaB}', 'Revisão geral', 250.00, 180);
 
     insert into public.contas_receber (oficina_id, cliente_id, descricao, valor, vencimento) values
       ('${ID.oficinaA}', '${ID.clienteA}', 'OS 1', 105.00, current_date);
@@ -829,6 +829,102 @@ async function testarCicloDaOs() {
   )
 }
 
+async function testarRelogio() {
+  console.log('\n\x1b[1mO relógio segue o andamento da ordem\x1b[0m')
+  await logarComo(ID.adminA)
+
+  async function novaOs(): Promise<string> {
+    const itens = JSON.stringify([
+      { tipo: 'servico', produto_id: null, servico_id: ID.servicoA, descricao: 'Mão de obra', quantidade: 1, valor_unitario: 60 },
+    ])
+    const orc = await db.query<{ id: string }>(
+      `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', 27000,
+         7, 90, null, 0, null, $1::jsonb) as id`,
+      [itens],
+    )
+    const os = await db.query<{ id: string }>(
+      `select public.aprovar_orcamento('${orc.rows[0].id}', '${ID.mecanicoA}') as id`,
+    )
+    return os.rows[0].id
+  }
+
+  const osA = await novaOs()
+  const osB = await novaOs()
+
+  await logarComo(ID.mecanicoA)
+  await db.query(`select public.mudar_status_da_os('${osA}', 'em_andamento')`)
+  await esperaLinhas(
+    'começar o serviço liga o relógio sozinho',
+    `select count(*) as n from public.apontamentos_tempo
+     where ordem_servico_id = '${osA}' and mecanico_id = '${ID.mecanicoA}' and fim is null`,
+    1,
+  )
+
+  await db.query(`select public.mudar_status_da_os('${osA}', 'pausada')`)
+  await esperaLinhas(
+    'pausar desliga o relógio',
+    `select count(*) as n from public.apontamentos_tempo
+     where ordem_servico_id = '${osA}' and fim is null`,
+    0,
+  )
+
+  await db.query(`select public.mudar_status_da_os('${osA}', 'em_andamento')`)
+  await esperaLinhas(
+    'retomar abre um intervalo novo, sem apagar o anterior',
+    `select count(*) as n from public.apontamentos_tempo where ordem_servico_id = '${osA}'`,
+    2,
+  )
+
+  // A regra que mais importa: uma moto de cada vez.
+  const resposta = await db.query<{ r: { pausou_a_ordem: string | null } }>(
+    `select public.mudar_status_da_os('${osB}', 'em_andamento') as r`,
+  )
+  const numeroPausado = resposta.rows[0].r.pausou_a_ordem
+  numeroPausado
+    ? ok(`começar outra ordem avisa qual foi pausada (nº ${numeroPausado})`)
+    : erro('aviso de ordem pausada', 'veio nulo')
+
+  await esperaLinhas(
+    'e a ordem de antes volta para pausada, sem ninguém nela',
+    `select count(*) as n from public.ordens_servico where id = '${osA}' and status = 'pausada'`,
+    1,
+  )
+  await esperaLinhas(
+    'o mecânico fica com um relógio só ligado',
+    `select count(*) as n from public.apontamentos_tempo
+     where mecanico_id = '${ID.mecanicoA}' and fim is null`,
+    1,
+  )
+
+  await esperaErro(
+    'e o banco recusa um segundo relógio, nem que peçam direto',
+    `insert into public.apontamentos_tempo (oficina_id, ordem_servico_id, mecanico_id)
+     values ('${ID.oficinaA}', '${osA}', '${ID.mecanicoA}')`,
+  )
+
+  const tempo = await db.query<{ rodando_desde: string | null; minutos_estimados: number }>(
+    `select * from public.tempo_da_os('${osB}')`,
+  )
+  tempo.rows[0].rodando_desde
+    ? ok('a tela sabe desde quando o relógio está rodando')
+    : erro('cronômetro', 'rodando_desde veio nulo')
+
+  const estimado = await contar(`select minutos_estimados as n from public.tempo_da_os('${osB}')`)
+  estimado === 30
+    ? ok('e quanto o serviço foi estimado, para comparar com o real: 30 min')
+    : erro('tempo estimado', `veio ${estimado}`)
+
+  await db.query(`select public.mudar_status_da_os('${osB}', 'aguardando_conferencia')`)
+  await esperaLinhas(
+    'avisar que terminou também desliga o relógio',
+    `select count(*) as n from public.apontamentos_tempo
+     where mecanico_id = '${ID.mecanicoA}' and fim is null`,
+    0,
+  )
+
+  await logarComo(ID.adminA)
+}
+
 async function testarFechamentoDaOs() {
   console.log('\n\x1b[1mFinalizar e cancelar mexendo no estoque\x1b[0m')
   await logarComo(ID.adminA)
@@ -999,13 +1095,13 @@ async function testarPerfisNaFase2() {
   await logarComo(ID.mecanicoA)
   await esperaLinhas('mecânico NÃO enxerga orçamento', 'select count(*) as n from public.orcamentos', 0)
   await esperaLinhas('mecânico NÃO enxerga movimentação', 'select count(*) as n from public.vw_movimentacoes', 0)
-  // Três: a do teste de perfis, a que nasceu da aprovação e a do ciclo de vida.
-  // A quarta, do teste de desconto, foi direcionada ao admin de propósito — e
-  // por isso não aparece aqui, que é justamente o que este número prova.
+  // Cinco: a do teste de perfis, a da aprovação, a do ciclo de vida e as duas
+  // do relógio. A do teste de desconto foi direcionada ao admin de propósito —
+  // e por isso não aparece aqui, que é justamente o que este número prova.
   await esperaLinhas(
     'mecânico enxerga só as OS em que ele é o responsável',
     'select count(*) as n from public.ordens_servico',
-    3,
+    5,
   )
 
   console.log('\n\x1b[1mIsolamento das tabelas novas\x1b[0m')
@@ -1052,6 +1148,7 @@ async function main() {
     await testarNotaFiscal()
     await testarOrcamento()
     await testarCicloDaOs()
+    await testarRelogio()
     await testarFechamentoDaOs()
     await testarPerfisNaFase2()
   } catch (e) {

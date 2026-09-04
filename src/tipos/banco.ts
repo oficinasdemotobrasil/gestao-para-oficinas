@@ -372,7 +372,17 @@ export type Database = {
       }
       mudar_status_da_os: {
         Args: { p_ordem_servico_id: string; p_status: StatusOS }
-        Returns: OrdemServico
+        /** { ordem, pausou_a_ordem } — o número da OS que parou, se parou alguma. */
+        Returns: { ordem: OrdemServico; pausou_a_ordem: string | null }
+      }
+      tempo_da_os: {
+        Args: { p_ordem_servico_id: string }
+        Returns: Array<{
+          minutos_registrados: number
+          rodando_desde: string | null
+          quem_esta_com_ela: string | null
+          minutos_estimados: number
+        }>
       }
       faltas_para_finalizar_os: {
         Args: { p_ordem_servico_id: string }

@@ -26,8 +26,10 @@ import type { ItemEmEdicao } from '@/funcionalidades/orcamentos/api'
 import { StatusOsBadge, rotuloDoStatusOs } from '../StatusOsBadge'
 import { ListaDeColaboradores } from '../EscolherResponsavel'
 import { AcoesDaOrdem } from '../AcoesDaOrdem'
+import { Cronometro } from '../Cronometro'
 import {
   obterOrdemServico,
+  tempoDaOs,
   sincronizarItensDaOs,
   atribuirResponsavel,
   salvarObservacoesTecnicas,
@@ -55,6 +57,13 @@ export function DetalheOrdemServico() {
   const { data: ordem, isPending, isError, refetch } = useQuery({
     queryKey: ['ordem-servico', id],
     queryFn: () => obterOrdemServico(id!),
+  })
+
+  // Consulta à parte: o relógio muda por conta própria, e recarregar a ordem
+  // inteira a cada virada seria trazer os itens de novo à toa.
+  const { data: tempo } = useQuery({
+    queryKey: ['tempo-da-os', id],
+    queryFn: () => tempoDaOs(id!),
   })
 
   // A tela edita uma cópia dos itens e manda a diferença para o banco. Sem a
@@ -177,6 +186,12 @@ export function DetalheOrdemServico() {
           </div>
         </div>
       </Card>
+
+      {tempo && (
+        <div className="pt-6">
+          <Cronometro tempo={tempo} />
+        </div>
+      )}
 
       <AcoesDaOrdem ordem={ordem} />
 

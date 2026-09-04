@@ -175,13 +175,44 @@ export async function listarOrdens(filtro: FiltroDeOrdens): Promise<OrdemNaLista
 /**
  * Avança ou recua o status. Finalizar e cancelar não passam por aqui: eles
  * mexem no estoque e têm caminho próprio.
+ *
+ * Devolve o número da ordem que foi pausada, quando começar esta interrompeu
+ * outra — o mecânico precisa saber que a moto de antes parou.
  */
-export async function mudarStatusDaOs(id: string, status: StatusOS): Promise<void> {
-  const { error } = await supabase.rpc('mudar_status_da_os', {
+export async function mudarStatusDaOs(
+  id: string,
+  status: StatusOS,
+): Promise<{ pausouAOrdem: string | null }> {
+  const { data, error } = await supabase.rpc('mudar_status_da_os', {
     p_ordem_servico_id: id,
     p_status: status,
   })
   if (error) throw error
+  return { pausouAOrdem: data?.pausou_a_ordem ?? null }
+}
+
+export interface TempoDaOrdem {
+  /** O que já fechou, em minutos, somando todos os mecânicos. */
+  minutos_registrados: number
+  /** Nulo se ninguém está com ela agora. */
+  rodando_desde: string | null
+  quem_esta_com_ela: string | null
+  /** Soma do tempo estimado dos serviços da ordem. Zero quando não há estimativa. */
+  minutos_estimados: number
+}
+
+export async function tempoDaOs(id: string): Promise<TempoDaOrdem> {
+  const { data, error } = await supabase.rpc('tempo_da_os', { p_ordem_servico_id: id })
+  if (error) throw error
+  const linha = (data ?? [])[0]
+  return (
+    linha ?? {
+      minutos_registrados: 0,
+      rodando_desde: null,
+      quem_esta_com_ela: null,
+      minutos_estimados: 0,
+    }
+  )
 }
 
 export async function atribuirResponsavel(id: string, responsavelId: string): Promise<void> {
