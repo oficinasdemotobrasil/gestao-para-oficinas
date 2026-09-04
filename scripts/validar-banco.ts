@@ -1501,6 +1501,30 @@ async function testarPainelEHistorico() {
       : erro('vazamento de dado pessoal no histórico', texto.slice(0, 200))
   }
 
+  // A troca de dono NO MESMO DIA: as duas linhas de proprietário passam pelo
+  // filtro de data, e o desempate tem de dar o dono novo. Foi assim que um
+  // serviço da Maria apareceu no nome do João, no teste em tela.
+  const donoNovo = await db.query<{ id: string }>(
+    `insert into public.clientes (oficina_id, nome) values ('${ID.oficinaA}', 'Dono Novo') returning id`,
+  )
+  await db.query(
+    `update public.moto_proprietarios set data_fim = current_date
+     where moto_id = '${ID.motoA}' and data_fim is null`,
+  )
+  await db.query(
+    `insert into public.moto_proprietarios (oficina_id, moto_id, cliente_id, data_inicio)
+     values ('${ID.oficinaA}', '${ID.motoA}', '${donoNovo.rows[0].id}', current_date)`,
+  )
+  const depoisDaTroca = await db.query<{ j: Array<{ dono_na_epoca: string }> }>(
+    `select public.historico_da_placa('${ID.motoA}') as j`,
+  )
+  depoisDaTroca.rows[0].j[0].dono_na_epoca === 'Dono Novo'
+    ? ok('trocando de dono no mesmo dia, o serviço fica com quem recebeu a moto')
+    : erro(
+        'dono na época no dia da troca',
+        `veio ${depoisDaTroca.rows[0].j[0].dono_na_epoca}, esperava Dono Novo`,
+      )
+
   await esperaErro(
     'moto de outra oficina não tem histórico para ver',
     `select public.historico_da_placa('${ID.motoB}')`,

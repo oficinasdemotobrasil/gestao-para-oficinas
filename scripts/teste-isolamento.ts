@@ -23,6 +23,7 @@
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
+import { limparOficina } from './limpar-teste'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -474,25 +475,34 @@ async function testar(a: Cenario, b: Cenario) {
 
 async function limpar(cenarios: Cenario[]) {
   console.log('\n\x1b[1mLimpeza\x1b[0m')
+
+  // Usa a mesma limpeza dos outros testes, em vez de uma lista de tabelas
+  // própria. A lista daqui já tinha ficado para trás uma vez — faltava o
+  // extrato de estoque, e o teste dizia "removidos" enquanto deixava oito
+  // oficinas no banco do cliente.
+  const problemas: string[] = []
   for (const c of cenarios) {
-    // A ordem importa: as tabelas filhas apontam para a oficina com restrict.
-    await admin.from('contas_receber').delete().eq('oficina_id', c.oficinaId)
-    await admin.from('contas_pagar').delete().eq('oficina_id', c.oficinaId)
-    // os_itens e o histórico caem por cascata junto com a ordem.
-    await admin.from('apontamentos_tempo').delete().eq('oficina_id', c.oficinaId)
-    await admin.from('ordens_servico').delete().eq('oficina_id', c.oficinaId)
-    await admin.from('moto_proprietarios').delete().eq('oficina_id', c.oficinaId)
-    await admin.from('motos').delete().eq('oficina_id', c.oficinaId)
-    await admin.from('clientes').delete().eq('oficina_id', c.oficinaId)
-    await admin.from('produtos').delete().eq('oficina_id', c.oficinaId)
-    await admin.from('servicos').delete().eq('oficina_id', c.oficinaId)
-    await admin.from('usuarios').delete().eq('oficina_id', c.oficinaId)
+    problemas.push(...(await limparOficina(admin, c.oficinaId)))
     for (const id of [c.adminId, c.vendedorId, c.mecanicoId]) {
-      await admin.auth.admin.deleteUser(id)
+      const { error } = await admin.auth.admin.deleteUser(id)
+      if (error) problemas.push(`auth ${id}: ${error.message}`)
     }
-    await admin.from('oficinas').delete().eq('id', c.oficinaId)
   }
-  ok('oficinas de teste e usuários removidos')
+
+  // E confere de verdade, em vez de anunciar sucesso por ter chegado ao fim.
+  const { data: sobrou } = await admin
+    .from('oficinas')
+    .select('nome')
+    .in('id', cenarios.map((c) => c.oficinaId))
+
+  if (problemas.length > 0 || (sobrou?.length ?? 0) > 0) {
+    erro(
+      'as oficinas de teste NÃO saíram do banco',
+      [...problemas, ...(sobrou ?? []).map((o) => `sobrou: ${o.nome}`)].join(' | '),
+    )
+  } else {
+    ok('oficinas de teste e usuários removidos')
+  }
 }
 
 async function main() {
