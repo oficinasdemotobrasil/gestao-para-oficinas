@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Users, Bike, Package, Wrench, ClipboardList, UserPlus, TriangleAlert, FileText } from 'lucide-react'
+import { Users, Bike, Package, Wrench, ClipboardList, UserPlus, TriangleAlert, FileText, Wallet } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Tela, CabecalhoTela, TituloSecao } from '@/componentes/layout/Tela'
 import { EstadoVazio } from '@/componentes/ui/EstadoVazio'
@@ -100,6 +100,7 @@ export function Inicio() {
     { para: '/clientes', rotulo: 'Clientes', Icone: Users, visivel: p.verClientes },
     { para: '/motos/nova', rotulo: 'Nova moto', Icone: Bike, visivel: p.editarMotos },
     { para: '/catalogo', rotulo: 'Catálogo', Icone: Package, visivel: p.verCatalogo },
+    { para: '/financeiro', rotulo: 'Financeiro', Icone: Wallet, visivel: p.verFinanceiro },
     {
       para: '/colaboradores',
       rotulo: 'Colaboradores',

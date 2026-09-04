@@ -242,6 +242,50 @@ type OrdemServico = {
   atualizado_em: string
 }
 
+/** Formas de pagamento aceitas nas duas pontas do financeiro. */
+export type FormaPagamento =
+  | 'dinheiro'
+  | 'pix'
+  | 'debito'
+  | 'credito'
+  | 'transferencia'
+  | 'prazo'
+
+type ContaReceber = {
+  id: string
+  oficina_id: string
+  ordem_servico_id: string | null
+  cliente_id: string | null
+  descricao: string
+  valor: number
+  /** Quanto já entrou. Menor que valor = parcial, e a conta continua aberta. */
+  valor_recebido: number
+  vencimento: string
+  data_pagamento: string | null
+  forma_pagamento: FormaPagamento | null
+  /** Nulos quando a cobrança é à vista. */
+  parcela: number | null
+  total_parcelas: number | null
+  status: StatusConta
+  criado_em: string
+  atualizado_em: string
+}
+
+type ContaPagar = {
+  id: string
+  oficina_id: string
+  fornecedor: string | null
+  descricao: string
+  categoria: string | null
+  valor: number
+  vencimento: string
+  data_pagamento: string | null
+  forma_pagamento: FormaPagamento | null
+  status: StatusConta
+  criado_em: string
+  atualizado_em: string
+}
+
 type OsStatusHistorico = {
   id: string
   oficina_id: string
@@ -309,6 +353,8 @@ export type Database = {
       ordens_servico: TabelaNumerada<OrdemServico>
       os_itens: Tabela<OsItem>
       os_status_historico: Tabela<OsStatusHistorico>
+      contas_receber: Tabela<ContaReceber>
+      contas_pagar: Tabela<ContaPagar>
     }
     Views: {
       vw_produtos: { Row: ProdutoSemCusto; Relationships: [] }
@@ -424,6 +470,40 @@ export type Database = {
         Args: { p_ordem_servico_id: string; p_texto: string | null }
         Returns: undefined
       }
+      criar_cobranca_da_os: {
+        Args: {
+          p_ordem_servico_id: string
+          p_parcelas: number
+          p_primeiro_vencimento: string
+          p_forma_pagamento: string | null
+        }
+        Returns: number
+      }
+      receber_conta: {
+        Args: {
+          p_conta_id: string
+          p_valor: number | null
+          p_data: string
+          p_forma_pagamento: string | null
+        }
+        Returns: ContaReceber
+      }
+      cancelar_conta_receber: { Args: { p_conta_id: string }; Returns: undefined }
+      lancar_conta_a_pagar: {
+        Args: {
+          p_descricao: string
+          p_valor: number
+          p_vencimento: string
+          p_fornecedor: string | null
+          p_categoria: string | null
+          p_repetir_meses: number
+        }
+        Returns: number
+      }
+      pagar_conta: {
+        Args: { p_conta_id: string; p_data: string; p_forma_pagamento: string | null }
+        Returns: ContaPagar
+      }
       tempo_da_os: {
         Args: { p_ordem_servico_id: string }
         Returns: Array<{
@@ -487,6 +567,8 @@ export type {
   OrcamentoItem,
   OrdemServico,
   OsStatusHistorico,
+  ContaReceber,
+  ContaPagar,
   OsItem,
   ItemOrcamento,
   ItemNota,

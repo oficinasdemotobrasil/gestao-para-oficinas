@@ -144,6 +144,16 @@ indicadores, white-label, assinatura, IA e áudio.
 - **"Copiar texto" depende do navegador.** Em https funciona; fora de contexto
   seguro o app cai no caminho antigo e, se ele também falhar, avisa em vez de
   fingir que copiou. Vale conferir uma vez no celular do cliente.
+- **Duas falhas moderadas no react-router**, apontadas pelo `npm audit`: redirect
+  aberto por barra invertida em `<Link>`/`useNavigate`, e injeção na hidratação
+  de SSR. Nenhuma das duas alcança este app — todo destino de navegação aqui é
+  um caminho literal escrito no código, e não há SSR. A correção exige subir para
+  o react-router 7, que é mudança grande. **Fazer entre fases, não no meio de
+  uma**, e reconferir a navegação depois.
+- **O código PIX é estático: ele não avisa quando é pago.** A baixa é manual, de
+  propósito — a alternativa seria integração bancária, com custo e homologação.
+  A tela diz isso com todas as letras para ninguém achar que o sistema confere o
+  extrato sozinho.
 - **Não existe transferência de moto entre donos** ainda. A estrutura suporta
   (`moto_proprietarios` com `data_fim`), mas não há tela. Entra na Fase 2.
 

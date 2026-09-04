@@ -20,6 +20,7 @@ import { FormularioServico } from '@/funcionalidades/servicos/paginas/Formulario
 import { ListaColaboradores } from '@/funcionalidades/colaboradores/paginas/ListaColaboradores'
 import { FormularioColaborador } from '@/funcionalidades/colaboradores/paginas/FormularioColaborador'
 import { Configuracoes } from '@/funcionalidades/configuracoes/Configuracoes'
+import { Financeiro } from '@/funcionalidades/financeiro/paginas/Financeiro'
 import { ListaOrcamentos } from '@/funcionalidades/orcamentos/paginas/ListaOrcamentos'
 import { EditorOrcamento } from '@/funcionalidades/orcamentos/paginas/EditorOrcamento'
 import { DetalheOrcamento } from '@/funcionalidades/orcamentos/paginas/DetalheOrcamento'
@@ -113,6 +114,10 @@ export const rotas = createBrowserRouter([
               { path: '/colaboradores/novo', element: <FormularioColaborador /> },
               { path: '/colaboradores/:id', element: <FormularioColaborador /> },
             ],
+          },
+          {
+            element: <RotaPorPerfil permitido={(p) => p.verFinanceiro} />,
+            children: [{ path: '/financeiro', element: <Financeiro /> }],
           },
           {
             element: <RotaPorPerfil permitido={(p) => p.verConfiguracoes} />,

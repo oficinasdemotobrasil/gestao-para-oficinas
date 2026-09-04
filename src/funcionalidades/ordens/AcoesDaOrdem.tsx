@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Play,
   Pause,
@@ -10,10 +10,11 @@ import {
   Share2,
   XCircle,
   TriangleAlert,
+  Wallet,
 } from 'lucide-react'
 import { Botao } from '@/componentes/ui/Botao'
 import { Modal } from '@/componentes/ui/Modal'
-import { AreaTexto } from '@/componentes/ui/Campo'
+import { AreaTexto, Campo, Selecao } from '@/componentes/ui/Campo'
 import { useToast } from '@/componentes/ui/Toast'
 import { traduzirErro } from '@/lib/erros'
 import { moeda, quantidade as formatarQuantidade } from '@/lib/formato'
@@ -27,8 +28,13 @@ import {
   type OrdemCompleta,
   type FaltaDeEstoque,
 } from './api'
+import {
+  contasDaOs,
+  criarCobrancaDaOs,
+  FORMAS,
+} from '@/funcionalidades/financeiro/api'
 import { textoDeServicoPronto, enderecoDoWhatsApp } from './textoWhatsApp'
-import type { StatusOS } from '@/tipos/banco'
+import type { FormaPagamento, StatusOS } from '@/tipos/banco'
 
 /**
  * O jsPDF passa de 300 KB e chega sob demanda. O carregamento é na montagem da
@@ -55,6 +61,10 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
 
   const [faltas, setFaltas] = useState<FaltaDeEstoque[] | null>(null)
   const [cancelando, setCancelando] = useState(false)
+  const [cobrando, setCobrando] = useState(false)
+  const [parcelas, setParcelas] = useState('1')
+  const [vencimento, setVencimento] = useState(() => new Date().toISOString().slice(0, 10))
+  const [forma, setForma] = useState<FormaPagamento | ''>('')
   const [motivo, setMotivo] = useState('')
   const [pdfPronto, setPdfPronto] = useState(moduloPdf !== null)
 
@@ -116,6 +126,9 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
       void cache.invalidateQueries({ queryKey: ['produtos'] })
       void cache.invalidateQueries({ queryKey: ['repor'] })
       toast.sucesso('Serviço finalizado. As peças saíram do estoque.')
+      // A cobrança é oferecida na hora, e não em outra tela: é o momento em que
+      // a pessoa está com a ordem na mão e sabe como o cliente vai pagar.
+      setCobrando(true)
     },
     onError: (e) => toast.erro(traduzirErro(e)),
   })
@@ -128,6 +141,28 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
       recarregar()
       void cache.invalidateQueries({ queryKey: ['produtos'] })
       toast.sucesso('Ordem cancelada. O que tinha saído voltou para o estoque.')
+    },
+    onError: (e) => toast.erro(traduzirErro(e)),
+  })
+
+  // Só depois de finalizada existe o que cobrar — antes disso a consulta seria
+  // uma ida ao servidor para receber nada.
+  const { data: contas } = useQuery({
+    queryKey: ['contas-da-os', ordem.id],
+    queryFn: () => contasDaOs(ordem.id),
+    enabled: p.gerenciarOrdens && (ordem.status === 'finalizada' || ordem.status === 'entregue'),
+  })
+
+  const cobranca = useMutation({
+    mutationFn: () =>
+      criarCobrancaDaOs(ordem.id, Number(parcelas) || 1, vencimento, forma || null),
+    onSuccess: (quantas) => {
+      setCobrando(false)
+      void cache.invalidateQueries({ queryKey: ['contas-da-os', ordem.id] })
+      void cache.invalidateQueries({ queryKey: ['contas-receber'] })
+      toast.sucesso(
+        quantas > 1 ? `Cobrança lançada em ${quantas} parcelas.` : 'Cobrança lançada.',
+      )
     },
     onError: (e) => toast.erro(traduzirErro(e)),
   })
@@ -242,6 +277,24 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
         </Botao>
       )}
 
+      {pronta && p.gerenciarOrdens && (contas ?? []).length === 0 && (
+        <Botao
+          largo
+          icone={<Wallet aria-hidden size={20} />}
+          onClick={() => setCobrando(true)}
+        >
+          Lançar cobrança
+        </Botao>
+      )}
+
+      {pronta && p.gerenciarOrdens && (contas ?? []).length > 0 && (
+        <p className="rounded-controle bg-sucesso-fundo px-4 py-3 text-corpo text-sucesso">
+          Cobrança lançada
+          {(contas ?? []).length > 1 ? ` em ${(contas ?? []).length} parcelas` : ''}. Acompanhe em
+          Financeiro.
+        </p>
+      )}
+
       {/* Avisar o cliente e o comprovante só fazem sentido com a moto pronta. */}
       {pronta && p.gerenciarOrdens && (
         <>
@@ -353,6 +406,54 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
           A saída fica marcada no extrato como feita sem saldo, para você achar
           depois onde o cadastro descolou da prateleira.
         </p>
+      </Modal>
+
+      {/* Cobrança --------------------------------------------------------- */}
+      <Modal
+        aberto={cobrando}
+        aoFechar={() => setCobrando(false)}
+        titulo="Lançar a cobrança"
+        rodape={
+          <div className="flex flex-col gap-3">
+            <Botao largo carregando={cobranca.isPending} onClick={() => cobranca.mutate()}>
+              Lançar {moeda(ordem.valor_total)}
+            </Botao>
+            <Botao largo variante="contorno-no-card" onClick={() => setCobrando(false)}>
+              Agora não
+            </Botao>
+          </div>
+        }
+      >
+        <p className="pb-4 text-corpo text-claro-secundario">
+          A conta a receber nasce com o valor da ordem. Parcelando, cada parcela
+          vence um mês depois da anterior.
+        </p>
+        <div className="flex flex-col gap-4 pb-2">
+          <Campo
+            rotulo="Em quantas vezes"
+            inputMode="numeric"
+            value={parcelas}
+            onChange={(e) => setParcelas(e.target.value.replace(/\D/g, ''))}
+          />
+          <Campo
+            rotulo="Primeiro vencimento"
+            type="date"
+            value={vencimento}
+            onChange={(e) => setVencimento(e.target.value)}
+          />
+          <Selecao
+            rotulo="Forma de pagamento"
+            value={forma}
+            onChange={(e) => setForma(e.target.value as FormaPagamento | '')}
+          >
+            <option value="">Definir na hora de receber</option>
+            {FORMAS.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.rotulo}
+              </option>
+            ))}
+          </Selecao>
+        </div>
       </Modal>
 
       {/* Cancelar --------------------------------------------------------- */}
