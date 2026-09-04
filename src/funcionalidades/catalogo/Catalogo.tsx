@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Package, Wrench, Plus, TriangleAlert, X } from 'lucide-react'
 import { Tela, CabecalhoTela } from '@/componentes/layout/Tela'
 import { CampoBusca } from '@/componentes/ui/CampoBusca'
+import { Filtros } from '@/componentes/ui/Filtros'
 import { Abas } from '@/componentes/ui/Abas'
 import { LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
 import { ListaResponsiva } from '@/componentes/ui/ListaResponsiva'
@@ -73,32 +74,38 @@ export function Catalogo() {
     <Tela>
       <CabecalhoTela titulo="Catálogo" contexto="Peças, serviços e o estoque da oficina" />
 
+      {/* As seções ficam sozinhas em cima: elas trocam a tela inteira, e não
+          são um filtro da lista como as outras abas do app. */}
       <div className="flex flex-col gap-3">
         <Abas rotulo="Seções do catálogo" abas={abas} ativa={aba} aoTrocar={trocarAba} />
 
         {aba !== 'estoque' && (
-          <>
-            <CampoBusca
-              rotulo={aba === 'produtos' ? 'Buscar produto' : 'Buscar serviço'}
-              valor={busca}
-              aoMudar={setBusca}
-              placeholder={aba === 'produtos' ? 'Nome ou código' : 'Nome do serviço'}
-            />
-
-            {p.editarCatalogo && (
-              <Botao
-                largo
-                icone={<Plus aria-hidden size={20} />}
-                onClick={() =>
-                  navegar(
-                    aba === 'produtos' ? '/catalogo/produtos/novo' : '/catalogo/servicos/novo',
-                  )
-                }
-              >
-                {aba === 'produtos' ? 'Novo produto' : 'Novo serviço'}
-              </Botao>
-            )}
-          </>
+          <Filtros
+            busca={
+              <CampoBusca
+                rotulo={aba === 'produtos' ? 'Buscar produto' : 'Buscar serviço'}
+                valor={busca}
+                aoMudar={setBusca}
+                placeholder={aba === 'produtos' ? 'Nome ou código' : 'Nome do serviço'}
+              />
+            }
+            acoes={
+              p.editarCatalogo ? (
+                <Botao
+                  largo
+                  compactoNoDesktop
+                  icone={<Plus aria-hidden size={20} />}
+                  onClick={() =>
+                    navegar(
+                      aba === 'produtos' ? '/catalogo/produtos/novo' : '/catalogo/servicos/novo',
+                    )
+                  }
+                >
+                  {aba === 'produtos' ? 'Novo produto' : 'Novo serviço'}
+                </Botao>
+              ) : undefined
+            }
+          />
         )}
       </div>
 

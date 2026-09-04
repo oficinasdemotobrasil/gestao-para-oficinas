@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Bike, Plus } from 'lucide-react'
 import { Tela, CabecalhoTela } from '@/componentes/layout/Tela'
 import { CampoBusca } from '@/componentes/ui/CampoBusca'
+import { Filtros } from '@/componentes/ui/Filtros'
 import { LinhaLista } from '@/componentes/ui/Card'
 import { ListaResponsiva } from '@/componentes/ui/ListaResponsiva'
 import { Botao } from '@/componentes/ui/Botao'
@@ -43,23 +44,31 @@ export function ListaMotos() {
         contexto="Busque pela placa para abrir o histórico"
       />
 
-      <div className="flex flex-col gap-3">
-        {/* Teclado em maiúscula: placa se digita assim, e economiza um toque. */}
-        <CampoBusca
-          rotulo="Buscar moto pela placa"
-          valor={busca}
-          aoMudar={setBusca}
-          placeholder="ABC1D23"
-          autoCapitalize="characters"
-          inputMode="text"
-        />
-
-        {p.editarMotos && (
-          <Botao largo icone={<Plus aria-hidden size={20} />} onClick={() => navegar('/motos/nova')}>
-            Nova moto
-          </Botao>
-        )}
-      </div>
+      <Filtros
+        busca={
+          // Teclado em maiúscula: placa se digita assim, e economiza um toque.
+          <CampoBusca
+            rotulo="Buscar moto pela placa"
+            valor={busca}
+            aoMudar={setBusca}
+            placeholder="ABC1D23"
+            autoCapitalize="characters"
+            inputMode="text"
+          />
+        }
+        acoes={
+          p.editarMotos ? (
+            <Botao
+              largo
+              compactoNoDesktop
+              icone={<Plus aria-hidden size={20} />}
+              onClick={() => navegar('/motos/nova')}
+            >
+              Nova moto
+            </Botao>
+          ) : undefined
+        }
+      />
 
       <div className="pt-6">
         {isPending ? (

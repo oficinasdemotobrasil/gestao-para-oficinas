@@ -5,6 +5,7 @@ import { FileText, Plus } from 'lucide-react'
 import { Tela, CabecalhoTela } from '@/componentes/layout/Tela'
 import { CampoBusca } from '@/componentes/ui/CampoBusca'
 import { Abas } from '@/componentes/ui/Abas'
+import { Filtros } from '@/componentes/ui/Filtros'
 import { LinhaLista } from '@/componentes/ui/Card'
 import { ListaResponsiva } from '@/componentes/ui/ListaResponsiva'
 import { Botao } from '@/componentes/ui/Botao'
@@ -47,23 +48,32 @@ export function ListaOrcamentos() {
         }
       />
 
-      <div className="flex flex-col gap-3">
-        {/* A busca aceita os três jeitos de procurar um orçamento: pelo número
-            que o cliente cita no telefone, pelo nome dele, ou pela placa da moto
-            que está na frente. */}
-        <CampoBusca
-          rotulo="Buscar por número, cliente ou placa"
-          valor={busca}
-          aoMudar={setBusca}
-          placeholder="Número, cliente ou placa"
-        />
-
-        <Abas rotulo="Situação do orçamento" abas={filtros} ativa={status} aoTrocar={setStatus} />
-
-        <Botao largo icone={<Plus aria-hidden size={20} />} onClick={() => navegar('/orcamentos/novo')}>
-          Novo orçamento
-        </Botao>
-      </div>
+      <Filtros
+        // A busca aceita os três jeitos de procurar um orçamento: pelo número
+        // que o cliente cita no telefone, pelo nome dele, ou pela placa da moto
+        // que está na frente.
+        busca={
+          <CampoBusca
+            rotulo="Buscar por número, cliente ou placa"
+            valor={busca}
+            aoMudar={setBusca}
+            placeholder="Número, cliente ou placa"
+          />
+        }
+        abas={
+          <Abas rotulo="Situação do orçamento" abas={filtros} ativa={status} aoTrocar={setStatus} />
+        }
+        acoes={
+          <Botao
+            largo
+            compactoNoDesktop
+            icone={<Plus aria-hidden size={20} />}
+            onClick={() => navegar('/orcamentos/novo')}
+          >
+            Novo orçamento
+          </Botao>
+        }
+      />
 
       <div className="pt-6">
         {isPending ? (

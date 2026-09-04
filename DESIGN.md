@@ -274,6 +274,26 @@ primeiro, como já vinha.
 estão no começo da tela no celular — o orçamento é o caso —, elas ficam onde
 estão: mudar isso mexeria no celular, e o celular não muda nesta fase.
 
+### Busca e filtros
+
+`Filtros` monta a faixa que abre as listas: busca, abas de situação, botão de
+ação e, quando existem, filtros avançados.
+
+No celular tudo empilha, como sempre foi — a tela é estreita e cada elemento
+precisa da largura toda para ter alvo de toque decente. Do desktop em diante
+eles ficam lado a lado, com a busca crescendo e o resto ocupando o que precisa:
+o campo de digitar é o que mais ganha em ser largo.
+
+**Filtro atrás de botão não sobrevive ao desktop.** Onde o celular esconde
+opções atrás de "Mais filtros", o computador as mostra sozinhas e o botão de
+abrir some — um botão que não esconde nada é ruído. A tela comporta, e ter de
+abrir uma gaveta para filtrar por mecânico é um clique em cima de um clique.
+
+As abas param de dividir a largura em partes iguais no desktop e passam a
+ocupar o tamanho do texto: ao lado da busca, esticadas, viravam quatro botões
+colados com a palavra encostando na borda. Lá elas também usam o alvo fino de
+36px, porque o mouse acerta o que o dedo não acerta.
+
 ---
 
 ## Composição

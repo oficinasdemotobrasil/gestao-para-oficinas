@@ -36,6 +36,11 @@ export function Abas<T extends string>({ abas, ativa, aoTrocar, rotulo }: Props<
           onClick={() => aoTrocar(id)}
           className={cn(
             'min-h-toque flex-1 rounded-[10px] px-1 text-corpo font-medium',
+            // No desktop as abas param de dividir a largura em partes iguais e
+            // passam a ocupar o tamanho do texto: elas ficam ao lado da busca,
+            // num espaço que sobra, e esticadas viravam quatro botões colados
+            // com a palavra encostando na borda.
+            'desktop:min-h-toque-fino desktop:flex-none desktop:px-4',
             'transition-colors duration-padrao ease-padrao',
             ativa === id ? 'bg-acento text-claro' : 'text-escuro-secundario',
           )}

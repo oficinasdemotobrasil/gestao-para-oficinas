@@ -5,6 +5,7 @@ import { Wrench, SlidersHorizontal } from 'lucide-react'
 import { Tela, CabecalhoTela } from '@/componentes/layout/Tela'
 import { CampoBusca } from '@/componentes/ui/CampoBusca'
 import { Abas } from '@/componentes/ui/Abas'
+import { Filtros } from '@/componentes/ui/Filtros'
 import { LinhaLista } from '@/componentes/ui/Card'
 import { ListaResponsiva } from '@/componentes/ui/ListaResponsiva'
 import { Botao } from '@/componentes/ui/Botao'
@@ -62,29 +63,38 @@ export function ListaOrdens() {
         }
       />
 
-      <div className="flex flex-col gap-3">
-        <CampoBusca
-          rotulo="Buscar por número, cliente ou placa"
-          valor={busca}
-          aoMudar={setBusca}
-          placeholder="Número, cliente ou placa"
-        />
-
-        <Abas rotulo="Situação da ordem" abas={filtros} ativa={status} aoTrocar={setStatus} />
-
-        <Botao
-          variante="contorno"
-          largo
-          icone={<SlidersHorizontal aria-hidden size={20} />}
-          onClick={() => setMaisFiltros((v) => !v)}
-        >
-          {maisFiltros ? 'Esconder filtros' : filtrandoAlem ? 'Filtros ativos' : 'Mais filtros'}
-        </Botao>
-
-        {maisFiltros && (
-          <div className="flex flex-col gap-4 rounded-card bg-superficie p-5 shadow-card">
+      <Filtros
+        busca={
+          <CampoBusca
+            rotulo="Buscar por número, cliente ou placa"
+            valor={busca}
+            aoMudar={setBusca}
+            placeholder="Número, cliente ou placa"
+          />
+        }
+        abas={<Abas rotulo="Situação da ordem" abas={filtros} ativa={status} aoTrocar={setStatus} />}
+        acoes={
+          // O botão de abrir os filtros só existe no celular: no desktop eles
+          // já estão na tela, e um botão que não esconde nada é ruído.
+          <Botao
+            variante="contorno"
+            largo
+            className="desktop:hidden"
+            icone={<SlidersHorizontal aria-hidden size={20} />}
+            onClick={() => setMaisFiltros((v) => !v)}
+          >
+            {maisFiltros ? 'Esconder filtros' : filtrandoAlem ? 'Filtros ativos' : 'Mais filtros'}
+          </Botao>
+        }
+        avancados={
+          // No celular, atrás do botão. No desktop, sempre visíveis: a tela
+          // comporta, e ter de abrir uma gaveta para filtrar por mecânico é um
+          // clique a mais em cima de um clique a mais.
+          <div className={maisFiltros ? '' : 'hidden desktop:block'}>
+            <div className="flex flex-col gap-4 rounded-card bg-superficie p-5 shadow-card desktop:flex-row desktop:items-end desktop:gap-4">
             <Selecao
               rotulo="Mecânico"
+              className="desktop:w-64"
               value={responsavelId}
               onChange={(e) => setResponsavelId(e.target.value)}
             >
@@ -98,7 +108,7 @@ export function ListaOrdens() {
                 ))}
             </Selecao>
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 desktop:shrink-0">
               <div className="flex-1">
                 <Campo
                   rotulo="De"
@@ -121,6 +131,7 @@ export function ListaOrdens() {
               <Botao
                 variante="contorno-no-card"
                 largo
+                compactoNoDesktop
                 onClick={() => {
                   setResponsavelId('todos')
                   setDe('')
@@ -130,9 +141,10 @@ export function ListaOrdens() {
                 Limpar filtros
               </Botao>
             )}
+            </div>
           </div>
-        )}
-      </div>
+        }
+      />
 
       <div className="pt-6">
         {isPending ? (

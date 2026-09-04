@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Users, Plus, Phone, UserX } from 'lucide-react'
 import { Tela, CabecalhoTela } from '@/componentes/layout/Tela'
 import { CampoBusca } from '@/componentes/ui/CampoBusca'
+import { Filtros } from '@/componentes/ui/Filtros'
 import { LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
 import { ListaResponsiva } from '@/componentes/ui/ListaResponsiva'
 import { Botao } from '@/componentes/ui/Botao'
@@ -36,34 +37,39 @@ export function ListaClientes() {
         }
       />
 
-      <div className="flex flex-col gap-3">
-        <CampoBusca
-          rotulo="Buscar cliente por nome ou telefone"
-          valor={busca}
-          aoMudar={setBusca}
-          placeholder="Nome ou telefone"
-        />
-
-        {p.editarClientes && (
-          <>
-            <Botao
-              largo
-              variante="contorno"
-              icone={<UserX aria-hidden size={20} />}
-              onClick={() => navegar('/clientes/sumidos')}
-            >
-              Quem sumiu
-            </Botao>
-            <Botao
-              largo
-              icone={<Plus aria-hidden size={20} />}
-              onClick={() => navegar('/clientes/novo')}
-            >
-              Novo cliente
-            </Botao>
-          </>
-        )}
-      </div>
+      <Filtros
+        busca={
+          <CampoBusca
+            rotulo="Buscar cliente por nome ou telefone"
+            valor={busca}
+            aoMudar={setBusca}
+            placeholder="Nome ou telefone"
+          />
+        }
+        acoes={
+          p.editarClientes ? (
+            <div className="flex flex-col gap-3 desktop:flex-row">
+              <Botao
+                largo
+                compactoNoDesktop
+                variante="contorno"
+                icone={<UserX aria-hidden size={20} />}
+                onClick={() => navegar('/clientes/sumidos')}
+              >
+                Quem sumiu
+              </Botao>
+              <Botao
+                largo
+                compactoNoDesktop
+                icone={<Plus aria-hidden size={20} />}
+                onClick={() => navegar('/clientes/novo')}
+              >
+                Novo cliente
+              </Botao>
+            </div>
+          ) : undefined
+        }
+      />
 
       <div className="pt-6">
         {isPending ? (
