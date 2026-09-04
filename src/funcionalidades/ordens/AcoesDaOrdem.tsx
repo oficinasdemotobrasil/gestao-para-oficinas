@@ -67,9 +67,19 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
     }
   }, [])
 
+  /**
+   * Invalida TODAS as ordens, e não só esta.
+   *
+   * Começar um serviço pausa a ordem que estava aberta em outra moto — e a tela
+   * daquela ordem fica em cache dizendo "em andamento", com o cronômetro
+   * correndo, depois de o banco já a ter pausado. O mecânico voltava para ela e
+   * tocava em "terminei", que era recusado sem ele entender por quê.
+   *
+   * Sem o id na chave, o TanStack casa por prefixo e derruba as duas.
+   */
   function recarregar() {
-    void cache.invalidateQueries({ queryKey: ['ordem-servico', ordem.id] })
-    void cache.invalidateQueries({ queryKey: ['tempo-da-os', ordem.id] })
+    void cache.invalidateQueries({ queryKey: ['ordem-servico'] })
+    void cache.invalidateQueries({ queryKey: ['tempo-da-os'] })
     void cache.invalidateQueries({ queryKey: ['ordens'] })
     void cache.invalidateQueries({ queryKey: ['ordens-em-aberto'] })
   }
