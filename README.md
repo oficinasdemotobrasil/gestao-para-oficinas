@@ -30,6 +30,7 @@ npm run dev
 | `npm run teste:isolamento` | Teste oficial de isolamento, contra o Supabase real. Precisa de `.env.test.local` |
 | `npm run teste:funcao` | Ataca a Edge Function `criar-colaborador`, o único lugar onde a service_role roda. Precisa de `.env.test.local` |
 | `npm run teste:fase3` | Prova o ciclo da OS, a baixa de estoque e o estorno contra o Supabase real. Precisa de `.env.test.local` |
+| `npm run teste:pix` | Confere o BR Code do PIX contra o exemplo do Banco Central. Não precisa de internet nem de banco |
 | `npm run teste:ia` | Prova a Edge Function do texto comercial. Precisa de `.env.test.local` e da chave do Gemini configurada |
 | `npm run teste:fase2` | Prova estoque, nota, orçamento e aprovação contra o Supabase real. Precisa de `.env.test.local` |
 | `npm run checar-tipos` | TypeScript sem gerar arquivos |

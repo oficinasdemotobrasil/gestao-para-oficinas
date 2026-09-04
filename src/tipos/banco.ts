@@ -42,6 +42,10 @@ type Oficina = {
   status: StatusOficina
   criado_em: string
   atualizado_em: string
+  /** Exigida pelo BR Code do PIX (campo 60). */
+  cidade: string | null
+  /** Categorias de despesa que a oficina usa nas contas a pagar. */
+  categorias_despesa: string[]
 }
 
 type Usuario = {

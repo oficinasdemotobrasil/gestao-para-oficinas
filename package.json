@@ -15,6 +15,7 @@
     "teste:funcao": "tsx scripts/teste-edge-function.ts",
     "teste:fase2": "tsx scripts/teste-fase2.ts",
     "teste:fase3": "tsx scripts/teste-fase3.ts",
+    "teste:pix": "tsx scripts/teste-pix.ts",
     "teste:ia": "tsx scripts/teste-ia-orcamento.ts"
   },
   "dependencies": {

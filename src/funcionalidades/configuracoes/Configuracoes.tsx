@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase'
 import { traduzirErro } from '@/lib/erros'
 import { mascararTelefone } from '@/lib/formato'
 import { useAuth } from '@/auth/ProvedorAuth'
+import { chavePixValida } from '@/lib/pix'
 import type { TipoChavePix } from '@/tipos/banco'
 
 const opcional = z
@@ -25,6 +26,7 @@ const esquemaOficina = z
     nome: z.string().trim().min(2, 'Informe o nome da oficina.'),
     telefone: opcional,
     endereco: opcional,
+    cidade: opcional,
     cnpj: opcional.refine(
       (v) => v === null || v.replace(/\D/g, '').length === 14,
       'CNPJ precisa de 14 dígitos.',
@@ -45,6 +47,15 @@ const esquemaOficina = z
     path: ['chave_pix'],
     message: 'Informe a chave PIX.',
   })
+  // Chave com a cara errada só falha na hora de cobrar, com o cliente na
+  // frente — e aí ninguém sabe que o problema é o cadastro.
+  .refine(
+    (d) => !d.chave_pix || !d.tipo_chave_pix || chavePixValida(d.chave_pix, d.tipo_chave_pix),
+    {
+      path: ['chave_pix'],
+      message: 'A chave não tem o formato do tipo escolhido. Confira antes de cobrar.',
+    },
+  )
 
 type DadosOficina = z.input<typeof esquemaOficina>
 /** O que sai do Zod, já convertido — é isto que chega no onSubmit. */
@@ -68,6 +79,7 @@ export function Configuracoes() {
       telefone: '',
       endereco: '',
       cnpj: '',
+      cidade: '',
       tipo_chave_pix: '',
       chave_pix: '',
     },
@@ -80,6 +92,7 @@ export function Configuracoes() {
         telefone: oficina.telefone ?? '',
         endereco: oficina.endereco ?? '',
         cnpj: oficina.cnpj ?? '',
+        cidade: oficina.cidade ?? '',
         tipo_chave_pix: oficina.tipo_chave_pix ?? '',
         chave_pix: oficina.chave_pix ?? '',
       })
@@ -148,9 +161,18 @@ export function Configuracoes() {
 
         <AreaTexto
           rotulo="Endereço"
-          placeholder="Rua, número, bairro, cidade"
+          placeholder="Rua, número, bairro"
           erro={errors.endereco?.message}
           {...register('endereco')}
+        />
+
+        <Campo
+          rotulo="Cidade"
+          autoCapitalize="words"
+          placeholder="Recife"
+          dica="Vai no código do PIX. Sem ela, alguns bancos recusam a cobrança."
+          erro={errors.cidade?.message}
+          {...register('cidade')}
         />
 
         {errors.root && (

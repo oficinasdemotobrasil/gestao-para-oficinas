@@ -1213,6 +1213,120 @@ async function testarFechamentoDaOs() {
   await db.query(`select public.cancelar_os('${os2}')`)
 }
 
+async function testarFinanceiro() {
+  console.log('\n\x1b[1mFinanceiro: cobrança, parcela e baixa\x1b[0m')
+  await logarComo(ID.adminA)
+
+  // Uma OS finalizada, para ter o que cobrar.
+  const itens = JSON.stringify([
+    { tipo: 'servico', produto_id: null, servico_id: ID.servicoA, descricao: 'Mão de obra', quantidade: 1, valor_unitario: 100 },
+  ])
+  const orc = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', 28000,
+       7, 90, null, 0, null, $1::jsonb) as id`,
+    [itens],
+  )
+  const os = await db.query<{ id: string }>(
+    `select public.aprovar_orcamento('${orc.rows[0].id}', '${ID.adminA}') as id`,
+  )
+  const osId = os.rows[0].id
+  await db.query(`select public.mudar_status_da_os('${osId}', 'em_andamento')`)
+  await db.query(`select public.finalizar_os('${osId}')`)
+
+  // Cobrança em três vezes: 100 vira 33,33 + 33,33 + 33,34.
+  await db.query(
+    `select public.criar_cobranca_da_os('${osId}', 3, current_date, 'prazo')`,
+  )
+  await esperaLinhas(
+    'a cobrança sai em três parcelas',
+    `select count(*) as n from public.contas_receber where ordem_servico_id = '${osId}'`,
+    3,
+  )
+  const somaCentavos = await contar(
+    `select (sum(valor) * 100)::int as n from public.contas_receber where ordem_servico_id = '${osId}'`,
+  )
+  somaCentavos === 10000
+    ? ok('e as parcelas somam exatamente o valor da ordem (R$ 100,00)')
+    : erro('soma das parcelas', `veio ${somaCentavos} centavos`)
+
+  const ultima = await contar(
+    `select (valor * 100)::int as n from public.contas_receber
+     where ordem_servico_id = '${osId}' and parcela = 3`,
+  )
+  ultima === 3334
+    ? ok('o centavo que sobra vai na última parcela, não na primeira')
+    : erro('centavo da divisão', `a terceira veio ${ultima}`)
+
+  await esperaErro(
+    'a mesma ordem não é cobrada duas vezes',
+    `select public.criar_cobranca_da_os('${osId}', 1, current_date, null)`,
+  )
+
+  // Baixa parcial: a conta continua aberta, com o saldo à vista.
+  const conta = await db.query<{ id: string }>(
+    `select id from public.contas_receber where ordem_servico_id = '${osId}' and parcela = 1`,
+  )
+  const contaId = conta.rows[0].id
+  await db.query(`select public.receber_conta('${contaId}', 20, current_date, 'dinheiro')`)
+  await esperaLinhas(
+    'receber menos do que o total deixa a conta aberta',
+    `select count(*) as n from public.contas_receber
+     where id = '${contaId}' and status = 'aberta' and valor_recebido = 20`,
+    1,
+  )
+  await esperaErro(
+    'e não deixa receber mais do que a conta vale',
+    `select public.receber_conta('${contaId}', 999)`,
+  )
+
+  await db.query(`select public.receber_conta('${contaId}')`)
+  await esperaLinhas(
+    'sem valor informado, recebe o que faltava e fecha a conta',
+    `select count(*) as n from public.contas_receber
+     where id = '${contaId}' and status = 'paga' and valor_recebido = valor`,
+    1,
+  )
+
+  // Atrasada é calculada, não gravada.
+  await db.query(
+    `update public.contas_receber set vencimento = current_date - 5
+     where ordem_servico_id = '${osId}' and parcela = 2`,
+  )
+  const atrasada = await db.query<{ s: string }>(
+    `select public.status_da_conta(status, vencimento, valor, valor_recebido) as s
+     from public.contas_receber where ordem_servico_id = '${osId}' and parcela = 2`,
+  )
+  atrasada.rows[0].s === 'atrasada'
+    ? ok('conta vencida aparece como atrasada sem ninguém ter gravado isso')
+    : erro('status atrasada', `veio ${atrasada.rows[0].s}`)
+
+  // Contas a pagar, com repetição.
+  await db.query(
+    `select public.lancar_conta_a_pagar('Aluguel do galpão', 1800, current_date, 'Imobiliária Silva', 'Aluguel', 6)`,
+  )
+  await esperaLinhas(
+    'despesa que se repete lança seis meses de uma vez',
+    `select count(*) as n from public.contas_pagar where descricao like 'Aluguel do galpão%'`,
+    6,
+  )
+  const espacamento = await contar(
+    `select (max(vencimento) - min(vencimento))::int as n from public.contas_pagar
+     where descricao like 'Aluguel do galpão%'`,
+  )
+  espacamento >= 150 && espacamento <= 155
+    ? ok('e cada uma cai um mês depois da anterior')
+    : erro('vencimentos da repetição', `${espacamento} dias entre a primeira e a última`)
+
+  // Quem não é admin não chega perto.
+  await logarComo(ID.vendedorA)
+  await esperaLinhas('vendedor NÃO lê contas a receber', 'select count(*) as n from public.contas_receber', 0)
+  await esperaLinhas('vendedor NÃO lê contas a pagar', 'select count(*) as n from public.contas_pagar', 0)
+  await logarComo(ID.mecanicoA)
+  await esperaLinhas('mecânico NÃO lê contas a receber', 'select count(*) as n from public.contas_receber', 0)
+
+  await logarComo(ID.adminA)
+}
+
 async function testarPerfisNaFase2() {
   console.log('\n\x1b[1mQuem alcança o que na Fase 2\x1b[0m')
 
@@ -1311,6 +1425,7 @@ async function main() {
     await testarRelogio()
     await testarMecanicoSemDinheiro()
     await testarFechamentoDaOs()
+    await testarFinanceiro()
     await testarPerfisNaFase2()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
