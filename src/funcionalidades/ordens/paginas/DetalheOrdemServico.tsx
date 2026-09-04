@@ -3,6 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { User, Bike, FileText, UserCog, TriangleAlert } from 'lucide-react'
 import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
+import { Detalhe } from '@/componentes/layout/Detalhe'
 import { Card } from '@/componentes/ui/Card'
 import { Botao } from '@/componentes/ui/Botao'
 import { Modal } from '@/componentes/ui/Modal'
@@ -146,6 +147,85 @@ export function DetalheOrdemServico() {
   const podeEditarItens = p.gerenciarOrdens && EDITAVEL.includes(ordem.status)
   const mostraValores = p.gerenciarOrdens
 
+  // A coluna de apoio: de quem é, o relógio, o que dá para fazer e quem está
+  // com ela. São os quatro primeiros blocos da tela no celular, na ordem em que
+  // já estavam — por isso o celular não muda ao virarem uma coluna à direita.
+  const colunaDeApoio = (
+    <>
+        <Card>
+          <div className="flex items-center gap-3 pb-2">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
+              <User aria-hidden size={20} className="text-claro" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-corpo font-medium text-claro">
+                {ordem.cliente?.nome ?? 'Cliente removido'}
+              </p>
+              {ordem.cliente?.telefone && (
+                <p className="text-apoio text-claro-secundario">
+                  {telefone(ordem.cliente.telefone)}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 border-t border-borda-clara pt-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
+              <Bike aria-hidden size={20} className="text-claro" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-corpo font-medium text-claro">
+                {ordem.moto ? exibirPlaca(ordem.moto.placa) : 'Moto removida'}
+              </p>
+              <p className="truncate text-apoio text-claro-secundario">
+                {[ordem.moto?.marca, ordem.moto?.modelo].filter(Boolean).join(' ')}
+                {ordem.km_entrada ? ` · ${quilometragem(ordem.km_entrada)}` : ''}
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {tempo && (
+          <div className="pt-6">
+            <Cronometro tempo={tempo} />
+          </div>
+        )}
+
+        <AcoesDaOrdem ordem={ordem} />
+
+        <TituloSecao
+          acao={
+            p.gerenciarOrdens && EDITAVEL.includes(ordem.status) ? (
+              <Botao variante="texto" onClick={() => setTrocandoResponsavel(true)}>
+                Trocar
+              </Botao>
+            ) : undefined
+          }
+        >
+          Responsável
+        </TituloSecao>
+        <Card>
+          {ordem.responsavel ? (
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
+                <UserCog aria-hidden size={20} className="text-claro" />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-corpo font-medium text-claro">
+                  {ordem.responsavel.nome}
+                </p>
+                <p className="text-apoio text-claro-secundario">
+                  {nomeDoPerfil[ordem.responsavel.perfil]}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="py-2 text-corpo text-claro-secundario">Ninguém atribuído ainda.</p>
+          )}
+        </Card>
+    </>
+  )
+
   return (
     <Tela>
       <CabecalhoInterno
@@ -154,77 +234,7 @@ export function DetalheOrdemServico() {
         acao={<StatusOsBadge status={ordem.status} />}
       />
 
-      <Card>
-        <div className="flex items-center gap-3 pb-2">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
-            <User aria-hidden size={20} className="text-claro" />
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-corpo font-medium text-claro">
-              {ordem.cliente?.nome ?? 'Cliente removido'}
-            </p>
-            {ordem.cliente?.telefone && (
-              <p className="text-apoio text-claro-secundario">
-                {telefone(ordem.cliente.telefone)}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 border-t border-borda-clara pt-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
-            <Bike aria-hidden size={20} className="text-claro" />
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-corpo font-medium text-claro">
-              {ordem.moto ? exibirPlaca(ordem.moto.placa) : 'Moto removida'}
-            </p>
-            <p className="truncate text-apoio text-claro-secundario">
-              {[ordem.moto?.marca, ordem.moto?.modelo].filter(Boolean).join(' ')}
-              {ordem.km_entrada ? ` · ${quilometragem(ordem.km_entrada)}` : ''}
-            </p>
-          </div>
-        </div>
-      </Card>
-
-      {tempo && (
-        <div className="pt-6">
-          <Cronometro tempo={tempo} />
-        </div>
-      )}
-
-      <AcoesDaOrdem ordem={ordem} />
-
-      <TituloSecao
-        acao={
-          p.gerenciarOrdens && EDITAVEL.includes(ordem.status) ? (
-            <Botao variante="texto" onClick={() => setTrocandoResponsavel(true)}>
-              Trocar
-            </Botao>
-          ) : undefined
-        }
-      >
-        Responsável
-      </TituloSecao>
-      <Card>
-        {ordem.responsavel ? (
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
-              <UserCog aria-hidden size={20} className="text-claro" />
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-corpo font-medium text-claro">
-                {ordem.responsavel.nome}
-              </p>
-              <p className="text-apoio text-claro-secundario">
-                {nomeDoPerfil[ordem.responsavel.perfil]}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <p className="py-2 text-corpo text-claro-secundario">Ninguém atribuído ainda.</p>
-        )}
-      </Card>
+      <Detalhe apoio={colunaDeApoio}>
 
       {acima != null && mostraValores && (
         <div className="mt-6 flex items-start gap-3 rounded-card bg-atencao-fundo px-4 py-4">
@@ -359,6 +369,7 @@ export function DetalheOrdemServico() {
           aoEscolher={(usuarioId) => trocarResponsavel.mutate(usuarioId)}
         />
       </Modal>
+      </Detalhe>
     </Tela>
   )
 }

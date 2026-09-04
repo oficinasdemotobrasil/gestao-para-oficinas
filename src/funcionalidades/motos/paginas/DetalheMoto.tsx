@@ -5,6 +5,7 @@ import { resolverZod } from '@/lib/formulario'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Gauge, ClipboardList, User, History } from 'lucide-react'
 import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
+import { Detalhe } from '@/componentes/layout/Detalhe'
 import { Card, ListaCard, LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
 import { Botao } from '@/componentes/ui/Botao'
 import { Badge } from '@/componentes/ui/Badge'
@@ -120,6 +121,49 @@ export function DetalheMoto() {
   const donoAtual = proprietarios?.find((prop) => prop.data_fim === null)
   const anteriores = proprietarios?.filter((prop) => prop.data_fim !== null) ?? []
 
+  // A coluna de apoio no computador: os primeiros blocos da tela, na ordem em
+  // que já estavam no celular.
+  const colunaDeApoio = (
+    <>
+        <Card>
+          <div className="flex items-end justify-between gap-4">
+            <div className="flex flex-col gap-1">
+              <span className="text-rotulo text-claro-secundario">Quilometragem</span>
+              <span className="text-destaque text-claro">
+                {new Intl.NumberFormat('pt-BR').format(moto.km_atual)}
+              </span>
+              <span className="text-apoio text-claro-secundario">
+                Atualizada em {data(moto.atualizado_em)}
+              </span>
+            </div>
+            {p.editarMotos && (
+              <Botao
+                variante="contorno-no-card"
+                className="h-toque px-4"
+                icone={<Gauge aria-hidden size={18} />}
+                onClick={() => {
+                  formularioKm.reset({ km_atual: String(moto.km_atual) })
+                  setEditandoKm(true)
+                }}
+              >
+                Atualizar
+              </Botao>
+            )}
+          </div>
+        </Card>
+
+        <TituloSecao>Dados da moto</TituloSecao>
+        <Card>
+          <Linha rotulo="Placa" valor={exibirPlaca(moto.placa)} />
+          <Linha rotulo="Marca" valor={moto.marca ?? '—'} />
+          <Linha rotulo="Modelo" valor={moto.modelo ?? '—'} />
+          <Linha rotulo="Ano" valor={moto.ano ? String(moto.ano) : '—'} />
+          <Linha rotulo="Cor" valor={moto.cor ?? '—'} />
+          <Linha rotulo="Chassi" valor={moto.chassi ?? '—'} />
+        </Card>
+    </>
+  )
+
   return (
     <Tela>
       <CabecalhoInterno
@@ -139,44 +183,9 @@ export function DetalheMoto() {
         }
       />
 
+      <Detalhe apoio={colunaDeApoio}>
       {/* Quilometragem é o dado que mais muda e o que o mecânico mais pergunta:
           fica em destaque, com atualização em um toque. */}
-      <Card>
-        <div className="flex items-end justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-rotulo text-claro-secundario">Quilometragem</span>
-            <span className="text-destaque text-claro">
-              {new Intl.NumberFormat('pt-BR').format(moto.km_atual)}
-            </span>
-            <span className="text-apoio text-claro-secundario">
-              Atualizada em {data(moto.atualizado_em)}
-            </span>
-          </div>
-          {p.editarMotos && (
-            <Botao
-              variante="contorno-no-card"
-              className="h-toque px-4"
-              icone={<Gauge aria-hidden size={18} />}
-              onClick={() => {
-                formularioKm.reset({ km_atual: String(moto.km_atual) })
-                setEditandoKm(true)
-              }}
-            >
-              Atualizar
-            </Botao>
-          )}
-        </div>
-      </Card>
-
-      <TituloSecao>Dados da moto</TituloSecao>
-      <Card>
-        <Linha rotulo="Placa" valor={exibirPlaca(moto.placa)} />
-        <Linha rotulo="Marca" valor={moto.marca ?? '—'} />
-        <Linha rotulo="Modelo" valor={moto.modelo ?? '—'} />
-        <Linha rotulo="Ano" valor={moto.ano ? String(moto.ano) : '—'} />
-        <Linha rotulo="Cor" valor={moto.cor ?? '—'} />
-        <Linha rotulo="Chassi" valor={moto.chassi ?? '—'} />
-      </Card>
 
       {/* O histórico pertence à placa, não ao dono. Quem chega aqui vê tudo o
           que já foi feito na moto, mesmo o que aconteceu com o dono anterior —
@@ -317,6 +326,7 @@ export function DetalheMoto() {
           />
         </form>
       </Modal>
+      </Detalhe>
     </Tela>
   )
 }

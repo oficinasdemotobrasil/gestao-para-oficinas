@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Copy, User, Bike } from 'lucide-react'
 import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
+import { Detalhe } from '@/componentes/layout/Detalhe'
 import { Card } from '@/componentes/ui/Card'
 import { Botao } from '@/componentes/ui/Botao'
 import { Carregando } from '@/componentes/ui/Carregando'
@@ -12,7 +13,7 @@ import { moeda, exibirPlaca, data, quilometragem, telefone, porcentagem } from '
 import { usePermissoes } from '@/auth/usePermissoes'
 import { ItensDoOrcamento } from '../ItensDoOrcamento'
 import { StatusOrcamentoBadge } from '../StatusOrcamentoBadge'
-import { obterOrcamento, duplicarOrcamento, statusEfetivo } from '../api'
+import { obterOrcamento, duplicarOrcamento, statusEfetivo, type OrcamentoCompleto } from '../api'
 import { AcoesDoOrcamento } from '../AcoesDoOrcamento'
 
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
@@ -21,6 +22,44 @@ function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
       <span className="text-rotulo text-claro-secundario">{rotulo}</span>
       <span className="text-corpo text-claro">{valor}</span>
     </div>
+  )
+}
+
+/** Quem é o cliente e qual é a moto. Vira a coluna de apoio no computador. */
+function CartaoDoCliente({ orcamento }: { orcamento: OrcamentoCompleto }) {
+  return (
+    <Card>
+      <div className="flex items-center gap-3 pb-2">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
+          <User aria-hidden size={20} className="text-claro" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-corpo font-medium text-claro">
+            {orcamento.cliente?.nome ?? 'Cliente removido'}
+          </p>
+          {orcamento.cliente?.telefone && (
+            <p className="text-apoio text-claro-secundario">
+              {telefone(orcamento.cliente.telefone)}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 border-t border-borda-clara pt-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
+          <Bike aria-hidden size={20} className="text-claro" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-corpo font-medium text-claro">
+            {orcamento.moto ? exibirPlaca(orcamento.moto.placa) : 'Moto removida'}
+          </p>
+          <p className="truncate text-apoio text-claro-secundario">
+            {[orcamento.moto?.marca, orcamento.moto?.modelo].filter(Boolean).join(' ')}
+            {orcamento.km_registrado ? ` · ${quilometragem(orcamento.km_registrado)}` : ''}
+          </p>
+        </div>
+      </div>
+    </Card>
   )
 }
 
@@ -74,38 +113,7 @@ export function DetalheOrcamento() {
         acao={<StatusOrcamentoBadge status={efetivo} />}
       />
 
-      <Card>
-        <div className="flex items-center gap-3 pb-2">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
-            <User aria-hidden size={20} className="text-claro" />
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-corpo font-medium text-claro">
-              {orcamento.cliente?.nome ?? 'Cliente removido'}
-            </p>
-            {orcamento.cliente?.telefone && (
-              <p className="text-apoio text-claro-secundario">
-                {telefone(orcamento.cliente.telefone)}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 border-t border-borda-clara pt-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
-            <Bike aria-hidden size={20} className="text-claro" />
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-corpo font-medium text-claro">
-              {orcamento.moto ? exibirPlaca(orcamento.moto.placa) : 'Moto removida'}
-            </p>
-            <p className="truncate text-apoio text-claro-secundario">
-              {[orcamento.moto?.marca, orcamento.moto?.modelo].filter(Boolean).join(' ')}
-              {orcamento.km_registrado ? ` · ${quilometragem(orcamento.km_registrado)}` : ''}
-            </p>
-          </div>
-        </div>
-      </Card>
+      <Detalhe apoio={<CartaoDoCliente orcamento={orcamento} />}>
 
       <TituloSecao>Itens</TituloSecao>
       <ItensDoOrcamento
@@ -197,6 +205,7 @@ export function DetalheOrcamento() {
           </Botao>
         )}
       </div>
+      </Detalhe>
     </Tela>
   )
 }

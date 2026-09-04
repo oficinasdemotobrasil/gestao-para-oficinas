@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, Scale, Pencil, TriangleAlert, Boxes } from 'lucide-react'
 import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
+import { Detalhe } from '@/componentes/layout/Detalhe'
 import { Card, ListaCard } from '@/componentes/ui/Card'
 import { Botao } from '@/componentes/ui/Botao'
 import { Badge, BadgeAtivo } from '@/componentes/ui/Badge'
@@ -69,6 +70,67 @@ export function DetalheProduto() {
     { tipo: 'ajuste', rotulo: 'Ajuste', Icone: Scale },
   ]
 
+  // A coluna de apoio no computador: os primeiros blocos da tela, na ordem em
+  // que já estavam no celular.
+  const colunaDeApoio = (
+    <>
+        <Card>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-1">
+              <span className="text-rotulo text-claro-secundario">Em estoque</span>
+              <span className="text-destaque text-claro">
+                {formatarQuantidade(saldo)}
+                <span className="pl-2 text-secao font-normal text-claro-secundario">
+                  {produto.unidade}
+                </span>
+              </span>
+              {minimo > 0 && (
+                <span className="text-apoio text-claro-secundario">
+                  Mínimo: {formatarQuantidade(minimo)} {produto.unidade}
+                </span>
+              )}
+            </div>
+            {precisaRepor ? (
+              <Badge tom="atencao">
+                <span className="flex items-center gap-1">
+                  <TriangleAlert aria-hidden size={13} />
+                  Repor
+                </span>
+              </Badge>
+            ) : (
+              <BadgeAtivo ativo={produto.ativo} />
+            )}
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 pt-5">
+            {acoes.map(({ tipo, rotulo, Icone }) => (
+              <button
+                key={tipo}
+                type="button"
+                onClick={() => setMovimentando(tipo)}
+                className="flex min-h-[76px] flex-col items-center justify-center gap-1 rounded-controle border border-borda-clara text-claro active:bg-borda-clara/50"
+              >
+                <Icone aria-hidden size={22} />
+                <span className="text-rotulo font-medium">{rotulo}</span>
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        <TituloSecao>Preços</TituloSecao>
+        <Card>
+          <Linha rotulo="Preço de venda" valor={moeda(venda)} />
+          {/* Custo e margem só existem para quem pode vê-los: para o vendedor,
+              estes campos nem chegam do servidor. */}
+          {custo != null && <Linha rotulo="Preço de custo" valor={moeda(custo)} />}
+          {margem != null && (
+            <Linha rotulo="Margem" valor={`${moeda(venda - custo!)} · ${margem.toFixed(0)}%`} />
+          )}
+          <Linha rotulo="Unidade" valor={produto.unidade} />
+        </Card>
+    </>
+  )
+
   return (
     <Tela>
       <CabecalhoInterno
@@ -88,61 +150,8 @@ export function DetalheProduto() {
         }
       />
 
+      <Detalhe apoio={colunaDeApoio}>
       {/* O saldo é o que a pessoa veio ver, então ele é o maior número da tela. */}
-      <Card>
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-rotulo text-claro-secundario">Em estoque</span>
-            <span className="text-destaque text-claro">
-              {formatarQuantidade(saldo)}
-              <span className="pl-2 text-secao font-normal text-claro-secundario">
-                {produto.unidade}
-              </span>
-            </span>
-            {minimo > 0 && (
-              <span className="text-apoio text-claro-secundario">
-                Mínimo: {formatarQuantidade(minimo)} {produto.unidade}
-              </span>
-            )}
-          </div>
-          {precisaRepor ? (
-            <Badge tom="atencao">
-              <span className="flex items-center gap-1">
-                <TriangleAlert aria-hidden size={13} />
-                Repor
-              </span>
-            </Badge>
-          ) : (
-            <BadgeAtivo ativo={produto.ativo} />
-          )}
-        </div>
-
-        <div className="grid grid-cols-3 gap-2 pt-5">
-          {acoes.map(({ tipo, rotulo, Icone }) => (
-            <button
-              key={tipo}
-              type="button"
-              onClick={() => setMovimentando(tipo)}
-              className="flex min-h-[76px] flex-col items-center justify-center gap-1 rounded-controle border border-borda-clara text-claro active:bg-borda-clara/50"
-            >
-              <Icone aria-hidden size={22} />
-              <span className="text-rotulo font-medium">{rotulo}</span>
-            </button>
-          ))}
-        </div>
-      </Card>
-
-      <TituloSecao>Preços</TituloSecao>
-      <Card>
-        <Linha rotulo="Preço de venda" valor={moeda(venda)} />
-        {/* Custo e margem só existem para quem pode vê-los: para o vendedor,
-            estes campos nem chegam do servidor. */}
-        {custo != null && <Linha rotulo="Preço de custo" valor={moeda(custo)} />}
-        {margem != null && (
-          <Linha rotulo="Margem" valor={`${moeda(venda - custo!)} · ${margem.toFixed(0)}%`} />
-        )}
-        <Linha rotulo="Unidade" valor={produto.unidade} />
-      </Card>
 
       <TituloSecao>Extrato</TituloSecao>
       {extrato.isPending ? (
@@ -180,6 +189,7 @@ export function DetalheProduto() {
           }}
         />
       )}
+      </Detalhe>
     </Tela>
   )
 }

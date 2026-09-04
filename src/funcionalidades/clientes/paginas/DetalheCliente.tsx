@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Bike, Pencil, Plus } from 'lucide-react'
 import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
+import { Detalhe } from '@/componentes/layout/Detalhe'
 import { Card, ListaCard, LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
 import { Botao } from '@/componentes/ui/Botao'
 import { Carregando } from '@/componentes/ui/Carregando'
@@ -47,6 +48,18 @@ export function DetalheCliente() {
     )
   }
 
+  // A coluna de apoio no computador: os primeiros blocos da tela, na ordem em
+  // que já estavam no celular.
+  const colunaDeApoio = (
+    <>
+        <Card>
+          <Linha rotulo="Telefone" valor={telefone(cliente.telefone)} />
+          <Linha rotulo="E-mail" valor={cliente.email ?? '—'} />
+          <Linha rotulo="CPF / CNPJ" valor={cpfCnpj(cliente.cpf_cnpj)} />
+        </Card>
+    </>
+  )
+
   return (
     <Tela>
       <CabecalhoInterno
@@ -66,12 +79,7 @@ export function DetalheCliente() {
         }
       />
 
-      <Card>
-        <Linha rotulo="Telefone" valor={telefone(cliente.telefone)} />
-        <Linha rotulo="E-mail" valor={cliente.email ?? '—'} />
-        <Linha rotulo="CPF / CNPJ" valor={cpfCnpj(cliente.cpf_cnpj)} />
-      </Card>
-
+      <Detalhe apoio={colunaDeApoio}>
       {cliente.observacoes && (
         <>
           <TituloSecao>Observações</TituloSecao>
@@ -123,6 +131,7 @@ export function DetalheCliente() {
           ))}
         </ListaCard>
       )}
+      </Detalhe>
     </Tela>
   )
 }

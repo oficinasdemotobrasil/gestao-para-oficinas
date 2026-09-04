@@ -242,6 +242,24 @@ dentro: sem isso, a terceira batida no Tab sai para a tela de trás, que continu
 clicável, e a pessoa digita achando que está preenchendo a janela. No celular
 ninguém usa Tab; no balcão, é como se preenche.
 
+### Telas de detalhe
+
+Duas colunas a partir de 1024px — `Detalhe`. Esquerda: o que se lê e se rola,
+itens, resumo, histórico. Direita: de quem é, de que moto é, e o que dá para
+fazer. A coluna da direita acompanha a rolagem, porque numa ordem comprida
+ninguém deveria voltar ao topo para lembrar de que moto se trata ou para achar
+o botão.
+
+**O bloco de apoio é o começo da tela, não uma seleção espalhada.** Quem usa o
+componente passa em `apoio` os primeiros blocos da ordem que já existe no
+celular; o resto vai em `children`. Assim a ordem do celular sai de graça, sem
+`order` nem truque de CSS — no celular a caixa de apoio simplesmente vem
+primeiro, como já vinha.
+
+É uma restrição, e é ela que mantém a regra de ouro barata. Onde as ações não
+estão no começo da tela no celular — o orçamento é o caso —, elas ficam onde
+estão: mudar isso mexeria no celular, e o celular não muda nesta fase.
+
 ---
 
 ## Composição
