@@ -41,6 +41,23 @@
   --altura-campo: 52px;
   --altura-linha-lista: 64px;
   --altura-tabbar: 60px;
+  /* No desktop o alvo pode ser menor: o mouse acerta o que o dedo não acerta. */
+  --altura-toque-fino: 36px;
+
+  /* Largura -------------------------------------------------------------- */
+  /* Teto do conteúdo. Num monitor de 27 polegadas, texto de ponta a ponta é
+     ilegível: o olho perde a linha na volta. */
+  --largura-conteudo: 1280px;
+  /* Telas de coluna única que não ganham nada em esticar — a do mecânico. */
+  --largura-leitura: 900px;
+  /* Janela centralizada no desktop, no lugar da gaveta que sobe no celular. */
+  --largura-janela: 600px;
+  --largura-menu: 248px;
+  /* A medida saiu da palavra mais comprida do menu, "Configurações", e não de
+     um número redondo: em 84px ela vazava para fora da coluna, em 120px ainda
+     cortava. Ícone sem nome economizaria espaço, mas obrigaria a decorar nove
+     símbolos — e quem usa o tablet no balcão não é quem instalou o app. */
+  --largura-menu-estreito: 140px;
 
   /* Movimento ------------------------------------------------------------ */
   --transicao: 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -49,4 +66,14 @@
   /* Tipografia ----------------------------------------------------------- */
   --fonte: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter',
     system-ui, sans-serif;
+}
+
+/* A partir do tablet a barra de abas dá lugar ao menu lateral. Zerar a altura
+   aqui, e não em cada tela, faz todo o cálculo de espaço que já existia
+   continuar valendo sem uma linha de mudança — inclusive o padding de baixo
+   das telas com rodapé fixo. */
+@media (min-width: 768px) {
+  :root {
+    --altura-tabbar: 0px;
+  }
 }

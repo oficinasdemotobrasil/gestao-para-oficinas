@@ -5,6 +5,29 @@ import type { Config } from 'tailwindcss'
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
+    /**
+     * Pontos de quebra com nome, e SUBSTITUINDO os padrões do Tailwind em vez
+     * de somar a eles.
+     *
+     * Substituir é de propósito: com sm/md/lg ainda disponíveis, uma classe
+     * `md:flex` escrita sem pensar passaria despercebida na revisão e o app
+     * teria dois vocabulários de tamanho. Aqui só existem estes três — e quem
+     * tentar usar outro recebe erro do Tailwind, não um layout torto.
+     *
+     * Não existe prefixo `celular:` para o caso comum: o layout do celular é o
+     * PADRÃO, escrito sem prefixo nenhum. É essa escolha que garante a regra de
+     * ouro desta fase — nada que se acrescente para telas maiores pode alcançar
+     * o celular, porque min-width nunca desce.
+     *
+     * `so-celular:` existe para o caso raro do contrário: algo que só faz
+     * sentido no celular, como a barra de abas. Use pouco.
+     */
+    screens: {
+      tablet: '768px',
+      desktop: '1024px',
+      amplo: '1440px',
+      'so-celular': { max: '767px' },
+    },
     extend: {
       colors: {
         fundo: 'var(--cor-fundo)',
@@ -48,8 +71,16 @@ export default {
         card: 'var(--sombra-card)',
         flutuante: 'var(--sombra-flutuante)',
       },
+      maxWidth: {
+        conteudo: 'var(--largura-conteudo)',
+        leitura: 'var(--largura-leitura)',
+        janela: 'var(--largura-janela)',
+      },
       spacing: {
         toque: 'var(--altura-toque)',
+        'toque-fino': 'var(--altura-toque-fino)',
+        menu: 'var(--largura-menu)',
+        'menu-estreito': 'var(--largura-menu-estreito)',
         botao: 'var(--altura-botao)',
         campo: 'var(--altura-campo)',
         linha: 'var(--altura-linha-lista)',

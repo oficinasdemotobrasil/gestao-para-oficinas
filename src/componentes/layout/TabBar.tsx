@@ -1,45 +1,35 @@
 import { NavLink } from 'react-router-dom'
-import { Home, FileText, Bike, Wrench, Menu } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import { usePermissoes } from '@/auth/usePermissoes'
 import { cn } from '@/lib/cn'
-
-interface Item {
-  para: string
-  rotulo: string
-  Icone: LucideIcon
-  visivel: boolean
-}
+import { ITENS } from './itensDeNavegacao'
 
 /**
  * Barra fixa na base, no máximo 5 itens. Fica embaixo porque é onde o polegar
  * chega com o celular na mão, e respeita a safe area do iPhone para não ficar
  * escondida sob o indicador de início.
+ *
+ * Os itens vêm da mesma lista do menu lateral: aqui entram os marcados com
+ * `naBarra`, mais o "Mais", que é a porta para o que não coube. Do tablet em
+ * diante a barra some e o menu lateral mostra tudo de uma vez.
  */
 export function TabBar() {
   const p = usePermissoes()
 
-  // Cinco vagas, e orçamento é o que a oficina faz dez vezes por dia. Clientes
-  // saiu da barra porque ninguém abre "Clientes" para olhar: chega-se ao cliente
-  // pela moto que entrou ou digitando o nome dentro do orçamento, que é onde ele
-  // é realmente necessário. O atalho continua na Início e em Mais.
-  const itens: Item[] = [
-    { para: '/', rotulo: 'Início', Icone: Home, visivel: true },
-    { para: '/orcamentos', rotulo: 'Orçamentos', Icone: FileText, visivel: p.verOrcamentos },
-    { para: '/motos', rotulo: 'Motos', Icone: Bike, visivel: p.verMotos },
-    // Serviços entrou no lugar do Catálogo na Fase 3: a ordem de serviço é
-    // aberta e consultada o dia inteiro, e o catálogo é cadastro — mexe-se nele
-    // de vez em quando. O atalho do catálogo continua na Início e em Mais.
-    { para: '/ordens', rotulo: 'Serviços', Icone: Wrench, visivel: p.verOrdensDaOficina },
-    { para: '/mais', rotulo: 'Mais', Icone: Menu, visivel: true },
+  const visiveis = [
+    ...ITENS.filter((i) => i.naBarra && i.visivel(p)),
+    { para: '/mais', rotulo: 'Mais', Icone: Menu },
   ]
-
-  const visiveis = itens.filter((i) => i.visivel)
 
   return (
     <nav
       aria-label="Navegação principal"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-borda-escura bg-fundo/95 pb-seguro backdrop-blur"
+      className={cn(
+        'fixed inset-x-0 bottom-0 z-40 border-t border-borda-escura bg-fundo/95 pb-seguro backdrop-blur',
+        // Do tablet em diante quem navega é o menu lateral. A altura reservada
+        // para esta barra também zera, em tokens.css.
+        'tablet:hidden',
+      )}
     >
       <ul className="mx-auto flex max-w-lg">
         {visiveis.map(({ para, rotulo, Icone }) => (

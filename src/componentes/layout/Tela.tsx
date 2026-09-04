@@ -3,8 +3,19 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
+/**
+ * Quanto a tela pode crescer depois do celular.
+ *
+ * 'padrao' vai até 1280px — o teto do conteúdo, porque texto de ponta a ponta
+ * num monitor grande é ilegível. 'leitura' para de crescer antes, em 900px: é a
+ * medida das telas de coluna única que não ganham nada em esticar, como a do
+ * mecânico.
+ */
+type Largura = 'padrao' | 'leitura'
+
 interface PropsTela {
   children: ReactNode
+  largura?: Largura
   /** Reserva o espaço da tab bar. Telas internas sem barra passam false. */
   comTabBar?: boolean
   /**
@@ -25,8 +36,16 @@ const ALTURA_RODAPE = 130
 /** Ar entre o fim do conteúdo e o rodapé. Encostar um no outro parece defeito. */
 const RESPIRO = 24
 
+const LARGURAS: Record<Largura, string> = {
+  // No celular nada muda: max-w-lg é o que já era, e os prefixos de tamanho
+  // maior nunca alcançam telas pequenas.
+  padrao: 'max-w-lg tablet:max-w-conteudo',
+  leitura: 'max-w-lg tablet:max-w-leitura',
+}
+
 export function Tela({
   children,
+  largura = 'padrao',
   comTabBar = true,
   comRodapeFixo = false,
   className,
@@ -42,7 +61,11 @@ export function Tela({
 
   return (
     <main
-      className={cn('mx-auto min-h-dvh w-full max-w-lg px-5 pt-seguro', className)}
+      className={cn(
+        'mx-auto min-h-dvh w-full px-5 pt-seguro tablet:px-8',
+        LARGURAS[largura],
+        className,
+      )}
       style={{ paddingBottom: `calc(${espacoDeBaixo})` }}
     >
       {children}

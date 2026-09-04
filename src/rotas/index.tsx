@@ -1,6 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { RotaProtegida, RotaPublica, RotaPorPerfil } from '@/auth/RotaProtegida'
-import { LayoutApp } from '@/componentes/layout/LayoutApp'
+import { EstruturaDoApp } from '@/componentes/layout/EstruturaDoApp'
 import { Entrar } from '@/auth/paginas/Entrar'
 import { EsqueciSenha } from '@/auth/paginas/EsqueciSenha'
 import { RedefinirSenha } from '@/auth/paginas/RedefinirSenha'
@@ -46,7 +46,7 @@ export const rotas = createBrowserRouter([
     element: <RotaProtegida />,
     children: [
       {
-        element: <LayoutApp />,
+        element: <EstruturaDoApp />,
         children: [
           { path: '/', element: <Inicio /> },
           { path: '/mais', element: <Mais /> },

@@ -118,6 +118,65 @@ inclusive dentro do card branco. Nunca `outline: none` sem substituto.
 
 ---
 
+## Tamanho de tela
+
+O app nasceu para o celular e continua sendo do celular. Tablet e computador são
+acréscimo — o balcão da oficina usa monitor para orçamento, financeiro e painel.
+
+| Nome | Prefixo | A partir de | O que muda |
+|---|---|---|---|
+| celular | *nenhum* | 0 | o layout padrão, escrito sem prefixo |
+| tablet | `tablet:` | 768px | menu lateral estreito, formulário em duas colunas |
+| desktop | `desktop:` | 1024px | menu lateral completo, listas viram tabela |
+| amplo | `amplo:` | 1440px | conteúdo para de crescer e centraliza |
+
+**A regra de ouro: o celular não regride.** Ela não depende de disciplina, depende
+da estrutura — o layout do celular é o padrão sem prefixo, e `min-width` nunca
+desce. Nada que se acrescente para telas maiores alcança telas pequenas.
+
+Os pontos de quebra **substituem** os do Tailwind em vez de somar a eles. Com
+`sm:`/`md:`/`lg:` ainda disponíveis, uma classe escrita sem pensar passaria na
+revisão e o app teria dois vocabulários de tamanho. Aqui só existem estes — quem
+tentar outro recebe erro do Tailwind, não um layout torto.
+
+`so-celular:` (até 767px) existe para o caso raro do contrário: algo que só faz
+sentido no celular, como a barra de abas. Use pouco.
+
+| Token | Valor | Uso |
+|---|---|---|
+| `--largura-conteudo` | 1280px | teto do conteúdo, centralizado |
+| `--largura-leitura` | 900px | telas de coluna única que não ganham em esticar |
+| `--largura-janela` | 600px | janela centralizada no desktop |
+| `--largura-menu` | 248px | menu lateral no desktop |
+| `--largura-menu-estreito` | 140px | menu lateral no tablet |
+| `--altura-toque-fino` | 36px | alvo no desktop, onde o mouse acerta |
+
+Texto de ponta a ponta num monitor de 27 polegadas é ilegível: o olho perde a
+linha na volta. Por isso o teto de 1280px, e não "ocupar o que tiver".
+
+**A barra de abas e o espaço dela.** A partir de 768px `--altura-tabbar` vira
+`0px`, em uma media query em `tokens.css`. Todo cálculo de espaço que já existia
+continua valendo sem uma linha alterada — inclusive o `calc()` do rodapé fixo do
+orçamento. Reservar espaço para uma barra que não está mais lá seria o tipo de
+sobra que ninguém percebe até um botão ficar inalcançável.
+
+### Navegação
+
+Um componente decide, e só ele: `EstruturaDoApp`. Até 767px, barra de abas
+embaixo; de 768px em diante, menu lateral à esquerda. **Nenhuma tela sabe em que
+tamanho está** — se soubesse, cada uma teria a sua opinião, e a décima
+discordaria das nove.
+
+As duas navegações leem a mesma lista, `itensDeNavegacao.ts`. Duas listas
+divergiriam no primeiro item novo, e o jeito de descobrir seria alguém não achar
+uma tela. A barra do celular mostra os marcados com `naBarra` (cinco vagas,
+contando o "Mais"); o menu lateral mostra tudo.
+
+**A ordem dos itens não muda por capricho.** Na oficina se toca por posição, não
+por leitura.
+
+---
+
 ## Composição
 
 **Tela.** Fundo preto. Cabeçalho com saudação pessoal em `titulo` e uma linha de contexto
