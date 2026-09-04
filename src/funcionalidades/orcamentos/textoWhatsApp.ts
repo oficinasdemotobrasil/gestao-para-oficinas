@@ -75,26 +75,6 @@ export function textoDoOrcamento(
   return linhas.join('\n')
 }
 
-/**
- * Endereço do WhatsApp com o texto já preenchido.
- *
- * Com telefone, abre direto na conversa do cliente. Sem telefone, abre o
- * seletor de contato — melhor do que não abrir nada, e é comum o cliente novo
- * ainda não ter telefone no cadastro.
- *
- * O 55 é o código do Brasil: o wa.me exige o número internacional completo, e
- * sem ele o link abre uma conversa com um número errado.
- */
-export function enderecoDoWhatsApp(texto: string, telefone: string | null): string {
-  const codificado = encodeURIComponent(texto)
-  const digitos = (telefone ?? '').replace(/\D/g, '')
-
-  // 10 ou 11 dígitos é número brasileiro sem o país; 12 ou 13 já vem com o 55.
-  if (digitos.length === 10 || digitos.length === 11) {
-    return `https://wa.me/55${digitos}?text=${codificado}`
-  }
-  if (digitos.length === 12 || digitos.length === 13) {
-    return `https://wa.me/${digitos}?text=${codificado}`
-  }
-  return `https://wa.me/?text=${codificado}`
-}
+// O endereço do WhatsApp mora em lib/whatsapp: a mesma regra servia três
+// telas, em três cópias.
+export { enderecoDoWhatsApp } from '@/lib/whatsapp'

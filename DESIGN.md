@@ -294,6 +294,45 @@ ocupar o tamanho do texto: ao lado da busca, esticadas, viravam quatro botões
 colados com a palavra encostando na borda. Lá elas também usam o alvo fino de
 36px, porque o mouse acerta o que o dedo não acerta.
 
+### Teclado e mouse
+
+No celular ninguém usa teclado. No balcão, usa — e é o que faz o atendente ser
+rápido.
+
+- **Foco visível** em tudo que é clicável, com o anel amarelo da seção acima
+- **Enter** envia o formulário. Todo `<form>` tem `aoEnviar`; sem ele, Enter
+  recarrega a página e o que foi digitado se perde
+- **Esc** fecha a janela, e o Tab fica preso dentro dela
+- **Passar o mouse** muda levemente o fundo de linha de tabela, item de menu e
+  botão. Nunca revela ação: **o que só aparece no hover não existe no celular**
+- Alvo de 48px no celular; no desktop pode cair para 36px (`--altura-toque-fino`),
+  porque o mouse acerta o que o dedo não acerta
+
+### As telas que não seguem a regra geral
+
+**A do mecânico.** Coluna única de 900px, no celular e no monitor, e nunca vira
+tabela. A lista de "o que fazer" se lê de cima para baixo — não se compara —, e
+o botão de começar, pausar e terminar continua com a largura toda e 56px de
+altura em qualquer tela. É a tela usada com a mão suja e o celular apoiado na
+moto; encolher qualquer coisa nela é perder o que ela tem de bom.
+
+**O PIX.** No celular o QR ocupa a largura e o código vem embaixo. No computador
+ficam lado a lado, numa janela mais larga: quem cobra pelo balcão mostra a tela
+para o cliente escanear e, ao mesmo tempo, copia o código para mandar por outro
+caminho.
+
+**O painel.** Um cartão por linha no celular, dois no tablet, três no
+computador. Os números se leem em paralelo, e empilhados num monitor largo viram
+uma coluna fina que obriga a rolar para comparar. O gráfico de evolução ocupa
+duas colunas, não três: ele é desenhado esticado na largura, e no monitor
+inteiro um único dia de movimento vira um pico absurdo.
+
+**O WhatsApp.** No computador o link vai direto para o `web.whatsapp.com`; no
+celular e no tablet, para o `wa.me`. O `wa.me` funciona nos dois, mas no
+computador ele para numa página intermediária tentando abrir um aplicativo que
+não existe ali. A conta é ponteiro fino **e** tela grande — um tablet com caneta
+tem ponteiro fino e o aplicativo instalado, e ali o `wa.me` é o caminho certo.
+
 ---
 
 ## Composição

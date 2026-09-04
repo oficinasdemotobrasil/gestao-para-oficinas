@@ -5,6 +5,7 @@ import { Modal } from '@/componentes/ui/Modal'
 import { useToast } from '@/componentes/ui/Toast'
 import { moeda } from '@/lib/formato'
 import { gerarBrCode, chavePixValida } from '@/lib/pix'
+import { enderecoDoWhatsApp } from '@/lib/whatsapp'
 import { useAuth } from '@/auth/ProvedorAuth'
 import type { ContaAReceber } from './api'
 
@@ -95,14 +96,10 @@ export function CobrancaPix({
     codigo,
   ].join('\n')
 
-  const telefone = (conta.cliente?.telefone ?? '').replace(/\D/g, '')
-  const whatsapp =
-    telefone.length === 10 || telefone.length === 11
-      ? `https://wa.me/55${telefone}?text=${encodeURIComponent(texto)}`
-      : `https://wa.me/?text=${encodeURIComponent(texto)}`
+  const whatsapp = enderecoDoWhatsApp(texto, conta.cliente?.telefone ?? null)
 
   return (
-    <Modal aberto={aberto} aoFechar={aoFechar} titulo="Cobrar por PIX">
+    <Modal larga aberto={aberto} aoFechar={aoFechar} titulo="Cobrar por PIX">
       {semChave || chaveTorta ? (
         <p className="mb-4 flex items-start gap-2 rounded-controle bg-atencao-fundo px-4 py-3 text-corpo text-atencao">
           <TriangleAlert aria-hidden size={20} className="mt-0.5 shrink-0" />
@@ -116,23 +113,29 @@ export function CobrancaPix({
             {conta.descricao} — <strong className="text-claro">{moeda(falta)}</strong>
           </p>
 
-          <div className="flex justify-center pb-4">
-            {imagem ? (
-              <img
-                src={imagem}
-                alt="QR Code do PIX"
-                className="h-64 w-64 rounded-controle bg-white p-2"
-              />
-            ) : (
-              <div className="flex h-64 w-64 items-center justify-center rounded-controle bg-borda-clara">
-                <QrCode aria-hidden size={40} className="animate-pulse text-claro-secundario" />
-              </div>
-            )}
-          </div>
+          {/* No celular o QR ocupa a largura e o código vem embaixo. No
+              computador ficam lado a lado: quem cobra pelo balcão mostra a tela
+              para o cliente escanear e, ao mesmo tempo, copia o código para
+              mandar por outro caminho. */}
+          <div className="flex flex-col gap-4 pb-4 desktop:flex-row desktop:items-start">
+            <div className="flex justify-center desktop:shrink-0">
+              {imagem ? (
+                <img
+                  src={imagem}
+                  alt="QR Code do PIX"
+                  className="h-64 w-64 rounded-controle bg-white p-2"
+                />
+              ) : (
+                <div className="flex h-64 w-64 items-center justify-center rounded-controle bg-borda-clara">
+                  <QrCode aria-hidden size={40} className="animate-pulse text-claro-secundario" />
+                </div>
+              )}
+            </div>
 
-          <p className="break-all rounded-controle bg-borda-clara/40 px-3 py-3 text-apoio text-claro-secundario">
-            {codigo}
-          </p>
+            <p className="break-all rounded-controle bg-borda-clara/40 px-3 py-3 text-apoio text-claro-secundario desktop:min-w-0 desktop:flex-1">
+              {codigo}
+            </p>
+          </div>
 
           <div className="flex flex-col gap-3 pt-4">
             <Botao

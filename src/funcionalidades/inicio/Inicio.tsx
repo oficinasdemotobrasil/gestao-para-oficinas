@@ -48,7 +48,8 @@ export function Inicio() {
   // Para o mecânico, esta é a tela inteira: o que ele tem para fazer hoje.
   if (p.ehMecanico) {
     return (
-      <Tela>
+      // Mesma medida da tela de ordem dele: coluna única, sem esticar.
+      <Tela largura="leitura">
         <CabecalhoTela
           titulo={`Olá, ${primeiroNome(usuario?.nome)}!`}
           contexto={oficina?.nome}

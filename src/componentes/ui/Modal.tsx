@@ -10,6 +10,11 @@ interface Props {
   children: ReactNode
   /** Ações no rodapé, geralmente o botão principal do formulário. */
   rodape?: ReactNode
+  /**
+   * Janela mais larga no computador, para conteúdo que se divide em dois lados
+   * — o QR do PIX ao lado do código copia e cola. No celular não muda nada.
+   */
+  larga?: boolean
 }
 
 /**
@@ -21,7 +26,7 @@ interface Props {
  * uma janela centralizada no celular esconde metade do conteúdo atrás do
  * teclado virtual, que é o motivo de a gaveta existir.
  */
-export function Modal({ aberto, aoFechar, titulo, children, rodape }: Props) {
+export function Modal({ aberto, aoFechar, titulo, children, rodape, larga = false }: Props) {
   const painel = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -93,7 +98,8 @@ export function Modal({ aberto, aoFechar, titulo, children, rodape }: Props) {
           // Celular: colada embaixo, cantos arredondados só em cima.
           'max-h-[90dvh] max-w-lg rounded-t-folha',
           // Tablet e maior: solta no meio, arredondada dos quatro lados.
-          'tablet:max-h-[85dvh] tablet:max-w-janela tablet:rounded-folha tablet:shadow-flutuante',
+          'tablet:max-h-[85dvh] tablet:rounded-folha tablet:shadow-flutuante',
+          larga ? 'tablet:max-w-janela desktop:max-w-3xl' : 'tablet:max-w-janela',
         )}
       >
         <div className="flex items-center justify-between gap-4 px-5 pb-3 pt-5">

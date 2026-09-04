@@ -104,7 +104,11 @@ export function OrdemDoMecanico() {
   )
 
   return (
-    <Tela>
+    // Coluna única, e mais estreita que o resto do app. A tela do mecânico é a
+    // que se usa com a mão suja e o celular apoiado na moto — no computador ela
+    // não vira tabela nem se espalha em duas colunas, porque a lista de "o que
+    // fazer" se lê de cima para baixo, e não se compara.
+    <Tela largura="leitura">
       <CabecalhoInterno
         titulo={`OS ${String(ordem.numero).padStart(3, '0')}`}
         contexto={`Aberta em ${data(ordem.data_abertura)}`}

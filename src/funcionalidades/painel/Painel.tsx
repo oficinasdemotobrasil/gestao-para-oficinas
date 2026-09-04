@@ -100,7 +100,11 @@ export function Painel() {
           />
         </div>
       ) : (
-        <div className="flex flex-col gap-3 pt-4">
+        // Um cartão por linha no celular, dois no tablet, três no computador.
+        // Os números do painel se leem em paralelo — quanto entrou, quanto está
+        // na bancada, quanto falta receber —, e empilhados num monitor largo
+        // eles viram uma coluna fina que obriga a rolar para comparar.
+        <div className="flex flex-col gap-3 pt-4 tablet:grid tablet:grid-cols-2 desktop:grid-cols-3 tablet:items-start">
           {/* Orçamento: quanto do que foi oferecido virou serviço ---------- */}
           <Card>
             <div className="flex gap-4">
@@ -150,13 +154,20 @@ export function Painel() {
           </Card>
 
           {/* Faturamento dia a dia ---------------------------------------- */}
-          <Card>
+          {/* Duas colunas, e não três: a linha é desenhada esticada na largura
+              disponível, e ocupando o monitor inteiro um único dia de movimento
+              vira um pico absurdo em vez de um gráfico. */}
+          <Card className="tablet:col-span-2">
             <p className="text-rotulo text-claro-secundario">Serviço concluído por dia</p>
             <LinhaDoPeriodo pontos={data.evolucao} />
           </Card>
 
           {/* Dinheiro ------------------------------------------------------ */}
-          <Card>
+          {/* Duas colunas: numa só, em 1024px, a coluna fica com 230px e o
+              saldo — que é escrito no corpo maior do app, 40px — vazava para
+              fora do cartão. Encolher o número seria esconder o que a pessoa
+              abriu o painel para ver. */}
+          <Card className="desktop:col-span-2">
             <div className="flex gap-4">
               <Numero rotulo="A receber" valor={moeda(data.financeiro.a_receber)} />
               <Numero rotulo="A pagar" valor={moeda(data.financeiro.a_pagar)} />
@@ -180,7 +191,7 @@ export function Painel() {
 
           {/* Quem fez o quê ------------------------------------------------ */}
           {data.ranking.length > 0 && (
-            <Card>
+            <Card className="tablet:col-span-2 desktop:col-span-1">
               <p className="pb-2 text-rotulo text-claro-secundario">Serviços concluídos por pessoa</p>
               {data.ranking.map((r) => (
                 <div
@@ -202,7 +213,7 @@ export function Painel() {
             <button
               type="button"
               onClick={() => navegar('/catalogo')}
-              className="flex items-center gap-3 rounded-card bg-atencao-fundo px-4 py-4 text-left"
+              className="flex items-center gap-3 rounded-card bg-atencao-fundo px-4 py-4 text-left tablet:col-span-2 desktop:col-span-3"
             >
               <TriangleAlert aria-hidden size={20} className="shrink-0 text-atencao" />
               <span className="min-w-0 flex-1 text-corpo text-atencao">

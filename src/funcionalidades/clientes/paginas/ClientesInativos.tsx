@@ -10,6 +10,7 @@ import { EstadoVazio, EstadoErro } from '@/componentes/ui/EstadoVazio'
 import { EsqueletoLista } from '@/componentes/ui/Carregando'
 import { exibirPlaca, data, telefone as formatarTelefone, primeiroNome } from '@/lib/formato'
 import { useAuth } from '@/auth/ProvedorAuth'
+import { enderecoDoWhatsApp } from '@/lib/whatsapp'
 import { listarClientesInativos, type ClienteInativo } from '@/funcionalidades/painel/api'
 
 /**
@@ -33,17 +34,6 @@ function mensagemPadrao(c: ClienteInativo, nomeDaOficina: string): string {
   ].join('\n')
 }
 
-function enderecoDoWhatsApp(texto: string, tel: string | null): string {
-  const codificado = encodeURIComponent(texto)
-  const digitos = (tel ?? '').replace(/\D/g, '')
-  if (digitos.length === 10 || digitos.length === 11) {
-    return `https://wa.me/55${digitos}?text=${codificado}`
-  }
-  if (digitos.length === 12 || digitos.length === 13) {
-    return `https://wa.me/${digitos}?text=${codificado}`
-  }
-  return `https://wa.me/?text=${codificado}`
-}
 
 export function ClientesInativos() {
   const { oficina } = useAuth()

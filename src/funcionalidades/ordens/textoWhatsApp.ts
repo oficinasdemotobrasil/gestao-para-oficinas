@@ -35,20 +35,6 @@ export function textoDeServicoPronto(
   return linhas.join('\n')
 }
 
-/**
- * Endereço do WhatsApp com o texto já preenchido. Mesma regra do orçamento: o
- * wa.me exige o número internacional completo, e sem o 55 abre uma conversa
- * com um número errado.
- */
-export function enderecoDoWhatsApp(texto: string, telefone: string | null): string {
-  const codificado = encodeURIComponent(texto)
-  const digitos = (telefone ?? '').replace(/\D/g, '')
-
-  if (digitos.length === 10 || digitos.length === 11) {
-    return `https://wa.me/55${digitos}?text=${codificado}`
-  }
-  if (digitos.length === 12 || digitos.length === 13) {
-    return `https://wa.me/${digitos}?text=${codificado}`
-  }
-  return `https://wa.me/?text=${codificado}`
-}
+// O endereço do WhatsApp mora em lib/whatsapp: a mesma regra servia três
+// telas, em três cópias.
+export { enderecoDoWhatsApp } from '@/lib/whatsapp'

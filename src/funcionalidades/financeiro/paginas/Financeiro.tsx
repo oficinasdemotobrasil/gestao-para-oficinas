@@ -4,6 +4,7 @@ import { Plus, QrCode, CheckCircle2, Wallet } from 'lucide-react'
 import { Tela, CabecalhoTela, TituloSecao } from '@/componentes/layout/Tela'
 import { Abas } from '@/componentes/ui/Abas'
 import { Card } from '@/componentes/ui/Card'
+import { ListaResponsiva } from '@/componentes/ui/ListaResponsiva'
 import { Badge } from '@/componentes/ui/Badge'
 import { Botao } from '@/componentes/ui/Botao'
 import { Campo, Selecao } from '@/componentes/ui/Campo'
@@ -68,9 +69,11 @@ function mesCorrente(): { de: string; ate: string } {
 
 function LinhaResumo({ rotulo, valor, tom }: { rotulo: string; valor: string; tom?: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-1.5">
+    <div className="flex items-baseline justify-between gap-4 py-1.5 desktop:flex-col desktop:items-start desktop:gap-1">
       <span className="text-rotulo text-claro-secundario">{rotulo}</span>
-      <span className={`text-corpo font-medium ${tom ?? 'text-claro'}`}>{valor}</span>
+      <span className={`text-corpo font-medium desktop:text-secao ${tom ?? 'text-claro'}`}>
+        {valor}
+      </span>
     </div>
   )
 }
@@ -136,14 +139,18 @@ export function Financeiro() {
     <Tela>
       <CabecalhoTela titulo="Financeiro" contexto="O que entra e o que sai" />
 
-      <Card>
+      {/* No celular o resumo é uma lista de linhas dentro de um card — cabe
+          na largura e se lê de cima para baixo. No computador ele espalha:
+          quatro números que se comparam entre si não deveriam ficar em fila
+          indiana num monitor largo. */}
+      <Card className="desktop:grid desktop:grid-cols-4 desktop:gap-6">
         <LinhaResumo rotulo="A receber no período" valor={moeda(numeros.aReceber)} />
         {numeros.atrasado > 0 && (
           <LinhaResumo rotulo="Em atraso" valor={moeda(numeros.atrasado)} tom="text-erro" />
         )}
         <LinhaResumo rotulo="Já recebido" valor={moeda(numeros.recebido)} tom="text-sucesso" />
         <LinhaResumo rotulo="A pagar no período" valor={moeda(numeros.aPagar)} />
-        <div className="flex items-baseline justify-between gap-4 border-t border-borda-clara pt-3">
+        <div className="flex items-baseline justify-between gap-4 border-t border-borda-clara pt-3 desktop:col-span-4">
           <span className="text-secao text-claro">Saldo previsto</span>
           <span
             className={`text-destaque ${numeros.saldo < 0 ? 'text-erro' : 'text-claro'}`}
@@ -153,12 +160,18 @@ export function Financeiro() {
         </div>
       </Card>
 
-      <div className="flex flex-col gap-3 pt-6">
+      {/* No computador as duas fileiras de abas e o período cabem na mesma
+          linha. Empilhados, eles empurravam a tabela para baixo da dobra num
+          monitor — e o período é justamente o que se troca o tempo todo. */}
+      {/* flex-wrap, e não uma linha rígida: em 1024px as duas fileiras de abas
+          mais o período passam da largura, e sem a quebra o período saía da
+          tela. Em 1440px tudo cabe numa linha só. */}
+      <div className="flex flex-col gap-3 pt-6 desktop:flex-row desktop:flex-wrap desktop:items-center">
         <Abas rotulo="Receber ou pagar" abas={abas} ativa={aba} aoTrocar={setAba} />
         <Abas rotulo="Situação da conta" abas={situacoes} ativa={status} aoTrocar={setStatus} />
 
-        <div className="flex gap-3">
-          <div className="flex-1">
+        <div className="flex gap-3 desktop:ml-auto desktop:shrink-0">
+          <div className="flex-1 desktop:w-40 desktop:flex-none">
             <Campo
               rotulo="De"
               type="date"
@@ -166,7 +179,7 @@ export function Financeiro() {
               onChange={(e) => setPeriodo((p) => ({ ...p, de: e.target.value }))}
             />
           </div>
-          <div className="flex-1">
+          <div className="flex-1 desktop:w-40 desktop:flex-none">
             <Campo
               rotulo="Até"
               type="date"
@@ -177,7 +190,12 @@ export function Financeiro() {
         </div>
 
         {aba === 'pagar' && (
-          <Botao largo icone={<Plus aria-hidden size={20} />} onClick={() => setLancando(true)}>
+          <Botao
+            largo
+            compactoNoDesktop
+            icone={<Plus aria-hidden size={20} />}
+            onClick={() => setLancando(true)}
+          >
             Lançar despesa
           </Botao>
         )}
@@ -200,13 +218,17 @@ export function Financeiro() {
           }
         />
       ) : (
-        <div className="flex flex-col gap-3">
-          {aba === 'receber'
-            ? (receber.data ?? []).map((c) => {
+        aba === 'receber' ? (
+          <ListaResponsiva
+            descricao="Contas a receber"
+            formatoNoCelular="cartoes"
+            itens={receber.data ?? []}
+            chaveDoItem={(c) => c.id}
+            cartao={(c) => {
                 const efetivo = statusDaConta(c)
                 const falta = Number(c.valor) - Number(c.valor_recebido)
                 return (
-                  <Card key={c.id}>
+                  <Card>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-corpo font-medium text-claro">{c.descricao}</p>
@@ -251,11 +273,94 @@ export function Financeiro() {
                     )}
                   </Card>
                 )
-              })
-            : (pagar.data ?? []).map((c) => {
+            }}
+            colunas={[
+              {
+                chave: 'descricao',
+                titulo: 'Cobrança',
+                celula: (c) => <span className="font-medium">{c.descricao}</span>,
+              },
+              { chave: 'cliente', titulo: 'Cliente', celula: (c) => c.cliente?.nome ?? '—' },
+              {
+                chave: 'vencimento',
+                titulo: 'Vence',
+                largura: 'w-32',
+                celula: (c) => formatarData(c.vencimento),
+              },
+              {
+                chave: 'forma',
+                titulo: 'Forma',
+                peso: 'apoio',
+                largura: 'w-36',
+                celula: (c) => rotuloDaForma(c.forma_pagamento),
+              },
+              {
+                chave: 'valor',
+                titulo: 'Valor',
+                alinhar: 'direita',
+                largura: 'w-40',
+                celula: (c) => (
+                  <span className="font-semibold">
+                    {moeda(c.valor)}
+                    {Number(c.valor_recebido) > 0 && statusDaConta(c) !== 'paga' && (
+                      <span className="block text-apoio font-normal text-claro-secundario">
+                        faltam {moeda(Number(c.valor) - Number(c.valor_recebido))}
+                      </span>
+                    )}
+                  </span>
+                ),
+              },
+              {
+                chave: 'status',
+                titulo: 'Situação',
+                largura: 'w-32',
+                celula: (c) => {
+                  const e = statusDaConta(c)
+                  return <Badge tom={tomDoStatus[e]}>{rotuloDoStatus[e]}</Badge>
+                },
+              },
+              {
+                chave: 'acoes',
+                titulo: '',
+                largura: 'w-64',
+                celula: (c) => {
+                  const e = statusDaConta(c)
+                  if (e === 'paga' || e === 'cancelada') return null
+                  return (
+                    <div className="flex gap-2">
+                      <Botao
+                        variante="contorno-no-card"
+                        icone={<QrCode aria-hidden size={18} />}
+                        onClick={() => setCobrando(c)}
+                      >
+                        PIX
+                      </Botao>
+                      <Botao
+                        icone={<CheckCircle2 aria-hidden size={18} />}
+                        onClick={() => {
+                          setBaixando({ conta: c, tipo: 'receber' })
+                          setValorDaBaixa('')
+                          setFormaDaBaixa(c.forma_pagamento ?? '')
+                        }}
+                      >
+                        Recebi
+                      </Botao>
+                    </div>
+                  )
+                },
+              },
+            ]}
+          />
+        ) : (
+          <ListaResponsiva
+            descricao="Contas a pagar"
+            formatoNoCelular="cartoes"
+            itens={pagar.data ?? []}
+            chaveDoItem={(c) => c.id}
+            cartao={(c) => {
                 const efetivo = statusDaConta({ ...c, valor_recebido: 0 })
                 return (
-                  <Card key={c.id}>
+                  <Card>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-corpo font-medium text-claro">{c.descricao}</p>
@@ -290,8 +395,70 @@ export function Financeiro() {
                     )}
                   </Card>
                 )
-              })}
-        </div>
+            }}
+            colunas={[
+              {
+                chave: 'descricao',
+                titulo: 'Despesa',
+                celula: (c) => <span className="font-medium">{c.descricao}</span>,
+              },
+              {
+                chave: 'fornecedor',
+                titulo: 'Fornecedor',
+                celula: (c) => c.fornecedor ?? '—',
+              },
+              {
+                chave: 'categoria',
+                titulo: 'Categoria',
+                peso: 'apoio',
+                largura: 'w-40',
+                celula: (c) => c.categoria ?? '—',
+              },
+              {
+                chave: 'vencimento',
+                titulo: 'Vence',
+                largura: 'w-32',
+                celula: (c) => formatarData(c.vencimento),
+              },
+              {
+                chave: 'valor',
+                titulo: 'Valor',
+                alinhar: 'direita',
+                largura: 'w-36',
+                celula: (c) => <span className="font-semibold">{moeda(c.valor)}</span>,
+              },
+              {
+                chave: 'status',
+                titulo: 'Situação',
+                largura: 'w-32',
+                celula: (c) => {
+                  const e = statusDaConta({ ...c, valor_recebido: 0 })
+                  return <Badge tom={tomDoStatus[e]}>{rotuloDoStatus[e]}</Badge>
+                },
+              },
+              {
+                chave: 'acoes',
+                titulo: '',
+                largura: 'w-40',
+                celula: (c) => {
+                  const e = statusDaConta({ ...c, valor_recebido: 0 })
+                  if (e === 'paga' || e === 'cancelada') return null
+                  return (
+                    <Botao
+                      icone={<CheckCircle2 aria-hidden size={18} />}
+                      onClick={() => {
+                        setBaixando({ conta: c, tipo: 'pagar' })
+                        setFormaDaBaixa(c.forma_pagamento ?? '')
+                      }}
+                    >
+                      Paguei
+                    </Botao>
+                  )
+                },
+              },
+            ]}
+          />
+        )
       )}
 
       {cobrando && (

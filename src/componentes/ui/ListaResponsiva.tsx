@@ -84,8 +84,12 @@ export function ListaResponsiva<T>({
         )}
       </div>
 
-      {/* Desktop: a mesma informação em colunas. */}
-      <div className="hidden overflow-hidden rounded-card bg-superficie shadow-card desktop:block">
+      {/* Desktop: a mesma informação em colunas.
+          A rolagem horizontal fica DENTRO do card. Uma tabela com sete colunas
+          e dois botões não cabe em 1024px, e sem isto ela empurrava a página
+          inteira para o lado — o menu lateral saía do lugar e a tela toda
+          passava a rolar de lado. Melhor a tabela rolar sozinha. */}
+      <div className="hidden overflow-x-auto rounded-card bg-superficie shadow-card desktop:block">
         <table className="w-full border-collapse text-left">
           <caption className="sr-only">{descricao}</caption>
           <thead>
