@@ -288,7 +288,11 @@ export function EditorOrcamento() {
 
       {/* O total acompanha a rolagem: em oficina, o número que importa é esse, e
           ele não pode ficar escondido no fim da tela. */}
-      <div className="fixed inset-x-0 bottom-[calc(var(--altura-tabbar)+env(safe-area-inset-bottom))] z-30 border-t border-borda-escura bg-fundo/95 px-5 py-3 backdrop-blur">
+      {/* Fundo opaco, pelo mesmo motivo da barra de abas: este rodapé fica por
+          cima dos cards brancos dos itens, e com 5% de transparência o branco
+          atravessava e lavava o total e o botão — justamente os dois números
+          que a pessoa precisa ver antes de mandar o orçamento. */}
+      <div className="fixed inset-x-0 bottom-[calc(var(--altura-tabbar)+env(safe-area-inset-bottom))] z-30 border-t border-borda-escura bg-fundo px-5 py-3">
         <div className="mx-auto flex max-w-lg flex-col gap-2">
           <div className="flex items-baseline justify-between">
             <span className="text-rotulo text-escuro-secundario">

@@ -25,7 +25,18 @@ export function TabBar() {
     <nav
       aria-label="Navegação principal"
       className={cn(
-        'fixed inset-x-0 bottom-0 z-40 border-t border-borda-escura bg-fundo/95 pb-seguro backdrop-blur',
+        // Fundo OPACO, e sem desfoque.
+        //
+        // Era 'bg-fundo/95 backdrop-blur': 5% de transparência parecia pouco,
+        // mas com um card branco rolando atrás o branco atravessava e lavava a
+        // barra inteira — os rótulos cinza sumiam contra o fundo clareado, e
+        // sobrava um borrão. Numa oficina, com sol na tela e o celular na mão
+        // suja, isso é a diferença entre achar e não achar o botão.
+        //
+        // Barra de navegação não é enfeite de vidro: ela precisa estar sempre
+        // legível, e o único jeito de garantir isso é não deixar o conteúdo
+        // aparecer por baixo.
+        'fixed inset-x-0 bottom-0 z-40 border-t border-borda-escura bg-fundo pb-seguro',
         // Do tablet em diante quem navega é o menu lateral. A altura reservada
         // para esta barra também zera, em tokens.css.
         'tablet:hidden',
@@ -41,6 +52,11 @@ export function TabBar() {
                 cn(
                   'flex h-tabbar flex-col items-center justify-center gap-1',
                   'transition-colors duration-padrao ease-padrao',
+                  // O inativo continua no cinza secundário: contra o fundo
+                  // opaco ele dá 7:1 de contraste, acima do exigido até para
+                  // texto pequeno. Deixá-lo branco resolveria a leitura e
+                  // criaria outro problema — cinco itens brancos e um amarelo
+                  // param de dizer onde a pessoa está.
                   isActive ? 'text-acento' : 'text-escuro-secundario',
                 )
               }

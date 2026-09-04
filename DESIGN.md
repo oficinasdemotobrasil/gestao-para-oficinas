@@ -116,6 +116,20 @@ vão a `0.01ms` — regra global em `globais.css`, não repetida por componente.
 Anel de 2px em `--cor-acento` com offset de 2px, visível em **todo** elemento focável,
 inclusive dentro do card branco. Nunca `outline: none` sem substituto.
 
+## Barra fixa nunca é de vidro
+
+Barra de abas, rodapé de total, qualquer coisa presa na tela por cima do conteúdo:
+**fundo opaco, sem `backdrop-blur` e sem opacidade parcial.**
+
+Já foi `bg-fundo/95 backdrop-blur` nos dois lugares. Cinco por cento de
+transparência parece nada — até um card branco rolar atrás. Aí o branco atravessa,
+o fundo clareia, e o texto cinza em cima dele some. O efeito é pior justamente
+quando a lista está cheia, que é quando a pessoa mais precisa da barra.
+
+Numa oficina, com sol na tela e o celular na mão suja, isso é a diferença entre
+achar e não achar o botão. Vidro fosco é enfeite; navegação precisa estar legível
+sempre.
+
 ---
 
 ## Tamanho de tela
