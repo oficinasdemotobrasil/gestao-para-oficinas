@@ -142,10 +142,11 @@ indicadores, white-label, assinatura, IA e áudio.
 
 ### Riscos conhecidos
 
-- **Admin de oficina não é admin de plataforma.** Hoje todo usuário está amarrado
-  a uma `oficina_id`. Quando o segundo cliente entrar, vai ser preciso um perfil
-  de plataforma acima do RLS ou um painel separado. **Decidir antes de vender o
-  segundo**, não depois.
+- **Admin de oficina não é admin de plataforma, e nunca vai ser.** Decidido na
+  Fase 4: a administração da plataforma é **um aplicativo separado**, com a
+  `service_role` rodando em Edge Function, e este app não ganha nenhum perfil,
+  rota ou condição que enxergue outra oficina. O `teste:isolamento` continua
+  provando que ninguém alcança dado alheio — sem exceção para ninguém.
 - **Offline é só o shell.** O app abre sem internet, mas os dados vêm do
   servidor. Fila de escrita e sincronização seriam um projeto à parte.
 - **O plano gratuito do Supabase pausa o projeto** após cerca de 7 dias sem

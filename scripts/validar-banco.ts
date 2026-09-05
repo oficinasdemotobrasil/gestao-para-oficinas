@@ -1538,6 +1538,78 @@ async function testarPainelEHistorico() {
   await logarComo(ID.adminA)
 }
 
+async function testarOficinaSuspensa() {
+  console.log('\n\x1b[1mOficina suspensa: consulta sim, registro não\x1b[0m')
+
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set status = 'suspensa' where id = '${ID.oficinaA}'`)
+  await logarComo(ID.adminA)
+
+  // O que ela continua podendo: ver tudo o que é dela.
+  const clientes = await contar('select count(*) as n from public.clientes')
+  clientes > 0
+    ? ok(`suspensa, a oficina continua enxergando os próprios clientes (${clientes})`)
+    : erro('leitura com oficina suspensa', 'a lista veio vazia')
+
+  await esperaLinhas(
+    'e as próprias ordens de serviço',
+    'select count(*) as n from public.ordens_servico where 1=1',
+    (await contar('select count(*) as n from public.ordens_servico')),
+  )
+
+  // O que ela não pode mais: registrar qualquer coisa.
+  await esperaErro(
+    'não cadastra cliente',
+    `insert into public.clientes (oficina_id, nome) values ('${ID.oficinaA}', 'Novo')`,
+  )
+  await esperaErro(
+    'não cria orçamento',
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', 1000,
+       7, 90, null, 0, null, '[]'::jsonb)`,
+  )
+  await esperaErro(
+    'não movimenta estoque',
+    `select public.registrar_movimentacao('${ID.produtoA}', 'entrada', 1, 'Recebido')`,
+  )
+  await esperaErro(
+    'não lança despesa',
+    `select public.lancar_conta_a_pagar('Aluguel', 100, current_date, null, null, 1)`,
+  )
+
+  // E não se reativa sozinha.
+  await esperaErro(
+    'a própria oficina NÃO muda o próprio status',
+    `update public.oficinas set status = 'ativa' where id = '${ID.oficinaA}'`,
+  )
+  await esperaErro(
+    'nem o próprio plano',
+    `update public.oficinas set plano = 'completo' where id = '${ID.oficinaA}'`,
+  )
+
+  // Mas continua podendo corrigir o cadastro dela — nome, telefone, endereço.
+  try {
+    await db.query(
+      `update public.oficinas set telefone = '8133330000' where id = '${ID.oficinaA}'`,
+    )
+    ok('o cadastro da oficina continua editável (nome, telefone, endereço)')
+  } catch (e) {
+    erro('edição do cadastro com oficina suspensa', (e as Error).message)
+  }
+
+  // Reativada pela plataforma, tudo volta.
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set status = 'ativa' where id = '${ID.oficinaA}'`)
+  await logarComo(ID.adminA)
+  try {
+    await db.query(
+      `insert into public.clientes (oficina_id, nome) values ('${ID.oficinaA}', 'Depois da volta')`,
+    )
+    ok('reativada, ela volta a registrar normalmente')
+  } catch (e) {
+    erro('escrita após reativar', (e as Error).message)
+  }
+}
+
 async function testarPerfisNaFase2() {
   console.log('\n\x1b[1mQuem alcança o que na Fase 2\x1b[0m')
 
@@ -1639,6 +1711,7 @@ async function main() {
     await testarFechamentoDaOs()
     await testarFinanceiro()
     await testarPainelEHistorico()
+    await testarOficinaSuspensa()
     await testarPerfisNaFase2()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a

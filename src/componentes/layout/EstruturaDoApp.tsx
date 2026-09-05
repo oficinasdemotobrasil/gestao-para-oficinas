@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom'
 import { TabBar } from './TabBar'
 import { MenuLateral } from './MenuLateral'
 import { AvisoOffline } from './AvisoOffline'
+import { AvisoDeSituacao } from './AvisoDeSituacao'
 
 /**
  * A casca das telas logadas, e o único lugar que decide como se navega.
@@ -21,6 +22,7 @@ export function EstruturaDoApp() {
   return (
     <div className="min-h-dvh bg-fundo">
       <AvisoOffline />
+      <AvisoDeSituacao />
       <MenuLateral />
 
       <div className="tablet:pl-menu-estreito desktop:pl-menu">
