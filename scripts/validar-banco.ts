@@ -137,9 +137,12 @@ async function semear() {
   await comoAdministradorDoBanco()
 
   await db.exec(`
-    insert into public.oficinas (id, nome, telefone) values
-      ('${ID.oficinaA}', 'Oficina Tiago Carvalho', '(11) 90000-0001'),
-      ('${ID.oficinaB}', 'Oficina do Vizinho',     '(11) 90000-0002');
+    -- Plano completo nas duas: o cenário tem três pessoas por oficina e usa o
+    -- financeiro. Os limites de plano são testados em bloco próprio, com uma
+    -- oficina criada para isso.
+    insert into public.oficinas (id, nome, telefone, plano) values
+      ('${ID.oficinaA}', 'Oficina Tiago Carvalho', '(11) 90000-0001', 'completo'),
+      ('${ID.oficinaB}', 'Oficina do Vizinho',     '(11) 90000-0002', 'completo');
 
     insert into auth.users (id, email) values
       ('${ID.adminA}',    'admin.a@teste.local'),
@@ -1538,6 +1541,131 @@ async function testarPainelEHistorico() {
   await logarComo(ID.adminA)
 }
 
+async function testarLimitesDePlano() {
+  console.log('\n\x1b[1mO que cada plano deixa fazer\x1b[0m')
+  await comoAdministradorDoBanco()
+
+  // Uma oficina no plano gratuito, criada só para este bloco.
+  const of = await db.query<{ id: string }>(
+    `insert into public.oficinas (nome, plano) values ('Oficina do Plano', 'gratuito') returning id`,
+  )
+  const oficina = of.rows[0].id
+
+  const pessoas: string[] = []
+  for (let i = 1; i <= 3; i++) {
+    const u = await db.query<{ id: string }>(
+      `insert into auth.users (id, email) values (gen_random_uuid(), 'plano${i}@teste.local') returning id`,
+    )
+    pessoas.push(u.rows[0].id)
+  }
+
+  // A primeira pessoa é a dona: mexer em 'ativo' de alguém exige admin, e é
+  // uma trava da Fase 1 que continua valendo aqui.
+  await db.query(
+    `insert into public.usuarios (id, oficina_id, nome, email, perfil)
+     values ('${pessoas[0]}', '${oficina}', 'Dona', 'p0@teste.local', 'admin')`,
+  )
+  await db.query(
+    `insert into public.usuarios (id, oficina_id, nome, email, perfil)
+     values ('${pessoas[1]}', '${oficina}', 'Mecânico', 'p1@teste.local', 'mecanico')`,
+  )
+  ok('no plano gratuito cabem duas pessoas com acesso')
+
+  await esperaErro(
+    'e a terceira é recusada, dizendo o plano e o número',
+    `insert into public.usuarios (id, oficina_id, nome, email, perfil)
+     values ('${pessoas[2]}', '${oficina}', 'Terceira', 'p2@teste.local', 'mecanico')`,
+  )
+
+  // Desativando alguém, a vaga volta.
+  await logarComo(pessoas[0])
+  await db.query(`update public.usuarios set ativo = false where id = '${pessoas[1]}'`)
+  await comoAdministradorDoBanco()
+  try {
+    await db.query(
+      `insert into public.usuarios (id, oficina_id, nome, email, perfil)
+       values ('${pessoas[2]}', '${oficina}', 'Terceira', 'p2@teste.local', 'mecanico')`,
+    )
+    ok('desativando alguém, a vaga volta')
+  } catch (e) {
+    erro('vaga liberada', (e as Error).message)
+  }
+
+  // Subindo de plano, cabe mais gente.
+  await db.query(`update public.oficinas set plano = 'completo' where id = '${oficina}'`)
+  await logarComo(pessoas[0])
+  try {
+    await db.query(`update public.usuarios set ativo = true where id = '${pessoas[1]}'`)
+    ok('no plano completo não há limite de pessoas')
+  } catch (e) {
+    erro('plano completo sem limite', (e as Error).message)
+  }
+
+  // Rebaixar NÃO desliga ninguém: só impede o próximo.
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set plano = 'gratuito' where id = '${oficina}'`)
+  const aindaAtivos = await contar(
+    `select count(*) as n from public.usuarios where oficina_id = '${oficina}' and ativo`,
+  )
+  aindaAtivos === 3
+    ? ok('rebaixar o plano não desativa ninguém que já estava dentro')
+    : erro('rebaixamento', `sobraram ${aindaAtivos} ativos, esperava 3`)
+
+  // Financeiro: só no plano que o inclui.
+  const dono = pessoas[0]
+  await logarComo(dono)
+  await esperaLinhas(
+    'no plano gratuito o financeiro vem vazio',
+    'select count(*) as n from public.contas_receber',
+    0,
+  )
+  await esperaErro(
+    'e não aceita lançamento',
+    `insert into public.contas_receber (oficina_id, descricao, valor, vencimento)
+     values ('${oficina}', 'Teste', 100, current_date)`,
+  )
+
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set plano = 'completo' where id = '${oficina}'`)
+  await logarComo(dono)
+  try {
+    await db.query(
+      `insert into public.contas_receber (oficina_id, descricao, valor, vencimento)
+       values ('${oficina}', 'Teste', 100, current_date)`,
+    )
+    ok('no plano completo o financeiro abre')
+  } catch (e) {
+    erro('financeiro no completo', (e as Error).message)
+  }
+
+  // E o painel não pode contar o que a tela não mostra.
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set plano = 'gratuito' where id = '${oficina}'`)
+  await logarComo(dono)
+  const semFin = await db.query<{ j: { financeiro: unknown } }>(
+    `select public.painel(current_date - 30, current_date) as j`,
+  )
+  semFin.rows[0].j.financeiro === null
+    ? ok('o painel não mostra financeiro em plano que não o inclui')
+    : erro('financeiro no painel', JSON.stringify(semFin.rows[0].j.financeiro))
+
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set plano = 'completo' where id = '${oficina}'`)
+  await logarComo(dono)
+  const comFin = await db.query<{ j: { financeiro: Record<string, unknown> | null } }>(
+    `select public.painel(current_date - 30, current_date) as j`,
+  )
+  comFin.rows[0].j.financeiro
+    ? ok('e mostra quando o plano inclui')
+    : erro('financeiro no painel', 'veio nulo no plano completo')
+
+  await comoAdministradorDoBanco()
+  await db.query(`delete from public.contas_receber where oficina_id = '${oficina}'`)
+  await db.query(`delete from public.usuarios where oficina_id = '${oficina}'`)
+  await db.query(`delete from public.oficinas where id = '${oficina}'`)
+  await logarComo(ID.adminA)
+}
+
 async function testarOficinaSuspensa() {
   console.log('\n\x1b[1mOficina suspensa: consulta sim, registro não\x1b[0m')
 
@@ -1583,7 +1711,7 @@ async function testarOficinaSuspensa() {
   )
   await esperaErro(
     'nem o próprio plano',
-    `update public.oficinas set plano = 'completo' where id = '${ID.oficinaA}'`,
+    `update public.oficinas set plano = 'essencial' where id = '${ID.oficinaA}'`,
   )
 
   // Mas continua podendo corrigir o cadastro dela — nome, telefone, endereço.
@@ -1711,6 +1839,7 @@ async function main() {
     await testarFechamentoDaOs()
     await testarFinanceiro()
     await testarPainelEHistorico()
+    await testarLimitesDePlano()
     await testarOficinaSuspensa()
     await testarPerfisNaFase2()
   } catch (e) {

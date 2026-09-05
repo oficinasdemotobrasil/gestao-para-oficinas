@@ -9,8 +9,13 @@ import { useAuth } from './ProvedorAuth'
  * sumissem, o servidor continuaria recusando o que tem que recusar.
  */
 export function usePermissoes() {
-  const { usuario } = useAuth()
+  const { usuario, oficina } = useAuth()
   const perfil = usuario?.perfil ?? null
+
+  // O plano decide o que a oficina contratou; o perfil decide quem, dentro
+  // dela, alcança o quê. São perguntas diferentes e por isso ficam separadas:
+  // esconder o financeiro de um plano que não o tem não é permissão de pessoa.
+  const temFinanceiro = oficina?.plano === 'completo'
 
   const ehAdmin = perfil === 'admin'
   const ehVendedor = perfil === 'vendedor'
@@ -50,7 +55,12 @@ export function usePermissoes() {
     editarColaboradores: ehAdmin,
 
     verConfiguracoes: ehAdmin,
-    verFinanceiro: ehAdmin,
+    /** O painel é de quem cuida do dinheiro, e existe em qualquer plano. */
+    verPainel: ehAdmin,
+    /** Contas a receber e a pagar: perfil E plano. */
+    verFinanceiro: ehAdmin && temFinanceiro,
+    /** Para a tela poder dizer "seu plano não inclui" em vez de sumir sem explicar. */
+    financeiroNoPlano: temFinanceiro,
   }
 }
 

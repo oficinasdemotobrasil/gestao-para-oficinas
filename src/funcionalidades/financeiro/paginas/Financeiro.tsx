@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, QrCode, CheckCircle2, Wallet } from 'lucide-react'
+import { Plus, QrCode, CheckCircle2, Wallet, Lock } from 'lucide-react'
 import { Tela, CabecalhoTela, TituloSecao } from '@/componentes/layout/Tela'
 import { Abas } from '@/componentes/ui/Abas'
 import { Card } from '@/componentes/ui/Card'
@@ -16,6 +16,7 @@ import { traduzirErro } from '@/lib/erros'
 import { paraNumero } from '@/lib/numero'
 import { moeda, data as formatarData } from '@/lib/formato'
 import { useAuth } from '@/auth/ProvedorAuth'
+import { usePermissoes } from '@/auth/usePermissoes'
 import { CobrancaPix } from '../CobrancaPix'
 import {
   listarContasAReceber,
@@ -82,6 +83,7 @@ export function Financeiro() {
   const toast = useToast()
   const cache = useQueryClient()
   const { oficina } = useAuth()
+  const p = usePermissoes()
 
   const [aba, setAba] = useState<'receber' | 'pagar'>('receber')
   const [status, setStatus] = useState<StatusConta | 'todas'>('todas')
@@ -132,6 +134,32 @@ export function Financeiro() {
   })
 
   const numeros = resumo(receber.data ?? [], pagar.data ?? [])
+
+  // Quem chega aqui já é admin — o que falta é o plano. Dizer isso é diferente
+  // de mostrar duas listas vazias e deixar a pessoa achando que perdeu os
+  // lançamentos.
+  if (!p.financeiroNoPlano) {
+    return (
+      <Tela>
+        <CabecalhoTela titulo="Financeiro" contexto="Contas a receber e a pagar" />
+        <Card>
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
+              <Lock aria-hidden size={20} className="text-claro" />
+            </span>
+            <div>
+              <p className="text-secao text-claro">O seu plano ainda não inclui o financeiro</p>
+              <p className="pt-1 text-corpo text-claro-secundario">
+                Contas a receber, contas a pagar e cobrança por PIX entram no plano
+                completo. Fale com a gente para mudar de plano — o que já está
+                lançado continua aqui, esperando.
+              </p>
+            </div>
+          </div>
+        </Card>
+      </Tela>
+    )
+  }
   const lista = aba === 'receber' ? receber : pagar
   const carregando = lista.isPending
 

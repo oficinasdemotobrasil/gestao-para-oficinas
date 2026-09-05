@@ -120,7 +120,7 @@ export const rotas = createBrowserRouter([
             ],
           },
           {
-            element: <RotaPorPerfil permitido={(p) => p.verFinanceiro} />,
+            element: <RotaPorPerfil permitido={(p) => p.verPainel} />,
             children: [{ path: '/financeiro', element: <Financeiro /> }],
           },
           {

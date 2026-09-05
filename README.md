@@ -67,6 +67,25 @@ outra.
    item executado, anotação — também passa por função, porque um `update`
    precisa **ler** a linha para achá-la.
 
+### Planos
+
+| | gratuito | essencial | completo |
+|---|---|---|---|
+| Pessoas com acesso | 2 | 5 | sem limite |
+| Financeiro e cobrança por PIX | não | não | sim |
+| Todo o resto | sim | sim | sim |
+
+Os números moram em `limite_de_colaboradores()` e `plano_tem_financeiro()`, na
+migration `0039` — mudar o pacote é mudar ali, não em dez lugares.
+
+**Rebaixar o plano não desativa ninguém.** Uma oficina que cai do completo para
+o essencial com seis pessoas fica com as seis; ela só não cadastra a sétima.
+Desligar o acesso de quem está no meio de um serviço para cobrar seria o sistema
+atrapalhar o trabalho — e quem sofreria é o mecânico, que não decidiu nada.
+
+**Suspensa é só leitura.** Os dados são da oficina: ela continua consultando
+histórico, clientes e ordens, e para de registrar coisa nova. Cancelada é igual.
+
 ### Perfis
 
 | | admin | vendedor | mecânico |

@@ -33,7 +33,7 @@ export function Inicio() {
   const repor = useQuery({
     queryKey: ['repor'],
     queryFn: produtosParaRepor,
-    enabled: p.verCatalogo && !p.verFinanceiro,
+    enabled: p.verCatalogo && !p.verPainel,
   })
 
   // Pela função do mecânico, que não passa por nenhuma tabela com dinheiro
@@ -153,7 +153,7 @@ export function Inicio() {
         </span>
       </button>
 
-      {!p.verFinanceiro && repor.data && repor.data.length > 0 && (
+      {!p.verPainel && repor.data && repor.data.length > 0 && (
         <button
           type="button"
           onClick={() => navegar('/catalogo?repor=1')}
@@ -173,7 +173,7 @@ export function Inicio() {
         </button>
       )}
 
-      {p.verFinanceiro && <Painel />}
+      {p.verPainel && <Painel />}
 
       <TituloSecao>Atalhos</TituloSecao>
 
