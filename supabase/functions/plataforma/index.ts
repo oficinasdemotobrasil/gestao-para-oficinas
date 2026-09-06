@@ -1,0 +1,202 @@
+/**
+ * A administração da plataforma. Roda fora do aplicativo do cliente.
+ *
+ * Esta é a única porta que enxerga todas as oficinas — e ela existe aqui, e não
+ * numa tela do app, por decisão de arquitetura da Fase 4 (opção A): o aplicativo
+ * do cliente não ganha nenhum perfil, rota ou condição capaz de ver outra
+ * oficina. Assim o teste de isolamento continua valendo sem exceção para
+ * ninguém, e não há um `if` que, desligado por engano, vaze dado entre clientes.
+ *
+ * Quem pode chamar: apenas contas listadas em `admins_plataforma`. Essas contas
+ * NÃO têm linha em `usuarios` — sem ela, `oficina_do_usuario()` devolve nulo e
+ * elas ficam cegas no aplicativo do cliente, o que é exatamente o desejado.
+ *
+ * A primeira conta de plataforma tem de ser inserida à mão no SQL Editor. Não há
+ * caminho automático de propósito: uma porta que se abre sozinha para a primeira
+ * pessoa é uma porta aberta.
+ *
+ * Deploy:
+ *   npx supabase functions deploy plataforma
+ */
+import { createClient } from 'jsr:@supabase/supabase-js@2'
+
+const cabecalhosCors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
+const PLANOS = ['gratuito', 'essencial', 'completo'] as const
+const SITUACOES = ['ativa', 'suspensa', 'cancelada'] as const
+type Plano = (typeof PLANOS)[number]
+type Situacao = (typeof SITUACOES)[number]
+
+interface Corpo {
+  acao?: 'listar' | 'criar' | 'plano' | 'situacao'
+  oficina_id?: string
+  plano?: Plano
+  situacao?: Situacao
+  motivo?: string
+  // Só para 'criar'.
+  nome?: string
+  admin_nome?: string
+  admin_email?: string
+  admin_senha?: string
+}
+
+function responder(corpo: unknown, status = 200): Response {
+  return new Response(JSON.stringify(corpo), {
+    status,
+    headers: { ...cabecalhosCors, 'Content-Type': 'application/json' },
+  })
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cabecalhosCors })
+  if (req.method !== 'POST') return responder({ erro: 'Método não permitido.' }, 405)
+
+  const url = Deno.env.get('SUPABASE_URL')!
+  const chaveAnon = Deno.env.get('SUPABASE_ANON_KEY')!
+  const chaveServico = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+  const autorizacao = req.headers.get('Authorization') ?? ''
+  if (!autorizacao) return responder({ erro: 'Faça login novamente.' }, 401)
+
+  // Quem está chamando: descoberto pelo token, como qualquer consulta do app.
+  const comoUsuario = createClient(url, chaveAnon, {
+    global: { headers: { Authorization: autorizacao } },
+  })
+  const { data: sessao, error: erroSessao } = await comoUsuario.auth.getUser()
+  if (erroSessao || !sessao.user) return responder({ erro: 'Faça login novamente.' }, 401)
+
+  // A chave que ignora o RLS. Daqui para baixo, tudo é permitido pelo banco —
+  // então a permissão passa a ser responsabilidade das linhas abaixo.
+  const servico = createClient(url, chaveServico, { auth: { persistSession: false } })
+
+  const { data: souAdmin } = await servico
+    .from('admins_plataforma')
+    .select('usuario_id')
+    .eq('usuario_id', sessao.user.id)
+    .maybeSingle()
+
+  if (!souAdmin) {
+    // A mesma resposta para quem não é administrador e para quem não existe: a
+    // diferença entre as duas só serviria para alguém descobrir quem é.
+    return responder({ erro: 'Esta área é da administração da plataforma.' }, 403)
+  }
+
+  let corpo: Corpo
+  try {
+    corpo = await req.json()
+  } catch {
+    return responder({ erro: 'Requisição inválida.' }, 400)
+  }
+
+  // Listar --------------------------------------------------------------------
+  if (corpo.acao === 'listar') {
+    const { data: oficinas, error } = await servico
+      .from('oficinas')
+      .select('id, nome, telefone, cidade, plano, status, criado_em')
+      .order('criado_em', { ascending: false })
+    if (error) return responder({ erro: error.message }, 500)
+
+    // Quantas pessoas com acesso cada uma tem. Numa consulta só, e não uma por
+    // oficina: com cem clientes seriam cem idas ao banco para montar uma lista.
+    const { data: pessoas } = await servico
+      .from('usuarios')
+      .select('oficina_id, ativo')
+
+    const porOficina = new Map<string, number>()
+    for (const p of pessoas ?? []) {
+      if (!p.ativo) continue
+      porOficina.set(p.oficina_id, (porOficina.get(p.oficina_id) ?? 0) + 1)
+    }
+
+    return responder({
+      oficinas: (oficinas ?? []).map((o) => ({ ...o, pessoas: porOficina.get(o.id) ?? 0 })),
+    })
+  }
+
+  // Criar oficina com o primeiro administrador ---------------------------------
+  if (corpo.acao === 'criar') {
+    const nome = (corpo.nome ?? '').trim()
+    const adminNome = (corpo.admin_nome ?? '').trim()
+    const adminEmail = (corpo.admin_email ?? '').trim().toLowerCase()
+    const adminSenha = corpo.admin_senha ?? ''
+
+    if (nome.length < 2) return responder({ erro: 'Informe o nome da oficina.' }, 400)
+    if (adminNome.length < 2) return responder({ erro: 'Informe o nome do responsável.' }, 400)
+    if (!adminEmail.includes('@')) return responder({ erro: 'Informe um e-mail válido.' }, 400)
+    if (adminSenha.length < 8) {
+      return responder({ erro: 'A senha precisa de pelo menos 8 caracteres.' }, 400)
+    }
+    if (corpo.plano && !PLANOS.includes(corpo.plano)) {
+      return responder({ erro: 'Plano desconhecido.' }, 400)
+    }
+
+    const { data: oficina, error: erroOficina } = await servico
+      .from('oficinas')
+      .insert({ nome, plano: corpo.plano ?? 'gratuito' })
+      .select()
+      .single()
+    if (erroOficina) return responder({ erro: erroOficina.message }, 500)
+
+    const { data: conta, error: erroConta } = await servico.auth.admin.createUser({
+      email: adminEmail,
+      password: adminSenha,
+      email_confirm: true,
+    })
+    if (erroConta || !conta.user) {
+      // Sem a conta, a oficina ficaria órfã e sem ninguém para entrar nela.
+      await servico.from('oficinas').delete().eq('id', oficina.id)
+      return responder({ erro: erroConta?.message ?? 'Não foi possível criar o acesso.' }, 400)
+    }
+
+    const { error: erroVinculo } = await servico.from('usuarios').insert({
+      id: conta.user.id,
+      oficina_id: oficina.id,
+      nome: adminNome,
+      email: adminEmail,
+      perfil: 'admin',
+      ativo: true,
+    })
+    if (erroVinculo) {
+      // Mesma razão: desfaz os dois para não deixar meia oficina no banco.
+      await servico.auth.admin.deleteUser(conta.user.id)
+      await servico.from('oficinas').delete().eq('id', oficina.id)
+      return responder({ erro: erroVinculo.message }, 500)
+    }
+
+    return responder({ oficina_id: oficina.id })
+  }
+
+  // Trocar o plano --------------------------------------------------------------
+  if (corpo.acao === 'plano') {
+    if (!corpo.oficina_id) return responder({ erro: 'Informe a oficina.' }, 400)
+    if (!corpo.plano || !PLANOS.includes(corpo.plano)) {
+      return responder({ erro: 'Plano desconhecido.' }, 400)
+    }
+    const { error } = await servico
+      .from('oficinas')
+      .update({ plano: corpo.plano })
+      .eq('id', corpo.oficina_id)
+    if (error) return responder({ erro: error.message }, 500)
+    return responder({ ok: true })
+  }
+
+  // Suspender, reativar, encerrar ------------------------------------------------
+  if (corpo.acao === 'situacao') {
+    if (!corpo.oficina_id) return responder({ erro: 'Informe a oficina.' }, 400)
+    if (!corpo.situacao || !SITUACOES.includes(corpo.situacao)) {
+      return responder({ erro: 'Situação desconhecida.' }, 400)
+    }
+    const { error } = await servico
+      .from('oficinas')
+      .update({ status: corpo.situacao })
+      .eq('id', corpo.oficina_id)
+    if (error) return responder({ erro: error.message }, 500)
+    return responder({ ok: true })
+  }
+
+  return responder({ erro: 'Ação desconhecida.' }, 400)
+})

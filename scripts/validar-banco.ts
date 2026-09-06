@@ -1541,6 +1541,54 @@ async function testarPainelEHistorico() {
   await logarComo(ID.adminA)
 }
 
+async function testarAdminDaPlataforma() {
+  console.log('\n\x1b[1mQuem administra a plataforma não enxerga oficina nenhuma\x1b[0m')
+  await comoAdministradorDoBanco()
+
+  // Uma conta de plataforma: existe no auth, está na lista, e NÃO tem linha em
+  // usuarios. É essa ausência que a deixa cega no aplicativo do cliente.
+  const conta = await db.query<{ id: string }>(
+    `insert into auth.users (id, email) values (gen_random_uuid(), 'plataforma@teste.local') returning id`,
+  )
+  const plataforma = conta.rows[0].id
+  await db.query(
+    `insert into public.admins_plataforma (usuario_id, observacao)
+     values ('${plataforma}', 'Dono da plataforma')`,
+  )
+
+  await logarComo(plataforma)
+  await esperaLinhas('não enxerga oficina nenhuma', 'select count(*) as n from public.oficinas', 0)
+  await esperaLinhas('nem clientes', 'select count(*) as n from public.clientes', 0)
+  await esperaLinhas('nem ordens de serviço', 'select count(*) as n from public.ordens_servico', 0)
+  await esperaLinhas('nem a equipe de ninguém', 'select count(*) as n from public.usuarios', 0)
+  await esperaLinhas(
+    'e nem a própria lista de administradores',
+    'select count(*) as n from public.admins_plataforma',
+    0,
+  )
+  await esperaErro(
+    'não abre o painel de nenhuma oficina',
+    `select public.painel(current_date - 30, current_date)`,
+  )
+
+  // O admin de uma oficina também não alcança a lista.
+  await logarComo(ID.adminA)
+  await esperaLinhas(
+    'o admin de oficina também não lê a lista de administradores',
+    'select count(*) as n from public.admins_plataforma',
+    0,
+  )
+  await esperaErro(
+    'nem se coloca nela',
+    `insert into public.admins_plataforma (usuario_id) values ('${ID.adminA}')`,
+  )
+
+  await comoAdministradorDoBanco()
+  await db.query(`delete from public.admins_plataforma where usuario_id = '${plataforma}'`)
+  await db.query(`delete from auth.users where id = '${plataforma}'`)
+  await logarComo(ID.adminA)
+}
+
 async function testarLimitesDePlano() {
   console.log('\n\x1b[1mO que cada plano deixa fazer\x1b[0m')
   await comoAdministradorDoBanco()
@@ -1839,6 +1887,7 @@ async function main() {
     await testarFechamentoDaOs()
     await testarFinanceiro()
     await testarPainelEHistorico()
+    await testarAdminDaPlataforma()
     await testarLimitesDePlano()
     await testarOficinaSuspensa()
     await testarPerfisNaFase2()
