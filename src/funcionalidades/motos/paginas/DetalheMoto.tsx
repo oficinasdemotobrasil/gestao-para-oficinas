@@ -84,10 +84,10 @@ export function DetalheMoto() {
     defaultValues: { km_atual: '' },
   })
 
-  function baixarHistorico() {
+  async function baixarHistorico() {
     if (!moto || !oficina || !moduloPdf) return
     try {
-      const doc = moduloPdf.gerarPdfDoHistorico(moto, historico.data ?? [], oficina)
+      const doc = await moduloPdf.gerarPdfDoHistorico(moto, historico.data ?? [], oficina)
       doc.save(moduloPdf.nomeDoArquivoDoHistorico(moto.placa))
     } catch (e) {
       toast.erro(traduzirErro(e))

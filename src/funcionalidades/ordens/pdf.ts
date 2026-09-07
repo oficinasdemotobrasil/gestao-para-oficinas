@@ -19,10 +19,10 @@ import type { OrdemCompleta } from './api'
  * que o cliente já leu, e no comprovante do serviço ela não diz nada sobre o
  * que foi feito.
  */
-export function gerarPdfDaOrdem(ordem: OrdemCompleta, oficina: Oficina): jsPDF {
+export async function gerarPdfDaOrdem(ordem: OrdemCompleta, oficina: Oficina): Promise<jsPDF> {
   const doc = novoDocumento()
 
-  let y = cabecalho(doc, oficina, {
+  let y = await cabecalho(doc, oficina, {
     titulo: 'Ordem de Serviço',
     numero: ordem.numero,
     data: ordem.data_abertura,

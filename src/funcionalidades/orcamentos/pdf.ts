@@ -13,13 +13,13 @@ import type { Oficina } from '@/tipos/banco'
 import type { OrcamentoCompleto } from './api'
 
 /** O orçamento em uma folha, para mandar ao cliente ou imprimir no balcão. */
-export function gerarPdfDoOrcamento(
+export async function gerarPdfDoOrcamento(
   orcamento: OrcamentoCompleto,
   oficina: Oficina,
-): jsPDF {
+): Promise<jsPDF> {
   const doc = novoDocumento()
 
-  let y = cabecalho(doc, oficina, {
+  let y = await cabecalho(doc, oficina, {
     titulo: 'Orçamento',
     numero: orcamento.numero,
     data: orcamento.criado_em,

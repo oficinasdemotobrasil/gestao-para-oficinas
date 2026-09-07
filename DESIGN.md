@@ -132,6 +132,54 @@ sempre.
 
 ---
 
+## A cor da marca da oficina
+
+Cada oficina escolhe uma cor, e ela substitui o amarelo **apenas nos destaques**:
+botão principal, item ativo do menu e número em evidência. Fundo, cartões e texto
+continuam iguais para todo mundo — são eles que garantem a leitura, e a cor de um
+cliente não pode estragá-la.
+
+A troca é feita em variável de CSS, em tempo de execução (`src/lib/marca.ts`).
+Não existe folha de estilo por cliente: os tokens deste documento já são
+variáveis, então mudar o valor no elemento raiz repinta o app inteiro de uma vez.
+
+**Uma escolha vira três tons.** A oficina escolhe uma cor; o app deriva a versão
+pressionada e o fundo suave das etiquetas (`tonsDoAcento`, em `src/lib/cor.ts`).
+
+**Quem não escolhe cor nenhuma fica exatamente como sempre foi.** Os três tons do
+amarelo do produto foram escolhidos à mão e estão em `tokens.css`; a derivação
+automática chega perto e não igual — o tom suave sairia `#f2edd9` em vez de
+`#fdf3cc`. Por isso, na cor padrão o app apaga as propriedades em vez de calcular.
+
+### Toda cor passa por duas medidas, não uma
+
+O acento aparece de duas formas opostas, e uma cor pode servir para uma e
+arruinar a outra:
+
+| Onde | Contra o quê é medido |
+|---|---|
+| fundo de botão (`bg-acento text-claro`) | o texto escuro que fica por cima, `#111113` |
+| texto (`text-acento`) | o fundo mais claro do app, `#1a1a1c` |
+
+O mínimo é **4,5:1** nas duas, a régua da WCAG para texto. Um azul-marinho passa
+como fundo de botão e some como texto — por isso as duas.
+
+Cor reprovada não é recusada com um "não": o app oferece **a mais próxima que
+passa**, clareando sem mexer no tom. Quem pediu vermelho recebe um vermelho.
+
+A paleta pronta tem oito cores, todas medidas. `npm run teste:cor` falha se
+alguma parar de passar, ou se um tom derivado ficar ilegível.
+
+### O logo
+
+Duas versões, geradas no próprio navegador antes de subir: ~512px para o PDF e
+~128px para o menu e a tela de entrar. Sempre PNG, para não trocar a
+transparência por um retângulo branco no meio do menu escuro.
+
+O balde do Storage é o único público do projeto para leitura, porque o logo
+precisa aparecer na tela de entrar, onde ainda não existe sessão. A escrita
+continua trancada por oficina e só para o admin.
+
 ## Tamanho de tela
 
 O app nasceu para o celular e continua sendo do celular. Tablet e computador são

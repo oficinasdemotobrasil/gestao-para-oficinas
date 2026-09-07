@@ -34,7 +34,11 @@ type Oficina = {
   cnpj: string | null
   telefone: string | null
   endereco: string | null
+  /** Logo em ~512px, para o PDF. Nulo enquanto a oficina não subir nenhum. */
   logo_url: string | null
+  /** Logo em ~128px, para o menu e a tela de entrar (migration 0041). */
+  logo_miniatura_url: string | null
+  /** Cor da marca, hexadecimal minúsculo. Padrão: o amarelo do produto. */
   cor_primaria: string
   chave_pix: string | null
   tipo_chave_pix: TipoChavePix | null

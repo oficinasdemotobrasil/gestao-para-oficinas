@@ -1786,6 +1786,66 @@ async function testarOficinaSuspensa() {
   }
 }
 
+async function testarMarcaDaOficina() {
+  console.log('\n\x1b[1mA marca da oficina: logo e cor\x1b[0m')
+
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set status = 'ativa' where id = '${ID.oficinaA}'`)
+
+  // A trava do formato existe para nunca chegar lixo na variável de CSS. O app
+  // valida contraste antes de mandar, mas quem escreve direto no banco não passa
+  // pelo app.
+  await esperaErro(
+    'a cor precisa ser hexadecimal de seis dígitos',
+    `update public.oficinas set cor_primaria = 'vermelho' where id = '${ID.oficinaA}'`,
+  )
+  await esperaErro(
+    'e em minúsculo, como o resto do projeto escreve',
+    `update public.oficinas set cor_primaria = '#F5C518' where id = '${ID.oficinaA}'`,
+  )
+  await esperaErro(
+    'atalho de três dígitos não passa',
+    `update public.oficinas set cor_primaria = '#fc0' where id = '${ID.oficinaA}'`,
+  )
+
+  await logarComo(ID.adminA)
+  await db.query(`update public.oficinas set cor_primaria = '#60a5fa' where id = '${ID.oficinaA}'`)
+  await esperaLinhas(
+    'o admin troca a cor da própria oficina',
+    `select count(*) as n from public.oficinas where cor_primaria = '#60a5fa'`,
+    1,
+  )
+  await db.query(
+    `update public.oficinas set logo_url = 'https://exemplo/logo.png', logo_miniatura_url = 'https://exemplo/mini.png' where id = '${ID.oficinaA}'`,
+  )
+  await esperaLinhas(
+    'e guarda os dois tamanhos do logo',
+    `select count(*) as n from public.oficinas where logo_url is not null and logo_miniatura_url is not null`,
+    1,
+  )
+
+  // Aparência é configuração, e configuração é do admin.
+  await logarComo(ID.vendedorA)
+  await esperaBloqueio(
+    'o vendedor não muda a cor da oficina',
+    `update public.oficinas set cor_primaria = '#f87171' where id = '${ID.oficinaA}'`,
+  )
+  await esperaBloqueio(
+    'nem o logo',
+    `update public.oficinas set logo_url = 'https://exemplo/outro.png' where id = '${ID.oficinaA}'`,
+  )
+
+  // E a parede continua de pé: a marca da vizinha não é alcançável.
+  await logarComo(ID.adminA)
+  await esperaBloqueio(
+    'o admin da A não pinta a oficina B',
+    `update public.oficinas set cor_primaria = '#4ade80' where id = '${ID.oficinaB}'`,
+  )
+
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set cor_primaria = '#f5c518' where id = '${ID.oficinaA}'`)
+}
+
 async function testarPerfisNaFase2() {
   console.log('\n\x1b[1mQuem alcança o que na Fase 2\x1b[0m')
 
@@ -1890,6 +1950,7 @@ async function main() {
     await testarAdminDaPlataforma()
     await testarLimitesDePlano()
     await testarOficinaSuspensa()
+    await testarMarcaDaOficina()
     await testarPerfisNaFase2()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a

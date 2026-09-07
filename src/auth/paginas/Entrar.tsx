@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Wrench, Eye, EyeOff } from 'lucide-react'
+import { marcaLembrada } from '@/lib/marca'
 import { Botao } from '@/componentes/ui/Botao'
 import { Campo } from '@/componentes/ui/Campo'
 import { useAuth } from '@/auth/ProvedorAuth'
@@ -31,13 +32,27 @@ export function Entrar() {
     }
   }
 
+  const marca = marcaLembrada()
+
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-5 py-10">
+      {/* A oficina que entrou por último neste aparelho. O app tem um endereço
+          só e ainda não sabe quem está digitando — mas o computador do balcão é
+          sempre da mesma oficina, então da segunda vez em diante ele já abre
+          com a cara dela. Sem nada lembrado, aparece o produto. */}
       <div className="pb-8 text-center">
-        <span className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-acento">
-          <Wrench aria-hidden size={30} className="text-claro" />
-        </span>
-        <h1 className="text-titulo text-escuro">Gestão para Oficinas</h1>
+        {marca?.logoMiniatura ? (
+          <img
+            src={marca.logoMiniatura}
+            alt=""
+            className="mx-auto mb-5 h-16 w-16 rounded-full object-contain"
+          />
+        ) : (
+          <span className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-acento">
+            <Wrench aria-hidden size={30} className="text-claro" />
+          </span>
+        )}
+        <h1 className="text-titulo text-escuro">{marca?.nome ?? 'Gestão para Oficinas'}</h1>
         <p className="pt-1 text-corpo text-escuro-secundario">
           Entre para ver o movimento da sua oficina.
         </p>

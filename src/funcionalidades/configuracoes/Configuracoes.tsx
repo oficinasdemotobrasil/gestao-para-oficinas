@@ -15,6 +15,7 @@ import { mascararTelefone } from '@/lib/formato'
 import { useAuth } from '@/auth/ProvedorAuth'
 import { chavePixValida } from '@/lib/pix'
 import type { TipoChavePix } from '@/tipos/banco'
+import { Marca } from './Marca'
 
 const opcional = z
   .string()
@@ -237,6 +238,9 @@ export function Configuracoes() {
           </Botao>
         </LinhaInteira>
       </Formulario>
+
+      <TituloSecao>A marca da oficina</TituloSecao>
+      <Marca />
     </Tela>
   )
 }

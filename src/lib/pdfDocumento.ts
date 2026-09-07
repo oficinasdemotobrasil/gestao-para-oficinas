@@ -22,6 +22,63 @@ import type { Oficina } from '@/tipos/banco'
 
 /** Cores do DESIGN.md. O jsPDF não entende variável CSS, então elas voltam aqui. */
 const AMARELO: [number, number, number] = [245, 197, 24]
+
+/**
+ * A cor de destaque DESTE documento — a da marca da oficina, ou o amarelo do
+ * produto quando ela não escolheu nenhuma.
+ *
+ * Fica em variável de módulo, e não em parâmetro, porque quem precisa dela é
+ * o bloco de totais, lá no fim, que não recebe a oficina. É seguro porque um
+ * documento é montado do começo ao fim sem pausa: novoDocumento() zera, o
+ * cabeçalho define, e nada roda entre os dois.
+ */
+let corDeDestaque: [number, number, number] = AMARELO
+
+function corDaMarca(oficina: Oficina): [number, number, number] {
+  const hex = oficina.cor_primaria
+  if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return AMARELO
+  return [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ]
+}
+
+/**
+ * Baixa o logo e devolve no formato que o jsPDF entende, com as medidas.
+ *
+ * Volta nulo em qualquer tropeço — sem logo, internet caída, arquivo estranho.
+ * Um PDF sem logo é um PDF; um PDF que não sai porque o logo não baixou é um
+ * orçamento perdido com o cliente na frente.
+ */
+async function baixarLogo(
+  oficina: Oficina,
+): Promise<{ dados: string; largura: number; altura: number } | null> {
+  const endereco = oficina.logo_url
+  if (!endereco) return null
+  try {
+    const resposta = await fetch(endereco)
+    if (!resposta.ok) return null
+    const arquivo = await resposta.blob()
+    const dados = await new Promise<string>((aceitar, recusar) => {
+      const leitor = new FileReader()
+      leitor.onload = () => aceitar(String(leitor.result))
+      leitor.onerror = () => recusar(new Error('leitura falhou'))
+      leitor.readAsDataURL(arquivo)
+    })
+    const medida = await new Promise<{ largura: number; altura: number }>(
+      (aceitar, recusar) => {
+        const img = new Image()
+        img.onload = () => aceitar({ largura: img.naturalWidth, altura: img.naturalHeight })
+        img.onerror = () => recusar(new Error('imagem ilegível'))
+        img.src = dados
+      },
+    )
+    return { dados, ...medida }
+  } catch {
+    return null
+  }
+}
 const ESCURO: [number, number, number] = [17, 17, 19]
 const CINZA: [number, number, number] = [107, 107, 112]
 const LINHA: [number, number, number] = [230, 230, 233]
@@ -54,6 +111,9 @@ export function paraPdf(texto: string | null | undefined): string {
 }
 
 export function novoDocumento(): jsPDF {
+  // Zera a cor de destaque: sem isto, a cor da última oficina impressa
+  // sobreviveria para o documento seguinte se o cabeçalho não rodasse.
+  corDeDestaque = AMARELO
   return new jsPDF({ unit: 'mm', format: 'a4' })
 }
 
@@ -77,12 +137,28 @@ export interface Identificacao {
   data: string
 }
 
-export function cabecalho(doc: jsPDF, oficina: Oficina, id: Identificacao): number {
+export async function cabecalho(
+  doc: jsPDF,
+  oficina: Oficina,
+  id: Identificacao,
+): Promise<number> {
   const largura = larguraDe(doc)
   let y = MARGEM
 
-  doc.setFillColor(...AMARELO)
+  corDeDestaque = corDaMarca(oficina)
+  doc.setFillColor(...corDeDestaque)
   doc.rect(0, 0, largura, 4, 'F')
+
+  // O logo entra à esquerda e empurra o texto. Altura fixa, largura conforme a
+  // proporção da imagem: assim um logo comprido não vira um quadrado achatado.
+  const logo = await baixarLogo(oficina)
+  const ALTURA_DO_LOGO = 14
+  let recuoDoTexto = 0
+  if (logo) {
+    const larguraDoLogo = Math.min(34, (logo.largura / logo.altura) * ALTURA_DO_LOGO)
+    doc.addImage(logo.dados, 'PNG', MARGEM, y + 1, larguraDoLogo, ALTURA_DO_LOGO)
+    recuoDoTexto = larguraDoLogo + 5
+  }
 
   // O número é desenhado à direita, na mesma faixa. O nome da oficina recebe só
   // o que sobra: sem isto, "Oficina do Zé Motopeças e Serviços Ltda" passa por
@@ -90,7 +166,8 @@ export function cabecalho(doc: jsPDF, oficina: Oficina, id: Identificacao): numb
   const rotuloNumero = `${id.titulo} nº ${String(id.numero).padStart(4, '0')}`
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14)
-  const espacoDoNome = largura - MARGEM * 2 - doc.getTextWidth(rotuloNumero) - 8
+  const espacoDoNome =
+    largura - MARGEM * 2 - recuoDoTexto - doc.getTextWidth(rotuloNumero) - 8
 
   y += 6
   doc.setTextColor(...ESCURO)
@@ -110,7 +187,7 @@ export function cabecalho(doc: jsPDF, oficina: Oficina, id: Identificacao): numb
     }
     visivel = `${visivel.trimEnd()}…`
   }
-  doc.text(visivel, MARGEM, y)
+  doc.text(visivel, MARGEM + recuoDoTexto, y)
 
   y += 6
   doc.setFont('helvetica', 'normal')
@@ -122,11 +199,13 @@ export function cabecalho(doc: jsPDF, oficina: Oficina, id: Identificacao): numb
     oficina.cnpj ? `CNPJ ${cpfCnpj(oficina.cnpj)}` : null,
   ].filter(Boolean)
   if (contato.length) {
-    doc.text(contato.join('  ·  '), MARGEM, y)
+    doc.text(contato.join('  ·  '), MARGEM + recuoDoTexto, y)
     y += 4
   }
   if (oficina.endereco) {
-    doc.text(paraPdf(oficina.endereco), MARGEM, y, { maxWidth: largura - MARGEM * 2 })
+    doc.text(paraPdf(oficina.endereco), MARGEM + recuoDoTexto, y, {
+      maxWidth: largura - MARGEM * 2 - recuoDoTexto,
+    })
     y += 4
   }
 
@@ -251,10 +330,10 @@ export function blocoDeTotais(doc: jsPDF, y: number, t: Totais): number {
     doc.text(`- ${moeda(t.desconto)}`, colunaValor, y, { align: 'right' })
   }
 
-  // O total é o número que a pessoa procura primeiro: fundo amarelo e corpo
-  // grande, como na tela.
+  // O total é o número que a pessoa procura primeiro: fundo na cor da marca e
+  // corpo grande, como na tela.
   y += 4
-  doc.setFillColor(...AMARELO)
+  doc.setFillColor(...corDeDestaque)
   doc.roundedRect(colunaRotulo - 12, y, largura - MARGEM - colunaRotulo + 12, 14, 2, 2, 'F')
   y += 9
   doc.setFont('helvetica', 'bold')

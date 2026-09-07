@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import { App } from './App'
 import './estilos/globais.css'
+import { aplicarCorDaMarca, marcaLembrada } from './lib/marca'
 
 /**
  * Mantém o app atualizado sozinho.
@@ -19,6 +20,13 @@ registerSW({
     setInterval(() => void registro.update(), 30 * 60 * 1000)
   },
 })
+
+/**
+ * A cor da última oficina que entrou neste aparelho, aplicada antes da
+ * primeira tela pintar. Sem isto, quem abre o app veria o amarelo do produto
+ * por um instante e depois a própria cor — o pisca-pisca que denuncia gambiarra.
+ */
+aplicarCorDaMarca(marcaLembrada()?.cor)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

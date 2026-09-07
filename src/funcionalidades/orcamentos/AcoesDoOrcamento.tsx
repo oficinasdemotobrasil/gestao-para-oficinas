@@ -168,10 +168,10 @@ export function AcoesDoOrcamento({ orcamento, statusEfetivo, podeAgir }: Props) 
     })
   }
 
-  function comOPdf(acao: 'baixar' | 'compartilhar') {
+  async function comOPdf(acao: 'baixar' | 'compartilhar') {
     if (!oficina || !moduloPdf) return
     try {
-      const doc = moduloPdf.gerarPdfDoOrcamento(orcamento, oficina)
+      const doc = await moduloPdf.gerarPdfDoOrcamento(orcamento, oficina)
       const nome = moduloPdf.nomeDoArquivo(orcamento)
 
       if (acao === 'baixar') {

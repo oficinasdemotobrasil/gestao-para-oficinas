@@ -19,14 +19,14 @@ import type { ServicoNoHistorico } from './api'
  * ficha do que já foi feito. Por isso ele traz o nome de quem era o dono na
  * época e nada mais sobre ele — o histórico é da moto, os dados pessoais não.
  */
-export function gerarPdfDoHistorico(
+export async function gerarPdfDoHistorico(
   moto: Pick<Moto, 'placa' | 'marca' | 'modelo' | 'ano' | 'km_atual'>,
   servicos: ServicoNoHistorico[],
   oficina: Oficina,
-): jsPDF {
+): Promise<jsPDF> {
   const doc = novoDocumento()
 
-  let y = cabecalho(doc, oficina, {
+  let y = await cabecalho(doc, oficina, {
     titulo: 'Histórico da placa',
     numero: 0,
     data: new Date().toISOString(),

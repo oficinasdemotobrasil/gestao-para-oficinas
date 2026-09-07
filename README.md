@@ -192,6 +192,22 @@ indicadores, white-label, assinatura, IA e áudio.
 
 ---
 
+## O que a personalização da marca não alcança
+
+A oficina escolhe o logo e a cor, e eles entram no menu, nos PDFs e na tela de
+entrar. Duas coisas ficam de fora, e é de propósito:
+
+**O ícone na tela de início do celular continua sendo o do produto**, igual para
+todas as oficinas. Trocá-lo por oficina exigiria um endereço por oficina
+(`tiago.gestaoparaoficinas.com.br`), porque o ícone vem do manifesto do site, que
+é um arquivo só para todo mundo. Fica registrado como possibilidade futura: o dia
+que existir subdomínio por oficina, o ícone e a tela de entrar vêm junto.
+
+**A tela de entrar não sabe de qual oficina se trata** — o app tem um endereço só
+e quem está digitando ainda não disse quem é. O que ela faz é lembrar, naquele
+aparelho, a última oficina que entrou nele. No computador do balcão, que é sempre
+da mesma oficina, funciona a partir da segunda entrada.
+
 ## Publicar
 
 ### Supabase

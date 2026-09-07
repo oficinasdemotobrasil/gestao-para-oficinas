@@ -9,6 +9,7 @@ import {
 import type { ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { aplicarCorDaMarca, lembrarMarca } from '../lib/marca'
 import type { Oficina, Usuario } from '@/tipos/banco'
 
 interface Contexto {
@@ -100,6 +101,18 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
       .maybeSingle()
 
     setOficina(linhaOficina ?? null)
+
+    // A marca entra assim que a oficina chega, antes de qualquer tela pintar.
+    // E fica guardada no aparelho para a próxima tela de entrar já nascer com
+    // a cara da oficina — no balcão, é sempre a mesma.
+    if (linhaOficina) {
+      aplicarCorDaMarca(linhaOficina.cor_primaria)
+      lembrarMarca({
+        nome: linhaOficina.nome,
+        cor: linhaOficina.cor_primaria,
+        logoMiniatura: linhaOficina.logo_miniatura_url,
+      })
+    }
   }, [])
 
   useEffect(() => {

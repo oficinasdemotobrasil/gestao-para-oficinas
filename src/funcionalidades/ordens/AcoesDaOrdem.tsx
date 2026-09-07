@@ -169,10 +169,10 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
 
   const texto = oficina ? textoDeServicoPronto(ordem, oficina.nome) : ''
 
-  function comOPdf(acao: 'baixar' | 'compartilhar') {
+  async function comOPdf(acao: 'baixar' | 'compartilhar') {
     if (!oficina || !moduloPdf) return
     try {
-      const doc = moduloPdf.gerarPdfDaOrdem(ordem, oficina)
+      const doc = await moduloPdf.gerarPdfDaOrdem(ordem, oficina)
       const nome = moduloPdf.nomeDoArquivoDaOrdem(ordem)
       if (acao === 'baixar') {
         doc.save(nome)

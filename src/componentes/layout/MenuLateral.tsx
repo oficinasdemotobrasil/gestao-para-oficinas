@@ -30,9 +30,17 @@ export function MenuLateral() {
     >
       {/* Quem é a oficina. No tablet estreito só cabe a inicial. */}
       <div className="flex items-center gap-3 border-b border-borda-escura px-4 py-5">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-controle bg-acento text-secao font-bold text-claro">
-          {(oficina?.nome ?? 'O').trim().charAt(0).toUpperCase()}
-        </span>
+        {oficina?.logo_miniatura_url ? (
+          <img
+            src={oficina.logo_miniatura_url}
+            alt=""
+            className="h-10 w-10 shrink-0 rounded-controle object-contain"
+          />
+        ) : (
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-controle bg-acento text-secao font-bold text-claro">
+            {(oficina?.nome ?? 'O').trim().charAt(0).toUpperCase()}
+          </span>
+        )}
         <span className="hidden min-w-0 desktop:block">
           <span className="block truncate text-corpo font-semibold text-escuro">
             {oficina?.nome ?? 'Sua oficina'}
