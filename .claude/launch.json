@@ -20,6 +20,18 @@
       ],
       "port": 4173,
       "autoPort": true
+    },
+    {
+      "name": "painel",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "painel"
+      ],
+      "port": 5273,
+      "autoPort": true
     }
   ]
 }
