@@ -9,9 +9,12 @@ import react from '@vitejs/plugin-react'
  * abrir alguma coisa aqui, e vice-versa.
  *
  * Porta diferente da do app para os dois poderem rodar ao mesmo tempo.
+ * Fixa de propósito: quem precisar de outra usa `vite --port`. Ler a porta de
+ * uma variável de ambiente aqui exigiria os tipos do Node só para isso, e foi
+ * o que quebrou o primeiro build na Vercel.
  */
 export default defineConfig({
   plugins: [react()],
-  server: { port: Number(process.env.PORT) || 5273 },
-  preview: { port: Number(process.env.PORT) || 4273 },
+  server: { port: 5273 },
+  preview: { port: 4273 },
 })

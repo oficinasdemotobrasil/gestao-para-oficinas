@@ -21,6 +21,16 @@ insert into public.admins_plataforma (usuario_id, observacao)
 select id, 'dono da plataforma' from auth.users where email = 'o-email@exemplo.com';
 ```
 
+## O painel não se apoia na raiz
+
+Nada aqui pode depender de arquivo ou pacote do projeto de fora desta pasta. Na
+Vercel o Root Directory é `painel`, então só existe o que está neste
+`package.json` — enquanto na sua máquina o TypeScript ainda enxerga os tipos da
+raiz subindo os diretórios. Foi assim que o primeiro build quebrou: um
+`process.env` que compilava aqui e não lá.
+
+Antes de commitar, o teste honesto é `npm run build` **dentro desta pasta**.
+
 ## Rodar aqui
 
 ```
