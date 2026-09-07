@@ -32,6 +32,16 @@ update public.oficinas
   set cor_primaria = lower(cor_primaria)
   where cor_primaria <> lower(cor_primaria);
 
+-- E qualquer coisa que não seja uma cor volta para o amarelo do produto.
+--
+-- Sem isto, uma única linha com cor vazia derrubaria a migration inteira na
+-- hora de criar a restrição — e conferir antes com um SELECT resolve hoje, não
+-- resolve daqui a um ano. Aqui a migration passa a rodar em qualquer estado do
+-- banco, que é como uma migration deve se comportar.
+update public.oficinas
+  set cor_primaria = '#f5c518'
+  where cor_primaria is null or cor_primaria !~ '^#[0-9a-f]{6}$';
+
 alter table public.oficinas
   alter column cor_primaria set default '#f5c518';
 
