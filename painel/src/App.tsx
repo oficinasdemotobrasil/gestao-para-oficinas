@@ -95,7 +95,11 @@ function Entrar() {
 function NovaOficina({ aoCriar }: { aoCriar: () => void }) {
   const [aberto, setAberto] = useState(false)
   const [nome, setNome] = useState('')
-  const [plano, setPlano] = useState<Plano>('gratuito')
+  // Enquanto não há cobrança, oficina nova nasce com tudo liberado. Os limites
+  // continuam de pé no banco: quando a cobrança existir, basta escolher outro
+  // plano aqui e nas oficinas já cadastradas. Apertar depois é mais fácil do
+  // que reconstruir a trava.
+  const [plano, setPlano] = useState<Plano>('completo')
   const [adminNome, setAdminNome] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
   const [adminSenha, setAdminSenha] = useState('')
