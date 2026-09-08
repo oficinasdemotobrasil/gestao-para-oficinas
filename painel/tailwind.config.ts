@@ -11,6 +11,21 @@ import type { Config } from 'tailwindcss'
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
+    /**
+     * Os mesmos nomes do aplicativo do cliente, e pelo mesmo motivo: eles
+     * SUBSTITUEM os padrões do Tailwind, então não existe `md:` para escapar
+     * por descuido — ou a classe é uma destas, ou não existe.
+     *
+     * Aqui isso já custou caro uma vez: as classes `tablet:` e `desktop:` que
+     * eu escrevi na grade de indicadores simplesmente não geraram nada, e a
+     * tela ficou com dois cartões por linha num monitor largo, sem erro nenhum.
+     */
+    screens: {
+      tablet: '768px',
+      desktop: '1024px',
+      amplo: '1440px',
+      'so-celular': { max: '767px' },
+    },
     extend: {
       colors: {
         fundo: '#0b0b0c',

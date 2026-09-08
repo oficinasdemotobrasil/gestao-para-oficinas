@@ -152,9 +152,9 @@ function NovaOficina({ aoCriar }: { aoCriar: () => void }) {
   return (
     <form
       onSubmit={criar}
-      className="grid w-full grid-cols-1 gap-4 rounded-card bg-superficie p-6 md:grid-cols-2"
+      className="grid w-full grid-cols-1 gap-4 rounded-card bg-superficie p-6 tablet:grid-cols-2"
     >
-      <h2 className="text-lg font-semibold text-claro md:col-span-2">Nova oficina</h2>
+      <h2 className="text-lg font-semibold text-claro tablet:col-span-2">Nova oficina</h2>
 
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-claro-secundario">Nome da oficina</span>
@@ -202,7 +202,7 @@ function NovaOficina({ aoCriar }: { aoCriar: () => void }) {
         />
       </label>
 
-      <label className="flex flex-col gap-1.5 md:col-span-2">
+      <label className="flex flex-col gap-1.5 tablet:col-span-2">
         <span className="text-sm font-medium text-claro-secundario">Senha provisória</span>
         <input
           type="text"
@@ -221,12 +221,12 @@ function NovaOficina({ aoCriar }: { aoCriar: () => void }) {
       </label>
 
       {erro && (
-        <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-sm text-erro md:col-span-2">
+        <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-sm text-erro tablet:col-span-2">
           {erro}
         </p>
       )}
 
-      <div className="flex gap-3 md:col-span-2 md:justify-end">
+      <div className="flex gap-3 tablet:col-span-2 tablet:justify-end">
         <button
           type="button"
           onClick={() => setAberto(false)}
