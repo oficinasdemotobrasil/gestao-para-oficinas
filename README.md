@@ -192,6 +192,17 @@ indicadores, white-label, assinatura, IA e áudio.
 
 ---
 
+## O logo passa por uma função, não pelo Storage direto
+
+`supabase/functions/marca` é quem grava e remove o logo. O navegador reduz a
+imagem e manda os bytes; a função confere que quem pediu é admin ativo, que o
+arquivo é PNG de verdade (pela assinatura, não pelo nome) e que cabe no limite,
+e só então grava — sempre na pasta da própria oficina.
+
+Isso tira do caminho a dependência de uma política de Storage e põe a
+conferência onde o cliente não alcança. `npm run teste:marca` prova as travas
+contra o Supabase de verdade, criando e apagando a própria oficina.
+
 ## O que a personalização da marca não alcança
 
 A oficina escolhe o logo e a cor, e eles entram no menu, nos PDFs e na tela de

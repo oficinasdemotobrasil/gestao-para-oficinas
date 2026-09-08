@@ -35,12 +35,21 @@ import {
   TAMANHO_MAXIMO_EM_BYTES,
 } from '@/lib/imagem'
 
-const BALDE = 'logos'
-
-/** O endereço público muda de versão a cada envio, senão o navegador mostra o
- *  logo antigo que já está no cache dele — e a pessoa jura que não salvou. */
-function comVersao(endereco: string) {
-  return `${endereco}?v=${Date.now()}`
+/**
+ * O logo não vai direto do navegador para o Storage: passa pela função `marca`.
+ *
+ * Assim a conferência de tipo e de tamanho acontece no servidor, onde quem
+ * chama a API por fora não alcança — e o caminho do arquivo é escolhido lá, a
+ * partir da oficina de quem pediu, em vez de vir daqui para ser conferido.
+ */
+async function paraBase64(blob: Blob): Promise<string> {
+  const leitor = new FileReader()
+  const dados = await new Promise<string>((aceitar, recusar) => {
+    leitor.onload = () => aceitar(String(leitor.result))
+    leitor.onerror = () => recusar(new Error('Não consegui ler a imagem.'))
+    leitor.readAsDataURL(blob)
+  })
+  return dados.split(',')[1]
 }
 
 export function Marca() {
@@ -109,31 +118,15 @@ export function Marca() {
     setEnviando(true)
     try {
       const { grande, miniatura } = await reduzirLogo(arquivo)
-      const pasta = oficina!.id
-      const caminhoGrande = `${pasta}/logo.png`
-      const caminhoMiniatura = `${pasta}/logo-miniatura.png`
-
-      for (const [caminho, conteudo] of [
-        [caminhoGrande, grande],
-        [caminhoMiniatura, miniatura],
-      ] as const) {
-        const { error } = await supabase.storage
-          .from(BALDE)
-          .upload(caminho, conteudo, { upsert: true, contentType: 'image/png' })
-        if (error) throw error
-      }
-
-      const publico = (caminho: string) =>
-        supabase.storage.from(BALDE).getPublicUrl(caminho).data.publicUrl
-
-      const { error } = await supabase
-        .from('oficinas')
-        .update({
-          logo_url: comVersao(publico(caminhoGrande)),
-          logo_miniatura_url: comVersao(publico(caminhoMiniatura)),
-        })
-        .eq('id', oficina!.id)
+      const { data, error } = await supabase.functions.invoke('marca', {
+        body: {
+          acao: 'salvar',
+          grande: await paraBase64(grande),
+          miniatura: await paraBase64(miniatura),
+        },
+      })
       if (error) throw error
+      if (data?.erro) throw new Error(data.erro)
 
       await recarregarUsuario()
       toast.sucesso('Logo atualizado.')
@@ -148,14 +141,11 @@ export function Marca() {
   async function removerLogo() {
     setEnviando(true)
     try {
-      await supabase.storage
-        .from(BALDE)
-        .remove([`${oficina!.id}/logo.png`, `${oficina!.id}/logo-miniatura.png`])
-      const { error } = await supabase
-        .from('oficinas')
-        .update({ logo_url: null, logo_miniatura_url: null })
-        .eq('id', oficina!.id)
+      const { data, error } = await supabase.functions.invoke('marca', {
+        body: { acao: 'remover' },
+      })
       if (error) throw error
+      if (data?.erro) throw new Error(data.erro)
       await recarregarUsuario()
       toast.sucesso('Logo removido.')
     } catch (e) {

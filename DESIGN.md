@@ -177,8 +177,18 @@ Duas versões, geradas no próprio navegador antes de subir: ~512px para o PDF e
 transparência por um retângulo branco no meio do menu escuro.
 
 O balde do Storage é o único público do projeto para leitura, porque o logo
-precisa aparecer na tela de entrar, onde ainda não existe sessão. A escrita
-continua trancada por oficina e só para o admin.
+precisa aparecer na tela de entrar, onde ainda não existe sessão.
+
+A escrita **não** sai do navegador direto para o Storage: passa pela Edge
+Function `marca`. Duas razões, e a segunda é a que importa:
+
+1. O caminho do arquivo é escolhido no servidor, a partir da oficina de quem
+   pediu. Não existe caminho vindo do cliente para conferir, porque não existe
+   caminho vindo do cliente.
+2. A conferência de tipo e tamanho estava só no navegador — e navegador não é
+   lugar de garantir regra. Quem chama a API por fora passava por cima dela.
+   Agora um arquivo que se diz PNG e não é morre no servidor, pela assinatura
+   dos oito primeiros bytes.
 
 ## Tamanho de tela
 
