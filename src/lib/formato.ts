@@ -96,3 +96,17 @@ export function primeiroNome(nome: string | null | undefined): string {
   if (!nome) return ''
   return nome.trim().split(/\s+/)[0]
 }
+
+/**
+ * Quantos dias faltam até uma data, contando dias de calendário.
+ *
+ * Compara só a data, sem a hora: senão "termina amanhã" vira "termina hoje" às
+ * onze da noite, e "faltam 2 dias" depende de que horas a pessoa abriu o app.
+ * Negativo quando a data já passou.
+ */
+export function diasAte(data: string | Date): number {
+  const alvo = typeof data === 'string' ? new Date(`${data.slice(0, 10)}T00:00:00`) : data
+  const hoje = new Date()
+  const zerar = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  return Math.round((zerar(alvo) - zerar(hoje)) / 86_400_000)
+}

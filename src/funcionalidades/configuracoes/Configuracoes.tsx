@@ -16,6 +16,7 @@ import { useAuth } from '@/auth/ProvedorAuth'
 import { chavePixValida } from '@/lib/pix'
 import type { TipoChavePix } from '@/tipos/banco'
 import { Marca } from './Marca'
+import { Conta } from './Conta'
 
 const opcional = z
   .string()
@@ -241,6 +242,9 @@ export function Configuracoes() {
 
       <TituloSecao>A marca da oficina</TituloSecao>
       <Marca />
+
+      <TituloSecao>Sua conta</TituloSecao>
+      <Conta />
     </Tela>
   )
 }

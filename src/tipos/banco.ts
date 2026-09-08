@@ -10,7 +10,20 @@
 
 export type PerfilUsuario = 'admin' | 'vendedor' | 'mecanico'
 export type PlanoOficina = 'gratuito' | 'essencial' | 'completo'
-export type StatusOficina = 'ativa' | 'suspensa' | 'cancelada'
+/**
+ * Na ordem do enum, do mais tranquilo ao mais grave (migration 0043).
+ *
+ * 'teste', 'atrasada' e 'bloqueada' são CALCULADAS a partir das datas e só
+ * aparecem em `minha_situacao()`. A coluna `oficinas.status` guarda apenas o
+ * que um humano decidiu: 'ativa', 'suspensa' ou 'cancelada'.
+ */
+export type StatusOficina =
+  | 'teste'
+  | 'ativa'
+  | 'atrasada'
+  | 'bloqueada'
+  | 'suspensa'
+  | 'cancelada'
 export type TipoChavePix = 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria'
 /** 'avulso' é o item digitado na hora, sem produto nem serviço (migration 0016). */
 export type TipoItem = 'produto' | 'servico' | 'avulso'
@@ -52,6 +65,46 @@ type Oficina = {
   categorias_despesa: string[]
   /** Depois de quantos dias sem serviço concluído o cliente entra em "sumidos". */
   dias_para_cliente_inativo: number
+  /** Até quando o acesso está garantido. Nulo é sem prazo (migration 0044). */
+  acesso_ate: string | null
+  /** Fim dos dias de teste, para a tela dizer quantos faltam. */
+  teste_ate: string | null
+  /** Quando a exclusão pode ser efetivada. Nulo é sem pedido (migration 0045). */
+  excluir_em: string | null
+  exclusao_pedida_em: string | null
+  motivo_da_saida: string | null
+}
+
+/** Catálogo de planos: a mesma lista para todas as oficinas (migration 0042). */
+export type Plano = {
+  id: PlanoOficina
+  nome: string
+  descricao: string | null
+  preco_mensal: number
+  /** Nulo é sem limite. */
+  limite_colaboradores: number | null
+  limite_os_mes: number | null
+  tem_financeiro: boolean
+  ordem: number
+  ativo: boolean
+  atualizado_em: string
+}
+
+/** O contrato da oficina. Escrito por quem cobra; o app só lê (migration 0044). */
+export type Assinatura = {
+  id: string
+  oficina_id: string
+  plano: PlanoOficina
+  situacao: 'ativa' | 'encerrada'
+  inicio: string
+  proxima_cobranca: string | null
+  cancelada_em: string | null
+  motivo_cancelamento: string | null
+  motivo_detalhe: string | null
+  id_externo_cliente: string | null
+  id_externo_assinatura: string | null
+  criado_em: string
+  atualizado_em: string
 }
 
 type Usuario = {
@@ -361,6 +414,10 @@ export type Database = {
       os_status_historico: Tabela<OsStatusHistorico>
       contas_receber: Tabela<ContaReceber>
       contas_pagar: Tabela<ContaPagar>
+      /* Catálogo, sem oficina_id: a mesma lista para todo mundo. Só leitura
+         pelo app — mudar plano é operação de plataforma. */
+      planos: { Row: Plano; Insert: never; Update: never; Relationships: [] }
+      assinaturas: { Row: Assinatura; Insert: never; Update: never; Relationships: [] }
     }
     Views: {
       vw_produtos: { Row: ProdutoSemCusto; Relationships: [] }
@@ -602,6 +659,13 @@ export type Database = {
       }
       oficina_do_usuario: { Args: Record<string, never>; Returns: string }
       perfil_do_usuario: { Args: Record<string, never>; Returns: PerfilUsuario }
+      /** A situação de hoje, calculada das datas (migration 0044). */
+      minha_situacao: { Args: Record<string, never>; Returns: StatusOficina }
+      /** Tudo o que é da oficina, em qualquer situação (migration 0045). */
+      exportar_dados_da_oficina: { Args: Record<string, never>; Returns: Record<string, unknown> }
+      /** Marca a data. Não apaga nada. Devolve quando a exclusão pode ocorrer. */
+      pedir_encerramento_da_conta: { Args: { p_motivo: string | null }; Returns: string }
+      desistir_do_encerramento: { Args: Record<string, never>; Returns: void }
     }
     Enums: {
       perfil_usuario: PerfilUsuario

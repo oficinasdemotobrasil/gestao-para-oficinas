@@ -10,12 +10,17 @@ import type { ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { aplicarCorDaMarca, lembrarMarca } from '../lib/marca'
-import type { Oficina, Usuario } from '@/tipos/banco'
+import type { Oficina, StatusOficina, Usuario } from '@/tipos/banco'
 
 interface Contexto {
   sessao: Session | null
   usuario: Usuario | null
   oficina: Oficina | null
+  /**
+   * A situação de hoje, calculada no banco a partir das datas — não a coluna
+   * `status`, que guarda apenas o que um humano decidiu. Ver migration 0044.
+   */
+  situacao: StatusOficina | null
   /** true enquanto ainda não se sabe se há sessão: evita piscar a tela de login. */
   carregando: boolean
   /** Sessão válida no Auth, mas sem linha em public.usuarios. Ver AcessoPendente. */
@@ -60,6 +65,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
   const [sessao, setSessao] = useState<Session | null>(null)
   const [usuario, setUsuario] = useState<Usuario | null>(null)
   const [oficina, setOficina] = useState<Oficina | null>(null)
+  const [situacao, setSituacao] = useState<StatusOficina | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [semVinculo, setSemVinculo] = useState(false)
 
@@ -101,6 +107,11 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
       .maybeSingle()
 
     setOficina(linhaOficina ?? null)
+
+    // A situação vem do banco calculada, e não da coluna: quem só olhasse
+    // `status` veria 'ativa' numa oficina cujo prazo venceu ontem.
+    const { data: situacaoAtual } = await supabase.rpc('minha_situacao')
+    setSituacao((situacaoAtual as StatusOficina | null) ?? null)
 
     // A marca entra assim que a oficina chega, antes de qualquer tela pintar.
     // E fica guardada no aparelho para a próxima tela de entrar já nascer com
@@ -218,6 +229,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
       sessao,
       usuario,
       oficina,
+      situacao,
       carregando,
       semVinculo,
       entrar,
@@ -230,6 +242,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
       sessao,
       usuario,
       oficina,
+      situacao,
       carregando,
       semVinculo,
       entrar,

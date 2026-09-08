@@ -1846,6 +1846,161 @@ async function testarMarcaDaOficina() {
   await db.query(`update public.oficinas set cor_primaria = '#f5c518' where id = '${ID.oficinaA}'`)
 }
 
+async function testarSituacaoDerivada() {
+  console.log('\n\x1b[1mA situação da oficina, calculada das datas\x1b[0m')
+
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set status = 'ativa', acesso_ate = null where id = '${ID.oficinaA}'`)
+  await logarComo(ID.adminA)
+
+  const situacao = async () =>
+    (await db.query<{ s: string }>(`select public.minha_situacao() as s`)).rows[0].s
+
+  // Sem prazo: nada vence. É o estado de quem ainda não entrou na cobrança.
+  ;(await situacao()) === 'ativa'
+    ? ok('sem prazo de acesso, a oficina está ativa — é o estado de hoje, de propósito')
+    : erro('acesso sem prazo', await situacao())
+
+  // Dentro do prazo e sem assinatura: está em teste.
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set acesso_ate = current_date + 5 where id = '${ID.oficinaA}'`)
+  await logarComo(ID.adminA)
+  ;(await situacao()) === 'teste'
+    ? ok('dentro do prazo e sem assinatura, está em teste')
+    : erro('teste', await situacao())
+
+  // Com assinatura ativa, dentro do prazo: ativa.
+  await comoAdministradorDoBanco()
+  await db.query(`
+    insert into public.assinaturas (oficina_id, plano, situacao, proxima_cobranca)
+    values ('${ID.oficinaA}', 'completo', 'ativa', current_date + 5)
+  `)
+  await logarComo(ID.adminA)
+  ;(await situacao()) === 'ativa'
+    ? ok('com assinatura em dia, está ativa')
+    : erro('ativa', await situacao())
+
+  // Venceu ontem: carência, e continua registrando.
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set acesso_ate = current_date - 1 where id = '${ID.oficinaA}'`)
+  await logarComo(ID.adminA)
+  ;(await situacao()) === 'atrasada'
+    ? ok('vencida ontem, entra em carência')
+    : erro('atrasada', await situacao())
+
+  await esperaLinhas(
+    'e na carência ainda registra — é para isso que ela existe',
+    `insert into public.clientes (oficina_id, nome) values ('${ID.oficinaA}', 'Cliente na carencia') returning 1 as n`,
+    1,
+  )
+
+  // Sétimo dia ainda escreve; o oitavo não.
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set acesso_ate = current_date - 7 where id = '${ID.oficinaA}'`)
+  await logarComo(ID.adminA)
+  ;(await situacao()) === 'atrasada'
+    ? ok('o sétimo dia de carência ainda é carência')
+    : erro('limite da carência', await situacao())
+
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set acesso_ate = current_date - 8 where id = '${ID.oficinaA}'`)
+  await logarComo(ID.adminA)
+  ;(await situacao()) === 'bloqueada'
+    ? ok('no oitavo, bloqueia')
+    : erro('bloqueada', await situacao())
+
+  await esperaErro(
+    'bloqueada não registra nada',
+    `insert into public.clientes (oficina_id, nome) values ('${ID.oficinaA}', 'Nao deveria entrar')`,
+  )
+
+  const clientes = await contar('select count(*) as n from public.clientes')
+  clientes > 0
+    ? ok(`mas continua enxergando os próprios clientes (${clientes}) — dado nenhum foi escondido`)
+    : erro('leitura na bloqueada', 'a lista veio vazia')
+
+  // Decisão de gente manda sobre o cálculo.
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set status = 'suspensa' where id = '${ID.oficinaA}'`)
+  await logarComo(ID.adminA)
+  ;(await situacao()) === 'suspensa'
+    ? ok('suspensão feita à mão manda sobre as datas')
+    : erro('suspensa', await situacao())
+
+  // Encerrada: a leitura fecha, e fecha por um ponto só.
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set status = 'cancelada' where id = '${ID.oficinaA}'`)
+  await logarComo(ID.adminA)
+  await esperaLinhas('conta encerrada não abre mais os clientes', 'select count(*) as n from public.clientes', 0)
+  await esperaLinhas('nem as ordens de serviço', 'select count(*) as n from public.ordens_servico', 0)
+
+  // E a exportação continua, que é o ponto.
+  const exportacao = await db.query<{ j: Record<string, unknown> }>(
+    'select public.exportar_dados_da_oficina() as j',
+  )
+  const pacote = exportacao.rows[0].j as Record<string, unknown[]>
+  Array.isArray(pacote.clientes) && pacote.clientes.length > 0
+    ? ok(`mas exportar ainda funciona: ${pacote.clientes.length} clientes no pacote`)
+    : erro('exportação com conta encerrada', JSON.stringify(Object.keys(pacote)))
+
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set status = 'ativa', acesso_ate = null where id = '${ID.oficinaA}'`)
+  await db.query(`delete from public.assinaturas where oficina_id = '${ID.oficinaA}'`)
+  await db.query(`delete from public.clientes where nome = 'Cliente na carencia'`)
+}
+
+async function testarEncerramentoDaConta() {
+  console.log('\n\x1b[1mEncerrar a conta: marca a data, não apaga nada\x1b[0m')
+
+  await logarComo(ID.vendedorA)
+  await esperaErro(
+    'o vendedor não encerra a conta',
+    `select public.pedir_encerramento_da_conta('cansei')`,
+  )
+  await esperaErro('nem exporta os dados', 'select public.exportar_dados_da_oficina()')
+
+  await logarComo(ID.adminA)
+  const quando = await db.query<{ q: string }>(
+    `select public.pedir_encerramento_da_conta('preco') as q`,
+  )
+  quando.rows[0].q ? ok('o responsável pede o encerramento') : erro('pedido', 'não voltou data')
+
+  await esperaLinhas(
+    'a data fica 30 dias à frente',
+    `select count(*) as n from public.oficinas
+      where id = '${ID.oficinaA}'
+        and excluir_em::date = (now() + interval '30 days')::date`,
+    1,
+  )
+  await esperaLinhas(
+    'e o motivo fica registrado',
+    `select count(*) as n from public.oficinas where id = '${ID.oficinaA}' and motivo_da_saida = 'preco'`,
+    1,
+  )
+
+  const clientes = await contar('select count(*) as n from public.clientes')
+  clientes > 0
+    ? ok(`nada foi apagado: ${clientes} clientes continuam lá`)
+    : erro('dados apagados', 'os clientes sumiram no pedido de encerramento')
+
+  // A porta estreita: fora das funções, essas colunas não se mexem.
+  await esperaErro(
+    'o admin não muda a data de exclusão por fora',
+    `update public.oficinas set excluir_em = now() + interval '999 days' where id = '${ID.oficinaA}'`,
+  )
+  await esperaErro(
+    'nem estende o próprio prazo de acesso',
+    `update public.oficinas set acesso_ate = current_date + 3650 where id = '${ID.oficinaA}'`,
+  )
+
+  await db.query('select public.desistir_do_encerramento()')
+  await esperaLinhas(
+    'e dá para desistir dentro do prazo',
+    `select count(*) as n from public.oficinas where id = '${ID.oficinaA}' and excluir_em is null`,
+    1,
+  )
+}
+
 async function testarPerfisNaFase2() {
   console.log('\n\x1b[1mQuem alcança o que na Fase 2\x1b[0m')
 
@@ -1951,6 +2106,8 @@ async function main() {
     await testarLimitesDePlano()
     await testarOficinaSuspensa()
     await testarMarcaDaOficina()
+    await testarSituacaoDerivada()
+    await testarEncerramentoDaConta()
     await testarPerfisNaFase2()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
