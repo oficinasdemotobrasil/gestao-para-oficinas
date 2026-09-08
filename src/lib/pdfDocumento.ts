@@ -156,7 +156,19 @@ export async function cabecalho(
   let recuoDoTexto = 0
   if (logo) {
     const larguraDoLogo = Math.min(34, (logo.largura / logo.altura) * ALTURA_DO_LOGO)
-    doc.addImage(logo.dados, 'PNG', MARGEM, y + 1, larguraDoLogo, ALTURA_DO_LOGO)
+    // 'FAST' comprime a imagem dentro do PDF. Sem isto o jsPDF guarda o PNG
+    // cru — um logo de 512px vira 1 MB de arquivo, e a oficina manda isso por
+    // WhatsApp com a internet da rua.
+    doc.addImage(
+      logo.dados,
+      'PNG',
+      MARGEM,
+      y + 1,
+      larguraDoLogo,
+      ALTURA_DO_LOGO,
+      'logo-da-oficina',
+      'FAST',
+    )
     recuoDoTexto = larguraDoLogo + 5
   }
 
