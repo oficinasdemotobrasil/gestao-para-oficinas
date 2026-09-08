@@ -49,6 +49,25 @@ const admin = createClient(URL, SERVICE_ROLE, {
 })
 
 const marca = Date.now()
+const HOJE = new Date().toISOString().slice(0, 10)
+
+/**
+ * Toda oficina criada por este teste, registrada no instante em que nasce.
+ *
+ * Existe separada do array de cenários porque o cenário só fica pronto no fim
+ * de `montarOficina`: se algo quebrar no meio, a oficina já existe no banco e
+ * não estaria em lista nenhuma.
+ */
+const criadasNoCaminho: string[] = []
+
+/**
+ * Toda conta criada no Auth, pelo mesmo motivo.
+ *
+ * Sem esta lista, uma conta criada logo antes de a linha em `usuarios` falhar
+ * fica órfã: não pertence a oficina nenhuma, então nenhuma limpeza baseada em
+ * oficina a encontra. Foram sete assim.
+ */
+const contasNoCaminho: string[] = []
 const SENHA = `Teste!${randomUUID().slice(0, 12)}`
 
 let passou = 0
@@ -86,16 +105,27 @@ async function criarUsuario(email: string): Promise<string> {
     email_confirm: true,
   })
   if (error || !data.user) throw new Error(`Não criou ${email}: ${error?.message}`)
+  contasNoCaminho.push(data.user.id)
   return data.user.id
 }
 
 async function montarOficina(rotulo: string, placa: string): Promise<Cenario> {
   const { data: oficina, error: erroOficina } = await admin
     .from('oficinas')
-    .insert({ nome: `[teste ${marca}] Oficina ${rotulo}` })
+    // Plano completo de propósito: o cenário tem três perfis (admin, vendedor,
+    // mecânico) e o gratuito permite duas pessoas. O limite de plano tem teste
+    // próprio no validar:banco; aqui ele só atrapalharia o que se quer provar.
+    //
+    // Foi assim que este teste ficou quebrado sem ninguém notar: a migration
+    // 0039 criou o limite, e o cenário daqui passou a esbarrar nele.
+    .insert({ nome: `[teste ${marca}] Oficina ${rotulo}`, plano: 'completo' })
     .select()
     .single()
   if (erroOficina) throw erroOficina
+  // Registra ANTES de continuar. Se o preparo quebrar da próxima linha em
+  // diante, esta oficina já está na lista de limpeza — foi assim que duas
+  // ficaram no banco do cliente quando o limite de plano derrubou o cenário.
+  criadasNoCaminho.push(oficina.id)
 
   const emails = ['admin', 'vendedor', 'mecanico'].map(
     (p) => `teste.isolamento.${marca}.${rotulo.toLowerCase()}.${p}@example.com`,
@@ -473,7 +503,104 @@ async function testar(a: Cenario, b: Cenario) {
   ])
 }
 
-async function limpar(cenarios: Cenario[]) {
+/**
+ * O administrador da plataforma, contra o aplicativo do cliente.
+ *
+ * Este é o teste que a opção A da Fase 4 prometeu. A administração ficou num
+ * aplicativo separado justamente para o app do cliente não ganhar nenhum
+ * perfil, rota ou condição capaz de ver outra oficina. A prova disso é aqui:
+ * uma conta de plataforma, com a mesma chave publicável que o app usa, não
+ * enxerga uma linha de dado de negócio de oficina nenhuma.
+ *
+ * O que a torna cega não é uma regra a mais — é a ausência de uma linha em
+ * `usuarios`. Sem ela, `oficina_do_usuario()` devolve nulo, e as quarenta e
+ * poucas políticas fecham juntas, sem exceção escrita para ninguém.
+ */
+async function testarAdminDaPlataforma(a: Cenario, b: Cenario): Promise<string> {
+  console.log('\n\x1b[1mO administrador da plataforma dentro do app do cliente\x1b[0m')
+
+  const email = `plataforma.isolamento.${marca}@example.com`
+  const { data: conta, error: eConta } = await admin.auth.admin.createUser({
+    email, password: SENHA, email_confirm: true,
+  })
+  if (eConta || !conta.user) throw new Error(`conta de plataforma: ${eConta?.message}`)
+  const { error: eLista } = await admin
+    .from('admins_plataforma')
+    .insert({ usuario_id: conta.user.id, observacao: 'teste de isolamento' })
+  if (eLista) throw new Error(`admins_plataforma: ${eLista.message}`)
+
+  const plataforma = await entrarComo(email)
+
+  // 1. Não tem oficina. É daqui que vem toda a cegueira.
+  const { data: euSou } = await plataforma.from('usuarios').select('id, oficina_id')
+  ;(euSou?.length ?? 0) === 0
+    ? ok('não tem linha em usuarios — não pertence a oficina nenhuma')
+    : erro('vínculo', `apareceram ${euSou?.length} linha(s) em usuarios`)
+
+  const { data: qualOficina } = await plataforma.rpc('oficina_do_usuario')
+  qualOficina === null
+    ? ok('e oficina_do_usuario() devolve nulo')
+    : erro('oficina_do_usuario', `devolveu ${qualOficina}`)
+
+  // 2. Nada de dado de negócio, de nenhuma das duas oficinas.
+  await esperaLinhas('não lê cliente nenhum', plataforma.from('clientes').select('id'), 0)
+  await esperaLinhas('não lê moto nenhuma', plataforma.from('motos').select('id'), 0)
+  await esperaLinhas('não lê ordem de serviço', plataforma.from('ordens_servico').select('id'), 0)
+  await esperaLinhas('não lê item de ordem', plataforma.from('os_itens').select('id'), 0)
+  await esperaLinhas('não lê orçamento', plataforma.from('orcamentos').select('id'), 0)
+  await esperaLinhas('não lê produto', plataforma.from('produtos').select('id'), 0)
+  await esperaLinhas('não lê o estoque', plataforma.from('movimentacoes_estoque').select('id'), 0)
+  await esperaLinhas('não lê conta a receber', plataforma.from('contas_receber').select('id'), 0)
+  await esperaLinhas('não lê conta a pagar', plataforma.from('contas_pagar').select('id'), 0)
+  await esperaLinhas('não lê nota fiscal', plataforma.from('notas_fiscais_entrada').select('id'), 0)
+  await esperaLinhas('não lê a equipe de ninguém', plataforma.from('usuarios').select('id'), 0)
+  await esperaLinhas('não lê a linha de oficina nenhuma', plataforma.from('oficinas').select('id'), 0)
+
+  // 3. Nem pelas funções que existem para o app.
+  await esperaBloqueio(
+    'o painel da oficina não responde para ele',
+    plataforma.rpc('painel', { p_de: HOJE, p_ate: HOJE }) as never,
+  )
+  await esperaBloqueio(
+    'nem o histórico da placa da oficina A',
+    plataforma.rpc('historico_da_placa', { p_placa: 'TST1A23' }) as never,
+  )
+  const { error: eExportar } = await plataforma.rpc('exportar_dados_da_oficina')
+  eExportar
+    ? ok('e exportar dados não funciona para quem não tem oficina', eExportar.message.slice(0, 45))
+    : erro('exportação', 'a função respondeu para um administrador de plataforma')
+
+  // 4. Escrever, muito menos.
+  await esperaBloqueio(
+    'não cadastra cliente em oficina nenhuma',
+    plataforma.from('clientes').insert({ oficina_id: a.oficinaId, nome: 'Invasor' }).select() as never,
+  )
+  await esperaBloqueio(
+    'nem muda o plano da oficina B por dentro do app',
+    plataforma.from('oficinas').update({ plano: 'completo' }).eq('id', b.oficinaId).select() as never,
+  )
+
+  // 5. As funções da plataforma só respondem à service_role, nunca a um token.
+  //    `security definer` decide com que poder a função roda, não quem chama.
+  const { error: ePlat } = await plataforma.rpc('plataforma_oficinas')
+  ePlat
+    ? ok('a lista da plataforma não responde nem a ele com o token do navegador', ePlat.message.slice(0, 45))
+    : erro('plataforma_oficinas', 'respondeu para um token de usuário')
+
+  // 6. E o caminho do contrário: quem é de uma oficina não vê quem administra.
+  const adminA = await entrarComo(a.emails[0])
+  await esperaLinhas(
+    'e o admin de uma oficina não enxerga a lista de administradores',
+    adminA.from('admins_plataforma').select('usuario_id'),
+    0,
+  )
+  await adminA.auth.signOut()
+  await plataforma.auth.signOut()
+
+  return conta.user.id
+}
+
+async function limpar(cenarios: Cenario[], contaDePlataforma: string | null) {
   console.log('\n\x1b[1mLimpeza\x1b[0m')
 
   // Usa a mesma limpeza dos outros testes, em vez de uma lista de tabelas
@@ -481,19 +608,68 @@ async function limpar(cenarios: Cenario[]) {
   // extrato de estoque, e o teste dizia "removidos" enquanto deixava oito
   // oficinas no banco do cliente.
   const problemas: string[] = []
-  for (const c of cenarios) {
-    problemas.push(...(await limparOficina(admin, c.oficinaId)))
-    for (const id of [c.adminId, c.vendedorId, c.mecanicoId]) {
-      const { error } = await admin.auth.admin.deleteUser(id)
-      if (error) problemas.push(`auth ${id}: ${error.message}`)
+
+  // Todas as oficinas criadas, e não só as que viraram cenário completo.
+  const paraApagar = new Set([
+    ...criadasNoCaminho,
+    ...cenarios.map((c) => c.oficinaId),
+  ])
+
+  for (const oficinaId of paraApagar) {
+    // A equipe é lida do banco, e não da estrutura do cenário: numa quebra no
+    // meio do preparo, o cenário não existe e as pessoas já foram criadas.
+    const { data: equipe } = await admin
+      .from('usuarios').select('id').eq('oficina_id', oficinaId)
+    problemas.push(...(await limparOficina(admin, oficinaId)))
+    const { error: eOficina } = await admin.from('oficinas').delete().eq('id', oficinaId)
+    if (eOficina) problemas.push(`oficina ${oficinaId}: ${eOficina.message}`)
+    for (const p of equipe ?? []) {
+      const { error } = await admin.auth.admin.deleteUser(p.id)
+      if (error) problemas.push(`auth ${p.id}: ${error.message}`)
     }
+  }
+
+  // As contas criadas no caminho, inclusive as que nunca chegaram a virar
+  // linha em usuarios — essas nenhuma limpeza por oficina encontraria.
+  for (const id of contasNoCaminho) {
+    const { error } = await admin.auth.admin.deleteUser(id)
+    // "não encontrada" é o caso normal: ela já saiu junto com a oficina.
+    if (error && !/not found|não encontrad/i.test(error.message)) {
+      problemas.push(`conta ${id}: ${error.message}`)
+    }
+  }
+
+  // E varre o que rodadas anteriores tenham deixado. Não é zelo excessivo:
+  // este banco é o do cliente, e sobra de teste aqui é sujeira na casa dele.
+  const { data: restos } = await admin
+    .from('oficinas').select('id, nome').like('nome', '[teste %')
+  for (const resto of restos ?? []) {
+    const { data: equipe } = await admin
+      .from('usuarios').select('id').eq('oficina_id', resto.id)
+    await limparOficina(admin, resto.id)
+    await admin.from('oficinas').delete().eq('id', resto.id)
+    for (const p of equipe ?? []) await admin.auth.admin.deleteUser(p.id)
+    console.log(`  \x1b[33m·\x1b[0m sobra de uma rodada anterior removida: ${resto.nome}`)
+  }
+
+  // A conta de plataforma criada para o teste sai junto. Deixá-la para trás
+  // seria pior do que deixar uma oficina: é uma chave da casa toda.
+  if (contaDePlataforma) {
+    await admin.from('admins_plataforma').delete().eq('usuario_id', contaDePlataforma)
+    const { error } = await admin.auth.admin.deleteUser(contaDePlataforma)
+    if (error) problemas.push(`conta de plataforma: ${error.message}`)
+    const { data: aindaAdmin } = await admin
+      .from('admins_plataforma')
+      .select('usuario_id')
+      .eq('usuario_id', contaDePlataforma)
+    if ((aindaAdmin?.length ?? 0) > 0) problemas.push('a conta de plataforma continua na lista')
   }
 
   // E confere de verdade, em vez de anunciar sucesso por ter chegado ao fim.
   const { data: sobrou } = await admin
     .from('oficinas')
     .select('nome')
-    .in('id', cenarios.map((c) => c.oficinaId))
+    .like('nome', '[teste %')
 
   if (problemas.length > 0 || (sobrou?.length ?? 0) > 0) {
     erro(
@@ -510,6 +686,7 @@ async function main() {
   console.log(`  Projeto: ${URL}`)
 
   const cenarios: Cenario[] = []
+  let contaDePlataforma: string | null = null
   try {
     console.log('\n\x1b[1mMontando o cenário\x1b[0m')
     const a = await montarOficina('A', 'TST1A23')
@@ -519,10 +696,11 @@ async function main() {
     ok('duas oficinas com equipe, cliente, moto, produto, serviço e financeiro')
 
     await testar(a, b)
+    contaDePlataforma = await testarAdminDaPlataforma(a, b)
   } catch (e) {
     erro('execução do teste', (e as Error).message)
   } finally {
-    await limpar(cenarios).catch((e) =>
+    await limpar(cenarios, contaDePlataforma).catch((e) =>
       erro('limpeza', `sobrou dado de teste no banco: ${(e as Error).message}`),
     )
   }
