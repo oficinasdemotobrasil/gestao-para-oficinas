@@ -33,7 +33,9 @@ export function AvisoOffline() {
   return (
     <div
       role="status"
-      className="sticky top-0 z-30 flex items-center justify-center gap-2 bg-atencao px-4 py-2 text-claro"
+      // Recuo igual ao do conteúdo: o menu lateral é fixo e cobre a esquerda
+      // desta faixa. Ver AvisoDeSituacao.
+      className="sticky top-0 z-30 flex items-center justify-center gap-2 bg-atencao px-4 py-2 text-claro tablet:pl-menu-estreito desktop:pl-menu"
     >
       <WifiOff aria-hidden size={16} />
       <span className="text-apoio font-medium">

@@ -66,7 +66,11 @@ export function AvisoDeSituacao() {
   return (
     <div
       role="status"
-      className={`sticky top-0 z-30 flex items-center justify-center gap-2 px-4 py-2 text-center ${aviso.tom}`}
+      // O recuo à esquerda é o mesmo do conteúdo: o menu lateral é fixo e fica
+      // POR CIMA desta faixa, então sem ele o texto centralizado começa atrás
+      // do menu e as primeiras letras somem. No celular não há menu, e o recuo
+      // não existe.
+      className={`sticky top-0 z-30 flex items-center justify-center gap-2 px-4 py-2 text-center tablet:pl-menu-estreito desktop:pl-menu ${aviso.tom}`}
     >
       <Icone aria-hidden size={16} className="shrink-0" />
       <span className="text-apoio font-medium">{aviso.texto}</span>

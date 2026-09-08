@@ -132,6 +132,20 @@ sempre.
 
 ---
 
+## Faixa fixa desvia do menu lateral
+
+Toda faixa `sticky` no topo (situação da oficina, aviso de offline) ocupa a
+largura inteira, mas o menu lateral é `fixed` e fica **por cima** dela. Sem
+recuo, o texto centralizado começa atrás do menu e as primeiras letras somem —
+e some sem erro nenhum, só no pixel.
+
+Por isso essas faixas levam o mesmo recuo do conteúdo:
+`tablet:pl-menu-estreito desktop:pl-menu`. No celular não há menu, e o recuo
+não existe.
+
+Foi assim que "Acesso bloqueado por falta de pagamento" virou "esso bloqueado
+por falta de pagamento" na tela — nenhum teste pegaria.
+
 ## A cor da marca da oficina
 
 Cada oficina escolhe uma cor, e ela substitui o amarelo **apenas nos destaques**:
