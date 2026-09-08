@@ -26,6 +26,10 @@ grant usage on schema auth to anon, authenticated, service_role;
 create table if not exists auth.users (
   id uuid primary key default gen_random_uuid(),
   email text,
+  -- O painel da plataforma usa esta coluna para saber quem sumiu (0046). Ela
+  -- existe no Supabase de verdade; se faltar aqui, o teste deixa de exercer o
+  -- caminho que roda em produção.
+  last_sign_in_at timestamptz,
   criado_em timestamptz not null default now()
 );
 

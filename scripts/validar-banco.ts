@@ -2001,6 +2001,66 @@ async function testarEncerramentoDaConta() {
   )
 }
 
+async function testarPainelDaPlataforma() {
+  console.log('\n\x1b[1mO painel da plataforma enxerga todas — e só ele\x1b[0m')
+
+  // A parte que importa: quem está logado numa oficina não alcança estas
+  // funções. `security definer` decide com que poder a função roda, não quem
+  // pode chamá-la — sem o revoke, qualquer vendedor veria a lista da plataforma.
+  await logarComo(ID.adminA)
+  await esperaErro('o admin de uma oficina não lista as oficinas', 'select * from public.plataforma_oficinas()')
+  await esperaErro('nem lê os indicadores do negócio', 'select public.plataforma_indicadores()')
+  await esperaErro('nem mexe no prazo de ninguém',
+    `select public.plataforma_definir_prazo('${ID.oficinaB}', current_date + 365)`)
+
+  await logarComo(ID.vendedorA)
+  await esperaErro('o vendedor também não', 'select * from public.plataforma_oficinas()')
+
+  // E o mesmo vale para quem é admin da plataforma no aplicativo do cliente:
+  // ele não tem linha em usuarios, então nem sessão de oficina tem.
+  await comoAdministradorDoBanco()
+
+  const linhas = await db.query<{ nome: string; pessoas: number; situacao: string }>(
+    'select nome, pessoas, situacao from public.plataforma_oficinas() order by nome',
+  )
+  linhas.rows.length === 2
+    ? ok(`a plataforma lista as duas oficinas (${linhas.rows.map((l) => `${l.nome}: ${l.pessoas} pessoas, ${l.situacao}`).join(' | ')})`)
+    : erro('lista da plataforma', `${linhas.rows.length} linha(s)`)
+
+  const indicadores = await db.query<{ j: Record<string, unknown> }>(
+    'select public.plataforma_indicadores() as j',
+  )
+  const j = indicadores.rows[0].j
+  Number(j.total) === 2 && j.por_situacao && j.receita_mensal !== undefined
+    ? ok(`os indicadores respondem (total ${j.total}, receita ${j.receita_mensal})`)
+    : erro('indicadores', JSON.stringify(j))
+
+  // Estender teste, liberar bloqueio e dar cortesia são a mesma operação.
+  await db.query(`select public.plataforma_definir_prazo('${ID.oficinaA}', current_date - 30)`)
+  const bloqueada = await db.query<{ s: string }>(
+    `select public.situacao_da_oficina('${ID.oficinaA}') as s`,
+  )
+  bloqueada.rows[0].s === 'bloqueada'
+    ? ok('um prazo no passado bloqueia')
+    : erro('prazo no passado', bloqueada.rows[0].s)
+
+  await db.query(`select public.plataforma_definir_prazo('${ID.oficinaA}', null)`)
+  const liberada = await db.query<{ s: string }>(
+    `select public.situacao_da_oficina('${ID.oficinaA}') as s`,
+  )
+  liberada.rows[0].s === 'ativa'
+    ? ok('e prazo nulo é a cortesia: volta a valer sem vencimento')
+    : erro('cortesia', liberada.rows[0].s)
+
+  // Privacidade: a lista da plataforma não carrega dado de negócio.
+  const colunas = Object.keys(linhas.rows[0] ?? {})
+  const proibidas = ['cliente', 'valor', 'total', 'telefone', 'cpf', 'email']
+  const vazou = colunas.filter((c) => proibidas.some((p) => c.includes(p)))
+  vazou.length === 0
+    ? ok('e não carrega nome de cliente, valor nem contato')
+    : erro('privacidade', `colunas suspeitas: ${vazou.join(', ')}`)
+}
+
 async function testarPerfisNaFase2() {
   console.log('\n\x1b[1mQuem alcança o que na Fase 2\x1b[0m')
 
@@ -2108,6 +2168,7 @@ async function main() {
     await testarMarcaDaOficina()
     await testarSituacaoDerivada()
     await testarEncerramentoDaConta()
+    await testarPainelDaPlataforma()
     await testarPerfisNaFase2()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a

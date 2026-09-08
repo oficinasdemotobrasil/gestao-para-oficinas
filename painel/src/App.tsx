@@ -8,9 +8,15 @@ import {
   mudarSituacao,
   ROTULO_DO_PLANO,
   ROTULO_DA_SITUACAO,
+  definirPrazo,
+  dinheiro,
+  ROTULO_CALCULADO,
+  TOM_DA_SITUACAO,
+  type Indicadores,
   type OficinaNaLista,
   type Plano,
   type Situacao,
+  type SituacaoCalculada,
 } from './plataforma'
 
 const PLANOS: Plano[] = ['gratuito', 'essencial', 'completo']
@@ -240,21 +246,63 @@ function NovaOficina({ aoCriar }: { aoCriar: () => void }) {
   )
 }
 
-const CORES_DA_SITUACAO: Record<Situacao, string> = {
-  ativa: 'bg-sucesso-fundo text-sucesso',
-  suspensa: 'bg-atencao-fundo text-atencao',
-  cancelada: 'bg-erro-fundo text-erro',
+/** "há 3 dias" diz mais do que uma data: o que importa é o tempo sumido. */
+function desdeQuando(iso: string | null): { texto: string; sumido: boolean } {
+  if (!iso) return { texto: 'Nunca entrou', sumido: true }
+  const dias = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
+  if (dias <= 0) return { texto: 'Hoje', sumido: false }
+  if (dias === 1) return { texto: 'Ontem', sumido: false }
+  return { texto: `Há ${dias} dias`, sumido: dias >= 14 }
+}
+
+/** Um número grande com o rótulo embaixo. É a leitura de relance da plataforma. */
+function Indicador({
+  rotulo,
+  valor,
+  detalhe,
+}: {
+  rotulo: string
+  valor: string | number
+  detalhe?: string
+}) {
+  return (
+    <div className="rounded-card bg-superficie p-4">
+      <p className="text-xs text-claro-secundario">{rotulo}</p>
+      <p className="pt-1 text-2xl font-bold text-claro">{valor}</p>
+      {detalhe && <p className="text-xs text-claro-secundario">{detalhe}</p>}
+    </div>
+  )
+}
+
+const PRAZOS = [
+  { rotulo: 'Sem prazo (cortesia)', dias: null },
+  { rotulo: 'Mais 7 dias', dias: 7 },
+  { rotulo: 'Mais 14 dias', dias: 14 },
+  { rotulo: 'Mais 30 dias', dias: 30 },
+]
+
+function emDias(dias: number | null): string | null {
+  if (dias === null) return null
+  const d = new Date()
+  d.setDate(d.getDate() + dias)
+  return d.toISOString().slice(0, 10)
 }
 
 function Lista({ sessao }: { sessao: Session }) {
   const [oficinas, setOficinas] = useState<OficinaNaLista[] | null>(null)
+  const [indicadores, setIndicadores] = useState<Indicadores | null>(null)
   const [erro, setErro] = useState('')
   const [mexendo, setMexendo] = useState<string | null>(null)
+  const [filtroSituacao, setFiltroSituacao] = useState<string>('')
+  const [filtroPlano, setFiltroPlano] = useState<string>('')
+  const [busca, setBusca] = useState('')
 
   const carregar = useCallback(async () => {
     setErro('')
     try {
-      setOficinas(await listarOficinas())
+      const r = await listarOficinas()
+      setOficinas(r.oficinas)
+      setIndicadores(r.indicadores)
     } catch (e) {
       setErro((e as Error).message)
     }
@@ -277,8 +325,18 @@ function Lista({ sessao }: { sessao: Session }) {
     }
   }
 
+  const visiveis = (oficinas ?? []).filter(
+    (o) =>
+      (!filtroSituacao || o.situacao === filtroSituacao) &&
+      (!filtroPlano || o.plano === filtroPlano) &&
+      (!busca.trim() ||
+        `${o.nome} ${o.cidade ?? ''}`.toLowerCase().includes(busca.trim().toLowerCase())),
+  )
+
+  const porSituacao = indicadores?.por_situacao ?? {}
+
   return (
-    <div className="mx-auto max-w-6xl px-5 py-8">
+    <div className="mx-auto max-w-7xl px-5 py-8">
       <header className="flex flex-wrap items-center justify-between gap-4 pb-6">
         <div>
           <h1 className="text-2xl font-bold text-escuro">Oficinas</h1>
@@ -304,80 +362,184 @@ function Lista({ sessao }: { sessao: Session }) {
         </p>
       )}
 
+      {/* Os números do negócio ------------------------------------------------ */}
+      {indicadores && (
+        <div className="grid grid-cols-2 gap-3 pb-6 tablet:grid-cols-3 desktop:grid-cols-6">
+          <Indicador
+            rotulo="Receita mensal"
+            valor={dinheiro(Number(indicadores.receita_mensal))}
+            detalhe="só oficinas ativas"
+          />
+          <Indicador rotulo="Ativas" valor={porSituacao.ativa ?? 0} />
+          <Indicador rotulo="Em teste" valor={porSituacao.teste ?? 0} />
+          <Indicador
+            rotulo="Atrasadas"
+            valor={(porSituacao.atrasada ?? 0) + (porSituacao.bloqueada ?? 0)}
+            detalhe={`${porSituacao.bloqueada ?? 0} já bloqueada(s)`}
+          />
+          <Indicador rotulo="Novas no mês" valor={indicadores.novas_no_mes} />
+          <Indicador
+            rotulo="Saindo"
+            valor={indicadores.saindo}
+            detalhe={`${indicadores.encerramentos_no_mes} pedido(s) no mês`}
+          />
+        </div>
+      )}
+
+      {/* Filtros --------------------------------------------------------------- */}
+      <div className="flex flex-wrap items-center gap-3 pb-4">
+        <input
+          type="search"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Nome ou cidade"
+          aria-label="Buscar oficina"
+          className="h-11 min-w-[14rem] flex-1 rounded-controle border border-borda-escura bg-transparent px-4 text-sm text-escuro placeholder:text-escuro-secundario"
+        />
+        <select
+          value={filtroSituacao}
+          onChange={(e) => setFiltroSituacao(e.target.value)}
+          aria-label="Filtrar por situação"
+          className="h-11 rounded-controle border border-borda-escura bg-transparent px-3 text-sm text-escuro"
+        >
+          <option value="">Todas as situações</option>
+          {(Object.keys(ROTULO_CALCULADO) as SituacaoCalculada[]).map((s) => (
+            <option key={s} value={s}>
+              {ROTULO_CALCULADO[s]}
+            </option>
+          ))}
+        </select>
+        <select
+          value={filtroPlano}
+          onChange={(e) => setFiltroPlano(e.target.value)}
+          aria-label="Filtrar por plano"
+          className="h-11 rounded-controle border border-borda-escura bg-transparent px-3 text-sm text-escuro"
+        >
+          <option value="">Todos os planos</option>
+          {PLANOS.map((p) => (
+            <option key={p} value={p}>
+              {ROTULO_DO_PLANO[p]}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {oficinas === null ? (
         <p className="text-escuro-secundario">Carregando…</p>
-      ) : oficinas.length === 0 ? (
+      ) : visiveis.length === 0 ? (
         <p className="text-escuro-secundario">
-          Nenhuma oficina ainda. Crie a primeira no botão acima.
+          {oficinas.length === 0
+            ? 'Nenhuma oficina ainda. Crie a primeira no botão acima.'
+            : 'Nenhuma oficina com esses filtros.'}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-card bg-superficie">
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-borda-clara">
-                {['Oficina', 'Pessoas', 'Plano', 'Situação', 'Desde'].map((t) => (
-                  <th key={t} className="px-4 py-3 text-sm font-medium text-claro-secundario">
-                    {t}
-                  </th>
-                ))}
+                {['Oficina', 'Uso no mês', 'Último acesso', 'Plano', 'Situação', 'Acesso até'].map(
+                  (t) => (
+                    <th key={t} className="px-4 py-3 text-sm font-medium text-claro-secundario">
+                      {t}
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
             <tbody>
-              {oficinas.map((o) => (
-                <tr key={o.id} className="border-b border-borda-clara last:border-b-0">
-                  <td className="px-4 py-3">
-                    <span className="block font-medium text-claro">{o.nome}</span>
-                    <span className="block text-xs text-claro-secundario">
-                      {[o.cidade, o.telefone].filter(Boolean).join(' · ') || '—'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-claro">{o.pessoas}</td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={o.plano}
-                      disabled={mexendo === o.id}
-                      onChange={(e) =>
-                        void agir(o.id, () => mudarPlano(o.id, e.target.value as Plano))
-                      }
-                      className="h-9 rounded-controle border border-borda-clara px-2 text-sm text-claro"
+              {visiveis.map((o) => {
+                const acesso = desdeQuando(o.ultimo_acesso)
+                return (
+                  <tr key={o.id} className="border-b border-borda-clara last:border-b-0">
+                    <td className="px-4 py-3">
+                      <span className="block font-medium text-claro">{o.nome}</span>
+                      <span className="block text-xs text-claro-secundario">
+                        {o.cidade || 'sem cidade'} · desde {data(o.criado_em)}
+                        {o.excluir_em && ' · pediu para sair'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-claro">
+                      {o.ordens_no_mes} OS · {o.orcamentos_no_mes} orç.
+                      <span className="block text-xs text-claro-secundario">
+                        {o.pessoas} {o.pessoas === 1 ? 'pessoa' : 'pessoas'}
+                      </span>
+                    </td>
+                    <td
+                      className={`px-4 py-3 text-sm ${acesso.sumido ? 'font-semibold text-erro' : 'text-claro'}`}
                     >
-                      {PLANOS.map((p) => (
-                        <option key={p} value={p}>
-                          {ROTULO_DO_PLANO[p]}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`mr-2 inline-block rounded-badge px-2 py-1 text-xs font-medium ${CORES_DA_SITUACAO[o.status]}`}
-                    >
-                      {ROTULO_DA_SITUACAO[o.status]}
-                    </span>
-                    <select
-                      value={o.status}
-                      disabled={mexendo === o.id}
-                      onChange={(e) =>
-                        void agir(o.id, () => mudarSituacao(o.id, e.target.value as Situacao))
-                      }
-                      className="h-9 rounded-controle border border-borda-clara px-2 text-sm text-claro"
-                    >
-                      {SITUACOES.map((s) => (
-                        <option key={s} value={s}>
-                          {ROTULO_DA_SITUACAO[s]}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-claro-secundario">{data(o.criado_em)}</td>
-                </tr>
-              ))}
+                      {acesso.texto}
+                    </td>
+                    <td className="px-4 py-3">
+                      <select
+                        value={o.plano}
+                        disabled={mexendo === o.id}
+                        onChange={(e) =>
+                          void agir(o.id, () => mudarPlano(o.id, e.target.value as Plano))
+                        }
+                        className="h-9 rounded-controle border border-borda-clara px-2 text-sm text-claro"
+                      >
+                        {PLANOS.map((p) => (
+                          <option key={p} value={p}>
+                            {ROTULO_DO_PLANO[p]}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`mr-2 inline-block rounded-badge px-2 py-1 text-xs font-medium ${TOM_DA_SITUACAO[o.situacao]}`}
+                      >
+                        {ROTULO_CALCULADO[o.situacao]}
+                      </span>
+                      <select
+                        value={o.status}
+                        disabled={mexendo === o.id}
+                        onChange={(e) =>
+                          void agir(o.id, () => mudarSituacao(o.id, e.target.value as Situacao))
+                        }
+                        className="h-9 rounded-controle border border-borda-clara px-2 text-sm text-claro"
+                      >
+                        {SITUACOES.map((s) => (
+                          <option key={s} value={s}>
+                            {ROTULO_DA_SITUACAO[s]}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="block text-sm text-claro">
+                        {o.acesso_ate ? data(o.acesso_ate) : 'Sem prazo'}
+                      </span>
+                      <select
+                        value=""
+                        disabled={mexendo === o.id}
+                        aria-label={`Mudar o prazo de ${o.nome}`}
+                        onChange={(e) => {
+                          const escolhido = PRAZOS[Number(e.target.value)]
+                          if (!escolhido) return
+                          void agir(o.id, () => definirPrazo(o.id, emDias(escolhido.dias)))
+                        }}
+                        className="mt-1 h-9 rounded-controle border border-borda-clara px-2 text-xs text-claro"
+                      >
+                        <option value="">Mudar prazo…</option>
+                        {PRAZOS.map((p, i) => (
+                          <option key={p.rotulo} value={i}>
+                            {p.rotulo}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
       )}
 
       <p className="pt-6 text-xs text-escuro-secundario">
+        A situação em destaque é a que vale hoje, calculada das datas — pode ser
+        diferente do que está no seletor, que guarda o que foi decidido à mão.
         Suspender deixa a oficina em modo consulta: ela continua vendo o histórico
         e para de registrar. Rebaixar o plano não desativa ninguém que já tem acesso.
       </p>

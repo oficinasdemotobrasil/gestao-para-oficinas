@@ -32,11 +32,17 @@ type Plano = (typeof PLANOS)[number]
 type Situacao = (typeof SITUACOES)[number]
 
 interface Corpo {
-  acao?: 'listar' | 'criar' | 'plano' | 'situacao'
+  acao?: 'listar' | 'criar' | 'plano' | 'situacao' | 'prazo'
   oficina_id?: string
   plano?: Plano
   situacao?: Situacao
   motivo?: string
+  /**
+   * Para 'prazo': até quando o acesso vale, em aaaa-mm-dd. Nulo é sem prazo —
+   * é assim que se dá cortesia. Estender teste, liberar bloqueio e cortesia
+   * são a mesma operação vista de ângulos diferentes.
+   */
+  acesso_ate?: string | null
   // Só para 'criar'.
   nome?: string
   admin_nome?: string
@@ -93,28 +99,39 @@ Deno.serve(async (req: Request) => {
   }
 
   // Listar --------------------------------------------------------------------
+  //
+  // A conta de uso (pessoas, ordens do mês, orçamentos do mês, último acesso)
+  // é feita no banco, numa consulta só. Trazer as tabelas para cá e somar em
+  // JavaScript funcionaria com cinco oficinas e não com quinhentas.
+  //
+  // As funções plataforma_* têm o execute revogado de authenticated e anon
+  // (migration 0046): só a service_role chega nelas.
   if (corpo.acao === 'listar') {
-    const { data: oficinas, error } = await servico
-      .from('oficinas')
-      .select('id, nome, telefone, cidade, plano, status, criado_em')
-      .order('criado_em', { ascending: false })
-    if (error) return responder({ erro: error.message }, 500)
+    const [lista, indicadores] = await Promise.all([
+      servico.rpc('plataforma_oficinas'),
+      servico.rpc('plataforma_indicadores'),
+    ])
+    if (lista.error) return responder({ erro: lista.error.message }, 500)
+    if (indicadores.error) return responder({ erro: indicadores.error.message }, 500)
 
-    // Quantas pessoas com acesso cada uma tem. Numa consulta só, e não uma por
-    // oficina: com cem clientes seriam cem idas ao banco para montar uma lista.
-    const { data: pessoas } = await servico
-      .from('usuarios')
-      .select('oficina_id, ativo')
+    return responder({ oficinas: lista.data ?? [], indicadores: indicadores.data ?? {} })
+  }
 
-    const porOficina = new Map<string, number>()
-    for (const p of pessoas ?? []) {
-      if (!p.ativo) continue
-      porOficina.set(p.oficina_id, (porOficina.get(p.oficina_id) ?? 0) + 1)
+  // Prazo de acesso -------------------------------------------------------------
+  // Estender teste, liberar um bloqueio e dar cortesia são a mesma coisa: mudar
+  // até quando o acesso vale. Nulo é sem prazo.
+  if (corpo.acao === 'prazo') {
+    if (!corpo.oficina_id) return responder({ erro: 'Falta a oficina.' }, 400)
+    const ate = corpo.acesso_ate ?? null
+    if (ate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(ate)) {
+      return responder({ erro: 'Data inválida.' }, 400)
     }
-
-    return responder({
-      oficinas: (oficinas ?? []).map((o) => ({ ...o, pessoas: porOficina.get(o.id) ?? 0 })),
+    const { error } = await servico.rpc('plataforma_definir_prazo', {
+      p_oficina: corpo.oficina_id,
+      p_acesso_ate: ate,
     })
+    if (error) return responder({ erro: error.message }, 400)
+    return responder({ ok: true, acesso_ate: ate })
   }
 
   // Criar oficina com o primeiro administrador ---------------------------------
