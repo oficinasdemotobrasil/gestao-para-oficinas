@@ -2061,6 +2061,101 @@ async function testarPainelDaPlataforma() {
     : erro('privacidade', `colunas suspeitas: ${vazou.join(', ')}`)
 }
 
+async function testarAvisoDeTeste() {
+  console.log('\n\x1b[1mO aviso de fim de teste, e o que acontece quando ele falha\x1b[0m')
+
+  await comoAdministradorDoBanco()
+  await db.query(`delete from public.emails_enviados where oficina_id = '${ID.oficinaA}'`)
+  await db.query(`delete from public.assinaturas where oficina_id = '${ID.oficinaA}'`)
+  await db.query(`update public.oficinas set status = 'ativa', acesso_ate = current_date + 3 where id = '${ID.oficinaA}'`)
+  await db.query(`update public.oficinas set acesso_ate = null where id = '${ID.oficinaB}'`)
+
+  const avisar = async (marco: number) =>
+    (await db.query<{ oficina_id: string; dias_restantes: number; referencia: string }>(
+      `select oficina_id, dias_restantes, referencia from public.oficinas_para_avisar(${marco})`,
+    )).rows
+
+  let lista = await avisar(3)
+  lista.length === 1 && lista[0].dias_restantes === 3
+    ? ok(`faltando 3 dias, a oficina entra no marco 3 (ref ${lista[0].referencia})`)
+    : erro('marco 3', JSON.stringify(lista))
+
+  ;(await avisar(1)).length === 0
+    ? ok('e ainda não entra no marco de 1 dia')
+    : erro('marco 1 cedo demais', 'apareceu antes da hora')
+
+  // Envio que FALHOU não conta: é exatamente o caso que se perdia antes.
+  await db.query(`
+    insert into public.emails_enviados (oficina_id, tipo, destinatario, assunto, enviado, referencia)
+    values ('${ID.oficinaA}', 'teste_terminando', 'a@b.c', 'x', false,
+            (current_date + 3)::text || '|3')
+  `)
+  ;(await avisar(3)).length === 1
+    ? ok('um envio que falhou não marca nada — a oficina continua na fila')
+    : erro('falha registrada', 'sumiu da fila mesmo sem ter recebido')
+
+  // O dia seguinte, ainda sem sucesso: sai atrasado, e com o texto certo.
+  await db.query(`update public.oficinas set acesso_ate = current_date + 2 where id = '${ID.oficinaA}'`)
+  lista = await avisar(3)
+  lista.length === 1 && lista[0].dias_restantes === 2
+    ? ok('no dia seguinte ele sai dizendo "faltam 2 dias", e não "faltam 3"')
+    : erro('nova tentativa', JSON.stringify(lista))
+
+  // Agora com sucesso: não repete.
+  await db.query(`
+    insert into public.emails_enviados (oficina_id, tipo, destinatario, assunto, enviado, referencia)
+    values ('${ID.oficinaA}', 'teste_terminando', 'a@b.c', 'x', true,
+            (current_date + 2)::text || '|3')
+  `)
+  ;(await avisar(3)).length === 0
+    ? ok('depois de enviado, não repete')
+    : erro('repetição', 'mandaria de novo')
+
+  // Chegou no último dia: o marco de 1 é outro aviso, e sai.
+  await db.query(`update public.oficinas set acesso_ate = current_date + 1 where id = '${ID.oficinaA}'`)
+  const ultimo = await avisar(1)
+  ultimo.length === 1 && ultimo[0].dias_restantes === 1
+    ? ok('no último dia, o marco de 1 dia é um aviso próprio')
+    : erro('marco 1', JSON.stringify(ultimo))
+
+  // Ganhou mais prazo. Do zero, para esta parte medir só a janela: sem
+  // histórico, o que tira a oficina da fila é a distância, e nada mais.
+  await db.query(`delete from public.emails_enviados where oficina_id = '${ID.oficinaA}'`)
+  await db.query(`update public.oficinas set acesso_ate = current_date + 30 where id = '${ID.oficinaA}'`)
+  ;(await avisar(3)).length === 0
+    ? ok('com prazo estendido, some da fila')
+    : erro('prazo estendido', 'continuou na fila')
+  await db.query(`update public.oficinas set acesso_ate = current_date + 2 where id = '${ID.oficinaA}'`)
+  const devolta = await avisar(3)
+  devolta.length === 1 && devolta[0].dias_restantes === 2
+    ? ok('e quando o novo vencimento se aproxima, é avisada de novo')
+    : erro('novo vencimento', JSON.stringify(devolta))
+
+  // Quem paga não recebe aviso de teste.
+  await db.query(`
+    insert into public.assinaturas (oficina_id, plano, situacao, proxima_cobranca)
+    values ('${ID.oficinaA}', 'completo', 'ativa', current_date + 2)
+  `)
+  ;(await avisar(3)).length === 0
+    ? ok('quem tem assinatura ativa não recebe aviso de teste')
+    : erro('assinante', 'recebeu aviso de fim de teste')
+
+  // Quem já venceu também não: para esse o aviso é outro.
+  await db.query(`delete from public.assinaturas where oficina_id = '${ID.oficinaA}'`)
+  await db.query(`update public.oficinas set acesso_ate = current_date - 1 where id = '${ID.oficinaA}'`)
+  ;(await avisar(3)).length === 0
+    ? ok('e quem já venceu sai da fila — o aviso dele é outro')
+    : erro('vencida', 'continuou recebendo aviso de teste')
+
+  // A trava de execução, como nas outras funções de plataforma.
+  await logarComo(ID.adminA)
+  await esperaErro('o admin de uma oficina não consulta essa fila', 'select * from public.oficinas_para_avisar(3)')
+
+  await comoAdministradorDoBanco()
+  await db.query(`delete from public.emails_enviados where oficina_id = '${ID.oficinaA}'`)
+  await db.query(`update public.oficinas set acesso_ate = null where id = '${ID.oficinaA}'`)
+}
+
 async function testarPerfisNaFase2() {
   console.log('\n\x1b[1mQuem alcança o que na Fase 2\x1b[0m')
 
@@ -2169,6 +2264,7 @@ async function main() {
     await testarSituacaoDerivada()
     await testarEncerramentoDaConta()
     await testarPainelDaPlataforma()
+    await testarAvisoDeTeste()
     await testarPerfisNaFase2()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a

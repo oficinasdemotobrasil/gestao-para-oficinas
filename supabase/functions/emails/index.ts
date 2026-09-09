@@ -42,6 +42,12 @@ interface Corpo {
   /** Sobrescreve o destinatário. Usado só para conferir os modelos. */
   para?: string
   dados?: Record<string, string | number>
+  /**
+   * O que este envio cobre, para não repetir. Nos avisos de fim de teste é
+   * "vencimento|marco": enquanto ele não sair com sucesso, a rotina do dia
+   * seguinte tenta de novo.
+   */
+  referencia?: string
 }
 
 function responder(corpo: unknown, status = 200): Response {
@@ -294,6 +300,7 @@ Deno.serve(async (req: Request) => {
     enviado,
     id_externo: idExterno,
     erro: mensagemDeErro,
+    referencia: corpo.referencia ?? null,
   })
 
   return enviado
