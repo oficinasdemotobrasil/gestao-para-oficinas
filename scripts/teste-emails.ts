@@ -143,9 +143,19 @@ async function main() {
     .eq('oficina_id', oficina.id)
     .order('criado_em', { ascending: false })
     .limit(CASOS.length)
-  registro?.length === CASOS.length && registro.every((r) => r.enviado)
-    ? ok(`os ${registro.length} envios ficaram registrados`)
-    : erro('registro', JSON.stringify(registro))
+  // O registro guarda o sucesso E a falha. Quando falha, o que interessa é o
+  // motivo uma vez — não a mesma mensagem repetida sete vezes na tela.
+  const naoSairam = (registro ?? []).filter((r) => !r.enviado)
+  if (registro?.length !== CASOS.length) {
+    erro('registro', `esperava ${CASOS.length} linhas, veio ${registro?.length ?? 0}`)
+  } else if (naoSairam.length === 0) {
+    ok(`os ${registro.length} envios ficaram registrados`)
+  } else {
+    erro(
+      `${naoSairam.length} de ${registro.length} não saíram`,
+      `o registro guardou o motivo: ${String(naoSairam[0].erro).slice(0, 120)}`,
+    )
+  }
 
   // Limpeza -------------------------------------------------------------------
   await admin.from('emails_enviados').delete().eq('oficina_id', oficina.id)
