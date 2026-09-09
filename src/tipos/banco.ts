@@ -73,6 +73,8 @@ type Oficina = {
   excluir_em: string | null
   exclusao_pedida_em: string | null
   motivo_da_saida: string | null
+  /** A oficina dispensou a lista de primeiros passos (migration 0049). */
+  primeiros_passos_ocultos: boolean
 }
 
 /** Catálogo de planos: a mesma lista para todas as oficinas (migration 0042). */
@@ -666,6 +668,16 @@ export type Database = {
       /** Marca a data. Não apaga nada. Devolve quando a exclusão pode ocorrer. */
       pedir_encerramento_da_conta: { Args: { p_motivo: string | null }; Returns: string }
       desistir_do_encerramento: { Args: Record<string, never>; Returns: void }
+      /** O que já foi feito nos primeiros passos, calculado (migration 0049). */
+      primeiros_passos: { Args: Record<string, never>; Returns: Record<string, boolean> }
+      carregar_exemplos: {
+        Args: Record<string, never>
+        Returns: { servicos: number; produtos: number }
+      }
+      apagar_exemplos: {
+        Args: Record<string, never>
+        Returns: { servicos: number; produtos: number; mantidos_por_uso: number }
+      }
     }
     Enums: {
       perfil_usuario: PerfilUsuario

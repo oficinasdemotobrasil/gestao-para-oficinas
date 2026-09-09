@@ -14,6 +14,7 @@ import { produtosParaRepor } from '@/funcionalidades/estoque/api'
 import { ordensDoMecanico } from '@/funcionalidades/ordens/apiDoMecanico'
 import { StatusOsBadge } from '@/funcionalidades/ordens/StatusOsBadge'
 import { Painel } from '@/funcionalidades/painel/Painel'
+import { PrimeirosPassos } from './PrimeirosPassos'
 
 interface Atalho {
   para: string
@@ -172,6 +173,8 @@ export function Inicio() {
           </span>
         </button>
       )}
+
+      {p.ehAdmin && <PrimeirosPassos />}
 
       {p.verPainel && <Painel />}
 

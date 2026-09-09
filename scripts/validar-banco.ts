@@ -2156,6 +2156,105 @@ async function testarAvisoDeTeste() {
   await db.query(`update public.oficinas set acesso_ate = null where id = '${ID.oficinaA}'`)
 }
 
+async function testarPrimeirosPassos() {
+  console.log('\n\x1b[1mPrimeiros passos e catálogo de exemplo\x1b[0m')
+
+  // Uma oficina recém-nascida, e não a do cenário: a lista de primeiros passos
+  // só quer dizer alguma coisa numa oficina que ainda não tem nada. Reusar uma
+  // já povoada fazia o teste medir o cenário, e não a função.
+  const OFICINA_NOVA = '99999999-9999-4999-8999-999999999999'
+  const DONO_NOVO = 'e9999999-9999-4999-8999-999999999999'
+
+  await comoAdministradorDoBanco()
+  await db.exec(`
+    insert into public.oficinas (id, nome, plano) values ('${OFICINA_NOVA}', 'Oficina Recem-Nascida', 'completo');
+    insert into auth.users (id, email) values ('${DONO_NOVO}', 'dono.novo@teste.local');
+    insert into public.usuarios (id, oficina_id, nome, email, perfil)
+      values ('${DONO_NOVO}', '${OFICINA_NOVA}', 'Dono Novo', 'dono.novo@teste.local', 'admin');
+  `)
+
+  await logarComo(DONO_NOVO)
+  const passos = async () =>
+    (await db.query<{ j: Record<string, boolean> }>('select public.primeiros_passos() as j')).rows[0].j
+
+  const antes = await passos()
+  const tudoPendente = Object.entries(antes)
+    .filter(([chave]) => chave !== 'ocultos')
+    .every(([, feito]) => feito === false)
+  tudoPendente
+    ? ok('numa oficina nova, os cinco passos nascem pendentes')
+    : erro('lista inicial', JSON.stringify(antes))
+
+  // Carregar exemplos.
+  const carga = await db.query<{ j: { servicos: number; produtos: number } }>(
+    'select public.carregar_exemplos() as j',
+  )
+  carga.rows[0].j.servicos === 8 && carga.rows[0].j.produtos === 12
+    ? ok('o catálogo de exemplo entra inteiro (8 serviços, 12 peças)')
+    : erro('carga', JSON.stringify(carga.rows[0].j))
+
+  // Rodar duas vezes não duplica.
+  const denovo = await db.query<{ j: { servicos: number; produtos: number } }>(
+    'select public.carregar_exemplos() as j',
+  )
+  denovo.rows[0].j.servicos === 0 && denovo.rows[0].j.produtos === 0
+    ? ok('e apertar o botão de novo não duplica nada')
+    : erro('carga repetida', JSON.stringify(denovo.rows[0].j))
+
+  // Exemplo não conta como passo cumprido.
+  const comExemplos = await passos()
+  comExemplos.primeiro_servico === false && comExemplos.primeiro_produto === false
+    ? ok('exemplo carregado NÃO marca o passo — o passo é cadastrar o seu')
+    : erro('exemplo conta como passo', JSON.stringify(comExemplos))
+
+  await db.query(`insert into public.servicos (oficina_id, nome, preco) values ('${OFICINA_NOVA}', 'Serviço de verdade', 100)`)
+  const comProprio = await passos()
+  comProprio.primeiro_servico === true
+    ? ok('e o serviço cadastrado pela oficina marca')
+    : erro('serviço próprio', JSON.stringify(comProprio))
+
+  // Apagar exemplos: o que virou histórico fica.
+  const usado = await db.query<{ id: string }>(
+    `select id from public.produtos where oficina_id = '${OFICINA_NOVA}' and de_exemplo order by nome limit 1`,
+  )
+  await db.query(`
+    insert into public.movimentacoes_estoque (oficina_id, produto_id, tipo, quantidade, motivo)
+    values ('${OFICINA_NOVA}', '${usado.rows[0].id}', 'entrada', 2, 'compra de teste')
+  `)
+
+  const limpeza = await db.query<{ j: { servicos: number; produtos: number; mantidos_por_uso: number } }>(
+    'select public.apagar_exemplos() as j',
+  )
+  const r = limpeza.rows[0].j
+  r.servicos === 8 && r.produtos === 11 && r.mantidos_por_uso === 1
+    ? ok('apagar leva os exemplos, menos o que já entrou no estoque — esse virou histórico')
+    : erro('limpeza dos exemplos', JSON.stringify(r))
+
+  // Quem não é admin não mexe.
+  await logarComo(ID.vendedorA)
+  await esperaErro('o vendedor não carrega exemplos', 'select public.carregar_exemplos()')
+  await esperaErro('nem apaga', 'select public.apagar_exemplos()')
+
+  // E dispensar a lista é preferência guardada, não progresso.
+  await logarComo(DONO_NOVO)
+  await db.query(`update public.oficinas set primeiros_passos_ocultos = true where id = '${OFICINA_NOVA}'`)
+  ;(await passos()).ocultos === true
+    ? ok('a oficina consegue dispensar a lista')
+    : erro('dispensar', 'a preferência não gravou')
+
+  // A oficina nasceu para este bloco e sai com ele: os testes seguintes contam
+  // linhas, e uma oficina a mais mudaria os números deles.
+  await comoAdministradorDoBanco()
+  await db.exec(`
+    delete from public.movimentacoes_estoque where oficina_id = '${OFICINA_NOVA}';
+    delete from public.produtos where oficina_id = '${OFICINA_NOVA}';
+    delete from public.servicos where oficina_id = '${OFICINA_NOVA}';
+    delete from public.usuarios where oficina_id = '${OFICINA_NOVA}';
+    delete from public.oficinas where id = '${OFICINA_NOVA}';
+    delete from auth.users where id = '${DONO_NOVO}';
+  `)
+}
+
 async function testarPerfisNaFase2() {
   console.log('\n\x1b[1mQuem alcança o que na Fase 2\x1b[0m')
 
@@ -2265,6 +2364,7 @@ async function main() {
     await testarEncerramentoDaConta()
     await testarPainelDaPlataforma()
     await testarAvisoDeTeste()
+    await testarPrimeirosPassos()
     await testarPerfisNaFase2()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a

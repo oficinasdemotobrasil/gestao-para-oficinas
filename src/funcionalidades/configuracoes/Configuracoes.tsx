@@ -17,6 +17,7 @@ import { chavePixValida } from '@/lib/pix'
 import type { TipoChavePix } from '@/tipos/banco'
 import { Marca } from './Marca'
 import { Conta } from './Conta'
+import { Exemplos } from './Exemplos'
 
 const opcional = z
   .string()
@@ -242,6 +243,9 @@ export function Configuracoes() {
 
       <TituloSecao>A marca da oficina</TituloSecao>
       <Marca />
+
+      <TituloSecao>Exemplos para começar</TituloSecao>
+      <Exemplos />
 
       <TituloSecao>Sua conta</TituloSecao>
       <Conta />
