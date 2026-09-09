@@ -15,6 +15,7 @@ import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { limparOficina } from './limpar-teste'
 
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: path.join(raiz, '.env.test.local'), quiet: true })
@@ -31,6 +32,9 @@ if (!URL || !SERVICO) {
 const DESTINO = process.argv[2] ?? 'oficinasdemotobrasil@gmail.com'
 
 const admin = createClient(URL, SERVICO, { auth: { persistSession: false } })
+
+/** Fica na cidade, fora dos e-mails, e é por onde a limpeza acha o que sobrou. */
+const MARCA_DE_TESTE = '[teste-emails]'
 
 let passou = 0
 let falhou = 0
@@ -55,16 +59,48 @@ const CASOS = [
   { tipo: 'conta_bloqueada', dados: {} },
 ] as const
 
+/**
+ * Uma oficina só para este teste.
+ *
+ * A primeira versão usava a oficina que já existia no banco — a do cliente — e
+ * deixava sete linhas de registro de envio no dado dele. Registro de e-mail
+ * aparece na tela do dono; sujeira de teste ali é sujeira na casa do outro.
+ */
+async function montarCenario() {
+  const marca = Date.now()
+  const email = `emails.teste.${marca}@example.com`
+  const { data: oficina, error } = await admin
+    .from('oficinas')
+    // O nome vai dentro do e-mail, então precisa ser um nome de verdade — é
+    // o texto que você vai julgar. A marca de teste fica na cidade, que os
+    // modelos não mostram, e é por ela que a limpeza encontra sobras.
+    .insert({ nome: 'Oficina do Tião', cidade: MARCA_DE_TESTE, plano: 'completo' })
+    .select().single()
+  if (error || !oficina) throw new Error(`oficina: ${error?.message}`)
+
+  const { data: conta, error: eConta } = await admin.auth.admin.createUser({
+    email, password: `Emails!${marca}`, email_confirm: true,
+  })
+  if (eConta || !conta.user) throw new Error(`conta: ${eConta?.message}`)
+  await admin.from('usuarios').insert({
+    id: conta.user.id, oficina_id: oficina.id, nome: 'Tião Carvalho',
+    email, perfil: 'admin', ativo: true,
+  })
+  return { oficinaId: oficina.id as string, nome: oficina.nome as string, contaId: conta.user.id }
+}
+
 async function main() {
   console.log('\n\x1b[1mOs e-mails do sistema\x1b[0m')
   console.log(`  para: ${DESTINO}`)
 
-  const { data: oficina, error } = await admin
-    .from('oficinas').select('id, nome').order('criado_em').limit(1).maybeSingle()
-  if (error || !oficina) {
-    erro('oficina', error?.message ?? 'nenhuma oficina no banco')
+  let cenario: Awaited<ReturnType<typeof montarCenario>> | null = null
+  try {
+    cenario = await montarCenario()
+  } catch (e) {
+    erro('cenário', (e as Error).message)
     process.exit(1)
   }
+  const oficina = { id: cenario.oficinaId, nome: cenario.nome }
   console.log(`  como: ${oficina.nome}\n`)
 
   for (const caso of CASOS) {
@@ -110,6 +146,17 @@ async function main() {
   registro?.length === CASOS.length && registro.every((r) => r.enviado)
     ? ok(`os ${registro.length} envios ficaram registrados`)
     : erro('registro', JSON.stringify(registro))
+
+  // Limpeza -------------------------------------------------------------------
+  await admin.from('emails_enviados').delete().eq('oficina_id', oficina.id)
+  await limparOficina(admin, oficina.id)
+  await admin.from('oficinas').delete().eq('id', oficina.id)
+  await admin.auth.admin.deleteUser(cenario.contaId)
+  const { data: sobrou } = await admin
+    .from('oficinas').select('nome').eq('cidade', MARCA_DE_TESTE)
+  sobrou?.length === 0
+    ? ok('limpeza: nada ficou para trás')
+    : erro('limpeza', JSON.stringify(sobrou))
 
   console.log(`\n\x1b[1mResultado:\x1b[0m ${passou} passaram, ${falhou} falharam`)
   console.log(`\nAbra a caixa de entrada e confira os ${CASOS.length}: texto, botão e se o link abre o app.`)

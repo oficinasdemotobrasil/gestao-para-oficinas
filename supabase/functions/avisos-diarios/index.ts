@@ -49,6 +49,31 @@ const emDataBrasileira = (iso: string) => {
   return `${dia}/${mes}/${ano}`
 }
 
+
+/**
+ * Quem chamou tem poder de serviço?
+ *
+ * Não comparamos a chave com a do ambiente. Parece o caminho óbvio e é
+ * frágil: o Supabase injeta aqui a chave DELE, e o projeto pode ter tanto o
+ * formato antigo (JWT) quanto o novo (sb_secret_). Duas strings diferentes
+ * apontando para o mesmo poder fazem a comparação recusar quem tinha direito
+ * — que foi exatamente o que aconteceu.
+ *
+ * Então perguntamos o que importa: esta chave consegue fazer algo que só a
+ * service_role consegue? `plataforma_indicadores` tem o execute revogado de
+ * anon e authenticated (migration 0046). Se responder, o poder existe.
+ */
+async function temPoderDeServico(url: string, token: string): Promise<boolean> {
+  if (!token) return false
+  try {
+    const cliente = createClient(url, token, { auth: { persistSession: false } })
+    const { error } = await cliente.rpc('plataforma_indicadores')
+    return !error
+  } catch {
+    return false
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cabecalhosCors })
   if (req.method !== 'POST') return responder({ erro: 'Método não permitido.' }, 405)
@@ -58,7 +83,9 @@ Deno.serve(async (req: Request) => {
 
   // Mesma porta fechada da função de e-mails: só o servidor entra.
   const autorizacao = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '')
-  if (autorizacao !== chaveServico) return responder({ erro: 'Não autorizado.' }, 401)
+  if (!(await temPoderDeServico(url, autorizacao))) {
+    return responder({ erro: 'Não autorizado.' }, 401)
+  }
 
   const servico = createClient(url, chaveServico, { auth: { persistSession: false } })
 
