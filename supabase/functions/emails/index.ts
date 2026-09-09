@@ -143,13 +143,15 @@ function montar(
 
     case 'teste_terminando': {
       const n = Number(d.dias_restantes ?? 0)
+      // Três textos, porque as três situações são diferentes para quem lê.
+      // "Faltam 0 dias" não é português, e é o tipo de frase que denuncia que
+      // ninguém leu o e-mail antes de mandar.
+      const titulo =
+        n <= 0 ? 'Seu teste termina hoje' : n === 1 ? 'Seu teste termina amanhã' : `Faltam ${dias(n)} de teste`
       return {
-        assunto:
-          n <= 1
-            ? `Seu teste termina amanhã`
-            : `Seu teste termina em ${dias(n)}`,
+        assunto: n <= 0 ? 'Seu teste termina hoje' : n === 1 ? 'Seu teste termina amanhã' : `Seu teste termina em ${dias(n)}`,
         html: moldura(
-          n <= 1 ? 'Seu teste termina amanhã' : `Faltam ${dias(n)} de teste`,
+          titulo,
           `<p style="margin:0 0 14px 0;">Olá, ${nome}.</p>
            <p style="margin:0 0 14px 0;">O período de teste da <strong>${oficina}</strong> termina em <strong>${seguro(d.acesso_ate)}</strong>.</p>
            <p style="margin:0 0 14px 0;">Nada do que você cadastrou se perde. Depois do prazo, a oficina continua consultando tudo — clientes, ordens, histórico — e para de registrar coisas novas até a assinatura começar.</p>

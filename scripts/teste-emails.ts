@@ -47,6 +47,9 @@ const CASOS = [
   { tipo: 'boas_vindas', dados: {} },
   { tipo: 'teste_terminando', dados: { dias_restantes: 3, acesso_ate: emDias(3) } },
   { tipo: 'teste_terminando', dados: { dias_restantes: 1, acesso_ate: emDias(1) }, rotulo: 'último dia' },
+  // O dia zero existe: a janela inclui quem vence hoje. "Faltam 0 dias" não é
+  // português, e é o tipo de frase que denuncia que ninguém leu antes de mandar.
+  { tipo: 'teste_terminando', dados: { dias_restantes: 0, acesso_ate: emDias(0) }, rotulo: 'vence hoje' },
   { tipo: 'pagamento_confirmado', dados: { valor: 89.9, proxima_cobranca: emDias(30) } },
   { tipo: 'pagamento_atrasado', dados: { dias_de_carencia: 7 } },
   { tipo: 'conta_bloqueada', dados: {} },
@@ -109,7 +112,7 @@ async function main() {
     : erro('registro', JSON.stringify(registro))
 
   console.log(`\n\x1b[1mResultado:\x1b[0m ${passou} passaram, ${falhou} falharam`)
-  console.log('\nAbra a caixa de entrada e confira os seis: texto, botão e se o link abre o app.')
+  console.log(`\nAbra a caixa de entrada e confira os ${CASOS.length}: texto, botão e se o link abre o app.`)
   process.exit(falhou > 0 ? 1 : 0)
 }
 

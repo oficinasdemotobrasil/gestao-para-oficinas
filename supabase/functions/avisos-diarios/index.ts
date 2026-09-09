@@ -65,11 +65,28 @@ Deno.serve(async (req: Request) => {
   const enviados: string[] = []
   const falhas: string[] = []
 
+  /**
+   * Quem já recebeu nesta execução.
+   *
+   * Sem isto, uma oficina que nunca recebeu o aviso de 3 dias e chega no
+   * último dia aparece nas DUAS filas — as referências são diferentes, então
+   * o banco não impede — e leva dois e-mails idênticos no mesmo minuto.
+   *
+   * A alternativa seria gravar, num envio só, a referência de todos os marcos
+   * acima. Não fiz assim de propósito: isso apagaria o aviso do último dia
+   * para quem recebeu o de 3 dias faltando 1. Do jeito que está, ela recebe
+   * hoje "termina amanhã" e amanhã "vence hoje" — que é a sequência certa.
+   */
+  const jaAvisadas = new Set<string>()
+
   for (const marco of MARCOS) {
     const { data, error } = await servico.rpc('oficinas_para_avisar', { p_marco: marco })
     if (error) return responder({ erro: `fila do marco ${marco}: ${error.message}` }, 500)
 
     for (const linha of (data ?? []) as NaFila[]) {
+      if (jaAvisadas.has(linha.oficina_id)) continue
+      jaAvisadas.add(linha.oficina_id)
+
       const resposta = await fetch(`${url}/functions/v1/emails`, {
         method: 'POST',
         headers: {
