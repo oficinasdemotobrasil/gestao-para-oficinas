@@ -89,6 +89,10 @@ export type Plano = {
   tem_financeiro: boolean
   ordem: number
   ativo: boolean
+  /** O que a oficina lê no cartão do plano, na ordem (migration 0051). */
+  beneficios: string[]
+  /** Duração do teste, em dias. Nulo nos planos pagos. */
+  dias_de_teste: number | null
   atualizado_em: string
 }
 

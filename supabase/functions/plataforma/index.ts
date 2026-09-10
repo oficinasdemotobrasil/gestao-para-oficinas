@@ -151,9 +151,24 @@ Deno.serve(async (req: Request) => {
       return responder({ erro: 'Plano desconhecido.' }, 400)
     }
 
+    const plano = corpo.plano ?? 'gratuito'
+
+    // O prazo de teste vem da tabela de planos, não de um número escrito aqui.
+    // Assim "Teste 7 Dias" é uma coisa só: o que a tela promete e o que o banco
+    // cobra saem da mesma linha, e mudar de 7 para 10 é um UPDATE.
+    const { data: dadosDoPlano } = await servico
+      .from('planos').select('dias_de_teste').eq('id', plano).maybeSingle()
+
+    let acessoAte: string | null = null
+    if (dadosDoPlano?.dias_de_teste) {
+      const fim = new Date()
+      fim.setDate(fim.getDate() + Number(dadosDoPlano.dias_de_teste))
+      acessoAte = fim.toISOString().slice(0, 10)
+    }
+
     const { data: oficina, error: erroOficina } = await servico
       .from('oficinas')
-      .insert({ nome, plano: corpo.plano ?? 'gratuito' })
+      .insert({ nome, plano, acesso_ate: acessoAte, teste_ate: acessoAte })
       .select()
       .single()
     if (erroOficina) return responder({ erro: erroOficina.message }, 500)
@@ -184,7 +199,7 @@ Deno.serve(async (req: Request) => {
       return responder({ erro: erroVinculo.message }, 500)
     }
 
-    return responder({ oficina_id: oficina.id })
+    return responder({ oficina_id: oficina.id, acesso_ate: acessoAte })
   }
 
   // Trocar o plano --------------------------------------------------------------

@@ -15,7 +15,7 @@
  * assinatura recorrente — conferido na documentação dele, não suposto.
  */
 import { useState } from 'react'
-import { Check, ExternalLink, QrCode, CreditCard } from 'lucide-react'
+import { Check, QrCode, CreditCard } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Botao } from '@/componentes/ui/Botao'
 import { Modal } from '@/componentes/ui/Modal'
@@ -98,10 +98,18 @@ export function Assinatura() {
         fila.invalidateQueries({ queryKey: ['assinatura'] }),
       ])
       setEscolhido(null)
-      setFatura(data.link_da_fatura ?? null)
-      if (!data.link_da_fatura) {
-        toast.sucesso('Assinatura criada. A cobrança chega no seu e-mail.')
+
+      // "Você vai direto para o pagamento seguro" é promessa do topo da tela,
+      // então cumprimos: a própria aba vai para a cobrança. Trocar a página é
+      // permitido depois de uma chamada assíncrona; abrir aba nova seria
+      // bloqueado pelo navegador, e a pessoa ficaria olhando para nada.
+      if (data.link_da_fatura) {
+        window.location.href = data.link_da_fatura as string
+        return
       }
+      // Sem link, a cobrança existe e chega por e-mail. É o único caminho em
+      // que ainda vale mostrar uma janela.
+      setFatura('sem-link')
     } catch (e) {
       toast.erro(traduzirErro(e))
     } finally {
@@ -157,10 +165,10 @@ export function Assinatura() {
         </>
       ) : (
         <>
-          <p className="text-corpo text-claro">Escolha o seu plano</p>
+          <p className="text-secao text-claro">Escolha o plano ideal para sua oficina</p>
           <p className="pt-1 text-apoio text-claro-secundario">
-            Assinar não cobra agora: gera a fatura. O acesso se estende quando o
-            pagamento for identificado.
+            Sem surpresas: ao clicar em “Assinar”, você vai direto para o
+            pagamento seguro. O plano de teste é liberado na hora por 7 dias.
           </p>
 
           <div className="grid gap-3 pt-4 tablet:grid-cols-3">
@@ -190,21 +198,27 @@ export function Assinatura() {
                     )}
                   </p>
 
+                  {/* Os benefícios vêm da tabela de planos: texto de venda muda
+                      com frequência, e ter preço em SQL e frase em deploy seria
+                      dois lugares para a mesma decisão. A frase que fala do que
+                      o plano NÃO tem entra com o tique apagado. */}
                   <ul className="flex-1 space-y-1 pt-3">
-                    <li className="flex gap-2 text-apoio text-claro-secundario">
-                      <Check aria-hidden size={16} className="mt-0.5 shrink-0 text-sucesso" />
-                      {p.limite_colaboradores == null
-                        ? 'Pessoas com acesso sem limite'
-                        : `Até ${p.limite_colaboradores} pessoas com acesso`}
-                    </li>
-                    <li className="flex gap-2 text-apoio text-claro-secundario">
-                      <Check
-                        aria-hidden
-                        size={16}
-                        className={`mt-0.5 shrink-0 ${p.tem_financeiro ? 'text-sucesso' : 'text-claro-secundario opacity-40'}`}
-                      />
-                      {p.tem_financeiro ? 'Com o financeiro' : 'Sem o financeiro'}
-                    </li>
+                    {p.beneficios.map((beneficio) => {
+                      const ausencia = /\(sem /i.test(beneficio)
+                      return (
+                        <li
+                          key={beneficio}
+                          className="flex gap-2 text-apoio text-claro-secundario"
+                        >
+                          <Check
+                            aria-hidden
+                            size={16}
+                            className={`mt-0.5 shrink-0 ${ausencia ? 'text-claro-secundario opacity-40' : 'text-sucesso'}`}
+                          />
+                          {beneficio}
+                        </li>
+                      )
+                    })}
                   </ul>
 
                   {!gratuito && (
@@ -278,7 +292,7 @@ export function Assinatura() {
         </div>
       </Modal>
 
-      {/* O link da fatura ----------------------------------------------------- */}
+      {/* Só quando o provedor não devolveu o link ------------------------------ */}
       <Modal
         aberto={fatura !== null}
         aoFechar={() => setFatura(null)}
@@ -286,21 +300,12 @@ export function Assinatura() {
       >
         <div className="space-y-4">
           <p className="text-corpo text-claro">
-            A assinatura foi criada. Pague a primeira cobrança para o acesso
-            valer — até lá, nada muda por aqui.
+            A assinatura foi criada e a cobrança chega no seu e-mail em alguns
+            minutos.
           </p>
-          <a
-            href={fatura ?? '#'}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex min-h-toque items-center gap-2 rounded-controle bg-acento px-5 text-corpo font-semibold text-claro"
-          >
-            Abrir a cobrança
-            <ExternalLink aria-hidden size={18} />
-          </a>
           <p className="text-apoio text-claro-secundario">
-            O link também vai para o seu e-mail. Assim que o pagamento for
-            identificado, o acesso se estende sozinho.
+            Assim que o pagamento for identificado, o acesso se estende sozinho.
+            Até lá, nada muda por aqui.
           </p>
         </div>
       </Modal>
