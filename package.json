@@ -21,7 +21,8 @@
     "teste:marca": "tsx scripts/teste-marca.ts",
     "teste:planilha": "tsx scripts/teste-planilha.ts",
     "teste:emails": "tsx scripts/teste-emails.ts",
-    "teste:webhook": "tsx scripts/teste-webhook.ts"
+    "teste:webhook": "tsx scripts/teste-webhook.ts",
+    "teste:assinatura": "tsx scripts/teste-assinatura.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
