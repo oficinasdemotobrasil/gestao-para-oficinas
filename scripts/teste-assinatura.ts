@@ -48,6 +48,19 @@ const SENHA = `Assina!${MARCA}`
  * É ficha de teste em ambiente de teste: não corresponde a empresa nenhuma e
  * nenhum dinheiro real se move.
  */
+function cpfDeTeste(semente: number): string {
+  const base = String(semente).padStart(9, '0').slice(-9).split('').map(Number)
+  const digito = (nums: number[]) => {
+    const inicio = nums.length + 1
+    const soma = nums.reduce((a, n, i) => a + n * (inicio - i), 0)
+    const resto = (soma * 10) % 11
+    return resto === 10 ? 0 : resto
+  }
+  const d1 = digito(base)
+  const d2 = digito([...base, d1])
+  return [...base, d1, d2].join('')
+}
+
 function cnpjDeTeste(semente: number): string {
   const base = String(semente).padStart(12, '0').slice(-12).split('').map(Number)
   const digito = (nums: number[]) => {
@@ -91,7 +104,7 @@ async function main() {
     const app = createClient(URL!, ANON!, { auth: { persistSession: false } })
     const { error: eLogin } = await app.auth.signInWithPassword({ email, password: SENHA })
     if (eLogin) throw new Error(`login: ${eLogin.message}`)
-    ok('oficina de teste, no plano gratuito e sem CNPJ')
+    ok('oficina de teste, no plano gratuito e sem documento')
 
     type Resposta = Record<string, unknown>
     const chamar = async (body: Record<string, unknown>): Promise<Resposta> => {
@@ -107,22 +120,47 @@ async function main() {
 
     // Sem documento, o provedor recusaria com uma mensagem dele. Melhor dizer
     // antes, em português, com o caminho da solução.
-    const semCnpj = await chamar({ acao: 'assinar', plano: 'completo' })
-    String(semCnpj.erro).includes('CNPJ') && semCnpj.campo === 'cnpj'
-      ? ok('sem CNPJ, a função explica o que fazer antes de tentar cobrar')
-      : erro('sem CNPJ', JSON.stringify(semCnpj))
+    const semDocumento = await chamar({ acao: 'assinar', plano: 'completo' })
+    String(semDocumento.erro).includes('CPF') && semDocumento.campo === 'cnpj'
+      ? ok('sem documento, a função explica o que fazer antes de tentar cobrar')
+      : erro('sem documento', JSON.stringify(semDocumento))
 
+    // O CNPJ passa pela conferência de documento: se a mensagem que volta é
+    // sobre o plano, o documento já foi aceito. Barato, e sem criar assinatura
+    // de verdade só para provar isso.
     await admin.from('oficinas').update({ cnpj: cnpjDeTeste(MARCA) }).eq('id', oficinaId)
+    const comCnpj = await chamar({ acao: 'assinar', plano: 'gratuito' })
+    !String(comCnpj.erro).includes('CPF')
+      ? ok('CNPJ passa pela conferência de documento')
+      : erro('CNPJ', JSON.stringify(comCnpj))
+
+    // E CPF também: muita oficina de bairro fatura no CPF do dono e não tem
+    // empresa aberta. Se este caminho quebrar, essa gente não consegue assinar.
+    await admin.from('oficinas').update({ cnpj: cpfDeTeste(MARCA) }).eq('id', oficinaId)
 
     const planoInvalido = await chamar({ acao: 'assinar', plano: 'gratuito' })
     String(planoInvalido.erro).includes('plano pago')
       ? ok('não dá para "assinar" o plano gratuito')
       : erro('plano gratuito', JSON.stringify(planoInvalido))
 
+    // Boleto foi tirado de propósito: compensa em até dois dias, e numa
+    // mensalidade barata isso põe a oficina em atraso todo mês sem culpa.
+    const comBoleto = await chamar({ acao: 'assinar', plano: 'completo', forma: 'BOLETO' })
+    String(comBoleto.erro).includes('PIX ou cartão')
+      ? ok('boleto é recusado, com a alternativa dita na mensagem')
+      : erro('boleto', JSON.stringify(comBoleto))
+
+    // Débito também não: o provedor não oferece débito em assinatura
+    // recorrente (conferido na documentação dele, não suposto).
+    const comDebito = await chamar({ acao: 'assinar', plano: 'completo', forma: 'DEBIT_CARD' })
+    String(comDebito.erro).includes('PIX ou cartão')
+      ? ok('débito também, porque não existe para recorrência')
+      : erro('débito', JSON.stringify(comDebito))
+
     // A assinatura de verdade ----------------------------------------------------
-    const assinou = await chamar({ acao: 'assinar', plano: 'completo' })
+    const assinou = await chamar({ acao: 'assinar', plano: 'completo', forma: 'PIX' })
     assinou.ok === true && assinou.valor === 49.99
-      ? ok('a assinatura é criada no provedor', `R$ ${assinou.valor}, vence em ${assinou.vencimento}`)
+      ? ok('a assinatura é criada no provedor, no CPF e por PIX', `R$ ${assinou.valor}, vence em ${assinou.vencimento}`)
       : erro('assinar', JSON.stringify(assinou))
 
     assinou.link_da_fatura
@@ -143,7 +181,7 @@ async function main() {
       ? ok('ASSINAR NÃO LIBERA ACESSO', 'quem libera é o webhook, quando o dinheiro entra')
       : erro('acesso liberado cedo demais', `acesso_ate virou ${depois?.acesso_ate}`)
 
-    const denovo = await chamar({ acao: 'assinar', plano: 'essencial' })
+    const denovo = await chamar({ acao: 'assinar', plano: 'essencial', forma: 'CREDIT_CARD' })
     String(denovo.erro).includes('já tem uma assinatura')
       ? ok('e não dá para assinar duas vezes')
       : erro('assinatura duplicada', JSON.stringify(denovo))

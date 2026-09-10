@@ -18,6 +18,7 @@ import { traduzirErro } from '@/lib/erros'
 import { data as formatarData, moeda, diasAte } from '@/lib/formato'
 import { planilhaDaExportacao, nomeDoArquivoDaExportacao } from '@/lib/planilha'
 import type { StatusOficina } from '@/tipos/banco'
+import { Assinatura } from './Assinatura'
 
 const NOME_DA_SITUACAO: Record<StatusOficina, string> = {
   teste: 'Período de teste',
@@ -168,11 +169,10 @@ export function Conta() {
           </div>
         </dl>
 
-        <p className="pt-4 text-apoio text-claro-secundario">
-          A cobrança ainda não está ligada — hoje o acesso não vence. Quando
-          existir, você troca de plano por aqui.
-        </p>
       </div>
+
+      {/* Planos e assinatura -------------------------------------------------- */}
+      <Assinatura />
 
       {/* Levar os dados ------------------------------------------------------ */}
       <div className="rounded-card bg-superficie p-4 tablet:p-6">

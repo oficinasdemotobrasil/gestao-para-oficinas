@@ -23,9 +23,24 @@ const cabecalhosCors = {
 /** Só quem custa dinheiro. O gratuito não tem cobrança para criar. */
 const PLANOS_PAGOS = ['essencial', 'completo']
 
+/**
+ * As formas de pagamento que a oficina escolhe.
+ *
+ * Boleto ficou de fora por decisão de produto: ele atrasa dois dias para
+ * compensar, e numa mensalidade barata isso vira a oficina entrando em
+ * carência todo mês sem ter culpa.
+ *
+ * Débito não entra porque o provedor não oferece débito em assinatura
+ * recorrente — só em cobrança avulsa. Quem quiser pagar no débito paga por
+ * PIX, que cai na hora e sai da mesma conta.
+ */
+const FORMAS = ['PIX', 'CREDIT_CARD'] as const
+type Forma = (typeof FORMAS)[number]
+
 interface Corpo {
   acao?: 'assinar' | 'cancelar'
   plano?: string
+  forma?: string
   motivo?: string
 }
 
@@ -132,6 +147,14 @@ Deno.serve(async (req: Request) => {
     return responder({ erro: 'Escolha um plano pago.' }, 400)
   }
 
+  const forma = String(corpo.forma ?? 'PIX').toUpperCase() as Forma
+  if (!FORMAS.includes(forma)) {
+    return responder(
+      { erro: 'Forma de pagamento não aceita nesta assinatura. Use PIX ou cartão de crédito.' },
+      400,
+    )
+  }
+
   const { data: oficina } = await servico
     .from('oficinas').select('nome, cnpj, telefone').eq('id', oficinaId).maybeSingle()
   const { data: dadosDoPlano } = await servico
@@ -139,13 +162,15 @@ Deno.serve(async (req: Request) => {
 
   if (!oficina || !dadosDoPlano) return responder({ erro: 'Oficina ou plano não encontrado.' }, 404)
 
-  // O provedor exige documento para criar o cliente. Dizer isso agora, com o
-  // caminho da solução, é melhor do que devolver o erro cru dele depois.
+  // O provedor exige documento para criar o cliente. Serve CPF ou CNPJ: muita
+  // oficina de bairro fatura no CPF do dono e não tem empresa aberta. Dizer
+  // isso agora, com o caminho da solução, é melhor do que devolver o erro cru
+  // do provedor depois.
   const documento = soDigitos(oficina.cnpj ?? '')
   if (documento.length !== 11 && documento.length !== 14) {
     return responder(
       {
-        erro: 'Antes de assinar, cadastre o CNPJ da oficina em Configurações. O provedor de pagamento exige.',
+        erro: 'Antes de assinar, cadastre o CNPJ ou o CPF em Configurações. O provedor de pagamento exige.',
         campo: 'cnpj',
       },
       400,
@@ -185,9 +210,7 @@ Deno.serve(async (req: Request) => {
       method: 'POST',
       body: JSON.stringify({
         customer: idCliente,
-        // 'UNDEFINED' deixa a oficina escolher entre boleto, PIX e cartão na
-        // hora de pagar, em vez de decidirmos por ela.
-        billingType: 'UNDEFINED',
+        billingType: forma,
         value: Number(dadosDoPlano.preco_mensal),
         nextDueDate: primeiroVencimento.toISOString().slice(0, 10),
         cycle: 'MONTHLY',

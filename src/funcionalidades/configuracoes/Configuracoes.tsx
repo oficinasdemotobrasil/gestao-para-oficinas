@@ -31,9 +31,20 @@ const esquemaOficina = z
     telefone: opcional,
     endereco: opcional,
     cidade: opcional,
+    // CPF ou CNPJ: muita oficina de bairro fatura no CPF do dono e não tem
+    // empresa aberta. Exigir CNPJ deixaria essa gente sem conseguir assinar.
+    //
+    // A coluna continua se chamando `cnpj` no banco por compatibilidade — ela
+    // existe desde a primeira migration e é lida pelo PDF, pela exportação e
+    // pela cobrança. Renomear seria mexer em cinco lugares para ganhar um nome
+    // melhor num só.
     cnpj: opcional.refine(
-      (v) => v === null || v.replace(/\D/g, '').length === 14,
-      'CNPJ precisa de 14 dígitos.',
+      (v) => {
+        if (v === null) return true
+        const digitos = v.replace(/\D/g, '').length
+        return digitos === 11 || digitos === 14
+      },
+      'Informe um CPF (11 dígitos) ou um CNPJ (14 dígitos).',
     ),
     tipo_chave_pix: z
       .string()
@@ -152,9 +163,10 @@ export function Configuracoes() {
         />
 
         <Campo
-          rotulo="CNPJ"
+          rotulo="CNPJ ou CPF"
           inputMode="numeric"
           placeholder="Só os números"
+          dica="Serve o CPF do dono se a oficina não tem empresa aberta. É exigido para assinar."
           erro={errors.cnpj?.message}
           {...register('cnpj')}
         />
