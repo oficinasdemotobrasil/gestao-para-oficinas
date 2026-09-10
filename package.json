@@ -20,7 +20,8 @@
     "teste:cor": "tsx scripts/teste-cor.ts",
     "teste:marca": "tsx scripts/teste-marca.ts",
     "teste:planilha": "tsx scripts/teste-planilha.ts",
-    "teste:emails": "tsx scripts/teste-emails.ts"
+    "teste:emails": "tsx scripts/teste-emails.ts",
+    "teste:webhook": "tsx scripts/teste-webhook.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
