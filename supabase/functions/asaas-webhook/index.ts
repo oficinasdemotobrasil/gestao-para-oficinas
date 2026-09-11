@@ -53,20 +53,21 @@ const ACABOU = ['SUBSCRIPTION_DELETED', 'SUBSCRIPTION_INACTIVATED']
  * confirmar — aí o evento fica registrado e não aplicado, e o provedor tenta
  * de novo mais tarde.
  */
+function baseDoProvedor(): string {
+  const ambiente = (Deno.env.get('ASAAS_AMBIENTE') ?? 'sandbox').toLowerCase()
+  return ambiente === 'producao' || ambiente === 'produção'
+    ? 'https://api.asaas.com/v3'
+    : 'https://api-sandbox.asaas.com/v3'
+}
+
 async function conferirNoProvedor(
   idDoPagamento: string,
 ): Promise<Record<string, unknown> | null> {
   const chave = Deno.env.get('ASAAS_API_KEY')
   if (!chave) return null
 
-  const ambiente = (Deno.env.get('ASAAS_AMBIENTE') ?? 'sandbox').toLowerCase()
-  const base =
-    ambiente === 'producao' || ambiente === 'produção'
-      ? 'https://api.asaas.com/v3'
-      : 'https://api-sandbox.asaas.com/v3'
-
   try {
-    const resposta = await fetch(`${base}/payments/${idDoPagamento}`, {
+    const resposta = await fetch(`${baseDoProvedor()}/payments/${idDoPagamento}`, {
       headers: { access_token: chave },
     })
     if (!resposta.ok) return null
@@ -75,6 +76,36 @@ async function conferirNoProvedor(
     return pagos.includes(String(pagamento?.status)) ? pagamento : null
   } catch {
     return null
+  }
+}
+
+/**
+ * A assinatura acabou mesmo no provedor?
+ *
+ * Mesma desconfiança do pagamento, e pelo mesmo motivo: quem tivesse o token
+ * poderia encerrar a assinatura de uma oficina que paga em dia. O estrago
+ * seria menor do que liberar acesso de graça — o acesso segue até o fim do
+ * período pago —, mas a oficina pararia de ser cobrada e ninguém notaria até
+ * o mês virar.
+ *
+ * Uma assinatura removida some do provedor (404) ou volta marcada como
+ * removida. Qualquer um dos dois serve como prova; o que não serve é a
+ * palavra do POST.
+ */
+async function assinaturaAcabouMesmo(idDaAssinatura: string): Promise<boolean> {
+  const chave = Deno.env.get('ASAAS_API_KEY')
+  if (!chave) return false
+
+  try {
+    const resposta = await fetch(`${baseDoProvedor()}/subscriptions/${idDaAssinatura}`, {
+      headers: { access_token: chave },
+    })
+    if (resposta.status === 404) return true
+    if (!resposta.ok) return false
+    const assinatura = await resposta.json()
+    return assinatura?.deleted === true || String(assinatura?.status) === 'INACTIVE'
+  } catch {
+    return false
   }
 }
 
@@ -208,13 +239,26 @@ Deno.serve(async (req: Request) => {
       aplicado = true
       observacao = `conferido no provedor; acesso até ${ate}`
     } else if (ACABOU.includes(tipo)) {
+      const idDaAssinatura = String(pagamento.id ?? '')
+      const acabou = idDaAssinatura ? await assinaturaAcabouMesmo(idDaAssinatura) : false
+
+      if (!acabou) {
+        observacao =
+          'o provedor não confirmou o encerramento desta assinatura — nada aplicado'
+        await servico
+          .from('eventos_asaas')
+          .update({ aplicado: false, observacao })
+          .eq('evento_id', eventoId)
+        return responder({ ok: false, tipo, aplicado: false, observacao }, 502)
+      }
+
       const { error } = await servico.rpc('encerrar_assinatura', {
         p_oficina: oficinaId,
         p_motivo: 'encerrada no provedor',
       })
       if (error) throw error
       aplicado = true
-      observacao = 'assinatura encerrada; acesso segue até o fim do período pago'
+      observacao = 'conferido no provedor; acesso segue até o fim do período pago'
     } else {
       observacao = 'registrado, sem ação — a situação vem das datas'
     }

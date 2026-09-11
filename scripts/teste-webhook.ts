@@ -271,11 +271,18 @@ async function main() {
     const { data: assinatura } = await admin
       .from('assinaturas').select('situacao').eq('oficina_id', oficinaId).single()
     const aposFim = await oficinaAgora(oficinaId)
-    encerrada.corpo.aplicado === true &&
-    assinatura?.situacao === 'encerrada' &&
-    aposFim.acesso_ate === antesDoAtraso
-      ? ok('cancelar encerra a assinatura e NÃO tira o acesso', 'vale até o fim do período pago')
-      : erro('cancelamento', JSON.stringify({ assinatura, depois: aposFim }))
+    // Sem a chave da API, a assinatura deste teste não existe no provedor —
+    // então o encerramento é recusado, e é isso mesmo que se quer: quem tiver
+    // o token não encerra a assinatura de uma oficina que paga em dia.
+    const deviaAplicar = Boolean(CHAVE_ASAAS)
+    encerrada.corpo.aplicado === deviaAplicar && aposFim.acesso_ate === antesDoAtraso
+      ? ok(
+          deviaAplicar
+            ? 'cancelar encerra a assinatura e NÃO tira o acesso'
+            : 'cancelamento forjado é recusado — o provedor não confirma',
+          deviaAplicar ? 'vale até o fim do período pago' : 'o acesso segue intacto',
+        )
+      : erro('cancelamento', JSON.stringify({ resposta: encerrada.corpo, assinatura, depois: aposFim }))
 
     // O registro bruto ------------------------------------------------------------
     //
