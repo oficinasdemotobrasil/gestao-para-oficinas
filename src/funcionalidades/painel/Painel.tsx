@@ -169,27 +169,33 @@ export function Painel() {
               saldo — que é escrito no corpo maior do app, 40px — vazava para
               fora do cartão. Encolher o número seria esconder o que a pessoa
               abriu o painel para ver. */}
-          <Card className="desktop:col-span-2">
-            <div className="flex gap-4">
-              <Numero rotulo="A receber" valor={moeda(data.financeiro.a_receber)} />
-              <Numero rotulo="A pagar" valor={moeda(data.financeiro.a_pagar)} />
-            </div>
-            {data.financeiro.em_atraso > 0 && (
-              <p className="pt-3 text-corpo text-erro-forte">
-                {moeda(data.financeiro.em_atraso)} vencidos e não recebidos
-              </p>
-            )}
-            <div className="flex items-baseline justify-between gap-4 border-t border-borda-em-superficie pt-3 mt-3">
-              <span className="text-secao text-em-superficie">Saldo previsto</span>
-              <span
-                className={`text-destaque ${
-                  data.financeiro.a_receber - data.financeiro.a_pagar < 0 ? 'text-erro-forte' : 'text-em-superficie'
-                }`}
-              >
-                {moeda(data.financeiro.a_receber - data.financeiro.a_pagar)}
-              </span>
-            </div>
-          </Card>
+          {/* Nos planos sem financeiro o banco devolve nulo de propósito
+              (migration 0039) — não é ausência de dado, é ausência de direito
+              ao dado. A tela some com o bloco em vez de mostrar zeros, que
+              seriam mentira. */}
+          {data.financeiro && (
+            <Card className="desktop:col-span-2">
+              <div className="flex gap-4">
+                <Numero rotulo="A receber" valor={moeda(data.financeiro.a_receber)} />
+                <Numero rotulo="A pagar" valor={moeda(data.financeiro.a_pagar)} />
+              </div>
+              {data.financeiro.em_atraso > 0 && (
+                <p className="pt-3 text-corpo text-erro-forte">
+                  {moeda(data.financeiro.em_atraso)} vencidos e não recebidos
+                </p>
+              )}
+              <div className="flex items-baseline justify-between gap-4 border-t border-borda-em-superficie pt-3 mt-3">
+                <span className="text-secao text-em-superficie">Saldo previsto</span>
+                <span
+                  className={`text-destaque ${
+                    data.financeiro.a_receber - data.financeiro.a_pagar < 0 ? 'text-erro-forte' : 'text-em-superficie'
+                  }`}
+                >
+                  {moeda(data.financeiro.a_receber - data.financeiro.a_pagar)}
+                </span>
+              </div>
+            </Card>
+          )}
 
           {/* Quem fez o quê ------------------------------------------------ */}
           {data.ranking.length > 0 && (

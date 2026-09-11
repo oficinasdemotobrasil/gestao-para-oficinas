@@ -600,13 +600,19 @@ export type Database = {
             horas_medias: number
           }
           ranking: Array<{ nome: string; ordens: number; minutos: number }>
+          /**
+           * Nulo quando o plano da oficina não inclui o financeiro
+           * (migration 0039). O tipo dizia que era sempre um objeto, e por
+           * isso o compilador deixou passar um painel que quebrava para toda
+           * oficina em teste ou no Operacional.
+           */
           financeiro: {
             a_receber: number
             em_atraso: number
             recebido: number
             a_pagar: number
             pago: number
-          }
+          } | null
           evolucao: Array<{ dia: string; valor: number }>
           produtos_para_repor: number
         }

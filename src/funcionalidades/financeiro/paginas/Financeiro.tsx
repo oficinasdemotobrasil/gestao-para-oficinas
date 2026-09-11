@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, QrCode, CheckCircle2, Wallet, Lock } from 'lucide-react'
 import { Tela, CabecalhoTela, TituloSecao } from '@/componentes/layout/Tela'
@@ -9,6 +10,7 @@ import { Badge } from '@/componentes/ui/Badge'
 import { Botao } from '@/componentes/ui/Botao'
 import { Campo, Selecao } from '@/componentes/ui/Campo'
 import { Modal } from '@/componentes/ui/Modal'
+import { supabase } from '@/lib/supabase'
 import { EstadoVazio, EstadoErro } from '@/componentes/ui/EstadoVazio'
 import { EsqueletoLista } from '@/componentes/ui/Carregando'
 import { useToast } from '@/componentes/ui/Toast'
@@ -80,6 +82,21 @@ function LinhaResumo({ rotulo, valor, tom }: { rotulo: string; valor: string; to
 }
 
 export function Financeiro() {
+  const navegar = useNavigate()
+
+  // Qual plano abre o financeiro, segundo o banco. Assim o texto acompanha
+  // qualquer renomeação sem ninguém precisar lembrar deste arquivo.
+  const planoComFinanceiro = useQuery({
+    queryKey: ['plano-com-financeiro'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('planos').select('nome').eq('tem_financeiro', true).eq('ativo', true)
+        .order('ordem').limit(1).maybeSingle()
+      if (error) throw error
+      return data
+    },
+  })
+
   const toast = useToast()
   const cache = useQueryClient()
   const { oficina } = useAuth()
@@ -149,11 +166,19 @@ export function Financeiro() {
             </span>
             <div>
               <p className="text-secao text-em-superficie">O seu plano ainda não inclui o financeiro</p>
+              {/* O nome do plano vem da tabela, e não escrito aqui: ele já mudou
+                  uma vez (de "completo" para "Gestão Total") e este texto ficou
+                  para trás apontando para um plano que não existe mais. */}
               <p className="pt-1 text-corpo text-em-superficie-2">
-                Contas a receber, contas a pagar e cobrança por PIX entram no plano
-                completo. Fale com a gente para mudar de plano — o que já está
-                lançado continua aqui, esperando.
+                Contas a receber, contas a pagar e cobrança por PIX entram no
+                plano {planoComFinanceiro.data?.nome ?? 'mais completo'}. O que
+                já estiver lançado continua aqui, esperando.
               </p>
+              <div className="pt-4">
+                <Botao type="button" onClick={() => navegar('/configuracoes')}>
+                  Ver os planos
+                </Botao>
+              </div>
             </div>
           </div>
         </Card>
