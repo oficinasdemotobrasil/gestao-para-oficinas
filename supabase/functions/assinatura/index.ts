@@ -38,7 +38,7 @@ const FORMAS = ['PIX', 'CREDIT_CARD'] as const
 type Forma = (typeof FORMAS)[number]
 
 interface Corpo {
-  acao?: 'assinar' | 'cancelar'
+  acao?: 'assinar' | 'cancelar' | 'ambiente'
   plano?: string
   forma?: string
   motivo?: string
@@ -113,6 +113,20 @@ Deno.serve(async (req: Request) => {
       throw new Error(primeiro ?? `O provedor de pagamento recusou (${resposta.status}).`)
     }
     return dados
+  }
+
+  // Em que ambiente estamos ------------------------------------------------------
+  //
+  // Existe para conferir a virada para produção sem criar cobrança nenhuma, e
+  // para o suporte responder "está no ar de verdade?" sem adivinhar. Devolve só
+  // o nome do ambiente e o endereço do provedor, que são públicos — nunca a
+  // chave, e nunca nada que dependa dela.
+  if (corpo.acao === 'ambiente') {
+    return responder({
+      ambiente: baseAsaas.includes('sandbox') ? 'sandbox' : 'producao',
+      base: baseAsaas,
+      chave_configurada: Boolean(chaveAsaas),
+    })
   }
 
   // Cancelar ---------------------------------------------------------------------
