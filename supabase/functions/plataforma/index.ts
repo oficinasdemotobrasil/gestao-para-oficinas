@@ -32,7 +32,9 @@ type Plano = (typeof PLANOS)[number]
 type Situacao = (typeof SITUACOES)[number]
 
 interface Corpo {
-  acao?: 'listar' | 'criar' | 'plano' | 'situacao' | 'prazo' | 'reprocessar'
+  acao?:
+    | 'listar' | 'criar' | 'plano' | 'situacao' | 'prazo' | 'reprocessar'
+    | 'estornos' | 'marcar_estorno' | 'desmarcar_estorno'
   oficina_id?: string
   plano?: Plano
   situacao?: Situacao
@@ -43,6 +45,11 @@ interface Corpo {
    * são a mesma operação vista de ângulos diferentes.
    */
   acesso_ate?: string | null
+  // Só para 'marcar_estorno'.
+  cobranca_id?: string
+  valor?: number
+  estorno?: 'feito' | 'dispensado'
+  observacao?: string
   // Só para 'criar'.
   nome?: string
   admin_nome?: string
@@ -317,6 +324,52 @@ Deno.serve(async (req: Request) => {
       .from('oficinas')
       .update({ status: corpo.situacao })
       .eq('id', corpo.oficina_id)
+    if (error) return responder({ erro: error.message }, 500)
+    return responder({ ok: true })
+  }
+
+  // Estornos --------------------------------------------------------------------
+  if (corpo.acao === 'estornos') {
+    const { data, error } = await servico.rpc('plataforma_estornos')
+    if (error) return responder({ erro: error.message }, 500)
+    return responder({ estornos: data ?? [] })
+  }
+
+  // Marcar um estorno como feito, ou decidir não fazer.
+  //
+  // Só entra aqui o que o provedor não contou sozinho: um estorno feito antes
+  // do webhook existir, ou uma devolução que a plataforma resolveu não fazer.
+  // Quando o provedor avisa, a lista já sabe — e o aviso dele ganha da marca.
+  if (corpo.acao === 'marcar_estorno') {
+    if (!corpo.cobranca_id || !corpo.oficina_id) {
+      return responder({ erro: 'Informe a cobrança e a oficina.' }, 400)
+    }
+    if (corpo.estorno !== 'feito' && corpo.estorno !== 'dispensado') {
+      return responder({ erro: 'Situação do estorno desconhecida.' }, 400)
+    }
+    if (corpo.estorno === 'dispensado' && !corpo.observacao?.trim()) {
+      // Não devolver o dinheiro de alguém é uma decisão que precisa de motivo
+      // escrito. Daqui a seis meses ninguém lembra por quê.
+      return responder({ erro: 'Escreva por que não vai devolver.' }, 400)
+    }
+    const { error } = await servico.rpc('plataforma_marcar_estorno', {
+      p_cobranca_id: corpo.cobranca_id,
+      p_oficina: corpo.oficina_id,
+      p_valor: corpo.valor ?? null,
+      p_situacao: corpo.estorno,
+      p_observacao: corpo.observacao?.trim() || null,
+      p_quem: sessao.user.email ?? 'plataforma',
+    })
+    if (error) return responder({ erro: error.message }, 500)
+    return responder({ ok: true })
+  }
+
+  // Desfazer a marca. Errar ao marcar é fácil; sem isto o erro fica para sempre.
+  if (corpo.acao === 'desmarcar_estorno') {
+    if (!corpo.cobranca_id) return responder({ erro: 'Informe a cobrança.' }, 400)
+    const { error } = await servico.rpc('plataforma_desmarcar_estorno', {
+      p_cobranca_id: corpo.cobranca_id,
+    })
     if (error) return responder({ erro: error.message }, 500)
     return responder({ ok: true })
   }

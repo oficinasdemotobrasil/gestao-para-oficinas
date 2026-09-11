@@ -6,6 +6,7 @@
  * fazer hoje. Por isso a primeira coisa da tela é a lista de quem precisa de
  * atenção, e não o número grande.
  */
+import { Estornos } from './Estornos'
 import {
   dinheiro,
   ROTULO_CALCULADO,
@@ -85,6 +86,10 @@ export function Negocio({ painel }: { painel: PainelDoNegocio }) {
           </ul>
         </Secao>
       )}
+
+      {/* Dinheiro a devolver vem antes de dinheiro que entrou: é o único
+          número desta tela com prazo legal correndo. */}
+      <Estornos />
 
       <Secao titulo="Dinheiro" apoio="receita vem de contrato, não de acesso liberado">
         <div className="grid grid-cols-2 gap-3 desktop:grid-cols-4">

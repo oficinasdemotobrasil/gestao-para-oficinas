@@ -46,6 +46,15 @@ export default {
         'atencao-fundo': '#fdf4dc',
         erro: '#d93a3a',
         'erro-fundo': '#fdecec',
+        /*
+         * A cor sem sufixo PINTA; a `-forte` ESCREVE. São papéis diferentes e
+         * exigem cores diferentes: o âmbar #e0a800 é ótimo como fundo e
+         * ilegível como texto — 2,1:1 sobre o próprio fundo claro dele.
+         * Escurecer a cor original resolveria o texto e estragaria o fundo.
+         */
+        'sucesso-forte': '#1b7a3d',
+        'atencao-forte': '#8a6a00',
+        'erro-forte': '#c42b2b',
       },
       fontFamily: {
         sans: [

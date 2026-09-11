@@ -84,6 +84,30 @@ export interface PainelDoNegocio {
   atencao: { oficina: string; oficina_id: string; urgencia: number; motivo: string }[]
 }
 
+/**
+ * Uma cobrança paga e o que falta fazer com ela.
+ *
+ * `situacao` vem calculada no banco de três fontes que se completam: o aviso
+ * de estorno do provedor, o campo `refunds` dentro da própria cobrança, e a
+ * marca que a plataforma fez à mão. O provedor ganha de qualquer marca nossa.
+ */
+export interface Estorno {
+  cobranca_id: string
+  oficina: string
+  oficina_id: string
+  valor: number
+  forma: string
+  pago_em: string
+  /** O endereço da cobrança no provedor. Veio dele, junto com o aviso. */
+  endereco_no_provedor: string | null
+  situacao: 'pendente' | 'devolvido' | 'dispensado' | 'sem_pedido'
+  motivo: string
+  /** Cancelou dentro de sete dias: o Código de Defesa do Consumidor manda devolver. */
+  tem_direito: boolean
+  cancelada_em: string | null
+  marcado_pela_plataforma: boolean
+}
+
 export interface Indicadores {
   total: number
   por_situacao: Partial<Record<SituacaoCalculada, number>>
@@ -140,6 +164,27 @@ export const mudarPlano = (oficina_id: string, plano: Plano) =>
 
 export const mudarSituacao = (oficina_id: string, situacao: Situacao) =>
   chamar<{ ok: true }>({ acao: 'situacao', oficina_id, situacao })
+
+export const listarEstornos = async () =>
+  (await chamar<{ estornos: Estorno[] }>({ acao: 'estornos' })).estornos
+
+export const marcarEstorno = (
+  cobranca_id: string,
+  oficina_id: string,
+  valor: number,
+  situacao: 'feito' | 'dispensado' | 'desfazer',
+  observacao?: string,
+) =>
+  situacao === 'desfazer'
+    ? chamar<{ ok: true }>({ acao: 'desmarcar_estorno', cobranca_id })
+    : chamar<{ ok: true }>({
+        acao: 'marcar_estorno',
+        cobranca_id,
+        oficina_id,
+        valor,
+        estorno: situacao,
+        observacao,
+      })
 
 export const ROTULO_DO_PLANO: Record<Plano, string> = {
   gratuito: 'Gratuito',

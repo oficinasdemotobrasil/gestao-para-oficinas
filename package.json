@@ -23,7 +23,8 @@
     "teste:emails": "tsx scripts/teste-emails.ts",
     "teste:webhook": "tsx scripts/teste-webhook.ts",
     "teste:assinatura": "tsx scripts/teste-assinatura.ts",
-    "teste:cadastro": "tsx scripts/teste-cadastro.ts"
+    "teste:cadastro": "tsx scripts/teste-cadastro.ts",
+    "teste:estornos": "tsx scripts/teste-estornos.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
