@@ -95,9 +95,16 @@ function Linha({
 
   return (
     <li
-      className={`rounded-card px-4 py-3 ${
-        resolvido ? 'bg-superficie opacity-70' : 'bg-superficie'
-      } ${e.situacao === 'pendente' && e.tem_direito ? 'ring-1 ring-erro' : ''}`}
+      /*
+       * O que já foi resolvido tem de ficar discreto, não ilegível. A primeira
+       * versão usava `opacity-70` no cartão inteiro — e opacidade apaga o
+       * texto junto com o fundo: o cinza secundário caía para 1,9:1, medido no
+       * navegador. Quem distingue resolvido de pendente aqui é o selo e a
+       * ausência da borda vermelha, não a transparência.
+       */
+      className={`rounded-card bg-superficie px-4 py-3 ${
+        e.situacao === 'pendente' && e.tem_direito ? 'ring-1 ring-erro' : ''
+      }`}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="font-medium text-claro">{e.oficina}</span>
