@@ -9,6 +9,11 @@
  * o webhook registra e responde "não achei a oficina" — correto, e sem provar
  * nada sobre o que acontece quando o dinheiro entra.
  *
+ * Desde que o webhook passou a CONFERIR cada pagamento no provedor, este teste
+ * precisa de uma cobrança de verdade no sandbox para exercer o caminho feliz —
+ * e por isso pede a chave da API. Sem ela, mede só o que dá para medir sem
+ * provedor: a tranca do token e a recusa de evento forjado.
+ *
  * Precisa do token, que não fica em arquivo:
  *   export ASAAS_WEBHOOK_TOKEN='...'
  *   npm run teste:webhook
@@ -26,6 +31,8 @@ config({ path: path.join(raiz, '.env.local'), quiet: true })
 const URL = process.env.SUPABASE_URL
 const SERVICO = process.env.SUPABASE_SERVICE_ROLE_KEY
 const TOKEN = process.env.ASAAS_WEBHOOK_TOKEN
+const CHAVE_ASAAS = process.env.ASAAS_API_KEY
+const BASE_ASAAS = 'https://api-sandbox.asaas.com/v3'
 
 if (!URL || !SERVICO) {
   console.error('Faltam SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY em .env.test.local.')
@@ -109,6 +116,20 @@ async function main() {
       ? ok('com token errado, também não')
       : erro('token errado', `respondeu ${tokenErrado.status}`)
 
+    // Evento FORJADO: identificador que não existe no provedor -------------------
+    //
+    // É o teste mais importante daqui. Antes, quem tivesse o token mandava um
+    // "pagamento confirmado" inventado e ganhava acesso de graça para sempre.
+    // Agora a função pergunta ao provedor, e o pagamento inventado não existe.
+    const forjado = await disparar({
+      event: 'PAYMENT_CONFIRMED',
+      id: `evt_forjado_${MARCA}`,
+      payment: pagamento({ nextDueDate: emDias(365), status: 'CONFIRMED' }),
+    })
+    forjado.corpo.aplicado === false
+      ? ok('pagamento forjado NÃO libera acesso', 'a função confere no provedor, não acredita no POST')
+      : erro('evento forjado', JSON.stringify(forjado))
+
     // Evento de um cliente que não conhecemos -----------------------------------
     const desconhecido = await disparar({
       event: 'PAYMENT_CONFIRMED',
@@ -149,65 +170,85 @@ async function main() {
       ? ok('a oficina de teste começa bloqueada, com o pagamento vencido')
       : erro('estado inicial', String(antes))
 
-    // O dinheiro entra ----------------------------------------------------------
-    const proxima = emDias(30)
-    const confirmado = await disparar({
-      event: 'PAYMENT_CONFIRMED',
-      id: `evt_pago_${MARCA}`,
-      payment: pagamento({ nextDueDate: proxima, dueDate: emDias(-10), status: 'CONFIRMED' }),
-    })
-    const depois = await oficinaAgora(oficinaId)
-    confirmado.corpo.aplicado === true && depois.acesso_ate === proxima
-      ? ok('pagamento confirmado move o acesso para a próxima cobrança', proxima)
-      : erro('pagamento', JSON.stringify({ resposta: confirmado.corpo, depois }))
+    // O dinheiro entra, de verdade ----------------------------------------------
+    //
+    // Sem a chave da API não dá para criar nem quitar uma cobrança no sandbox,
+    // e sem uma cobrança de verdade não há como exercer o caminho feliz — que
+    // é justamente o que a conferência no provedor passou a exigir.
+    if (!CHAVE_ASAAS) {
+      console.log(
+        '\n  \x1b[33m·\x1b[0m sem ASAAS_API_KEY em .env.test.local, o caminho do pagamento' +
+          '\n    não foi medido. Acrescente a chave do SANDBOX para exercê-lo.\n',
+      )
+    } else {
+      const noAsaas = async (caminho: string, opcoes: RequestInit = {}) => {
+        const r = await fetch(`${BASE_ASAAS}${caminho}`, {
+          ...opcoes,
+          headers: { access_token: CHAVE_ASAAS!, 'Content-Type': 'application/json', ...(opcoes.headers ?? {}) },
+        })
+        return r.json()
+      }
 
-    const { data: agora } = await admin.rpc('situacao_da_oficina', { p_oficina: oficinaId })
-    agora === 'ativa'
-      ? ok('e a oficina volta a ser ativa na hora')
-      : erro('situação após pagamento', String(agora))
+      // Um cliente e uma cobrança avulsa no sandbox, vinculados a esta oficina.
+      const cliente = await noAsaas('/customers', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Oficina da Cobrança', cpfCnpj: '24971563792', email: `w${MARCA}@example.com` }),
+      })
+      const cobranca = await noAsaas('/payments', {
+        method: 'POST',
+        body: JSON.stringify({
+          customer: cliente.id, billingType: 'PIX', value: 49.99,
+          dueDate: emDias(0), description: 'teste do webhook',
+        }),
+      })
 
-    // O mesmo evento de novo ----------------------------------------------------
-    const repetido = await disparar({
-      event: 'PAYMENT_CONFIRMED',
-      id: `evt_pago_${MARCA}`,
-      payment: pagamento({ nextDueDate: emDias(999), status: 'CONFIRMED' }),
-    })
-    const semMudanca = await oficinaAgora(oficinaId)
-    repetido.corpo.repetido === true && semMudanca.acesso_ate === proxima
-      ? ok('o mesmo evento reenviado não aplica de novo', 'nem com data diferente dentro')
-      : erro('reenvio', JSON.stringify({ resposta: repetido.corpo, depois: semMudanca }))
+      // O sandbox permite marcar como recebida em dinheiro — é o mecanismo dele
+      // para exercer o fluxo de quitação sem pagar nada.
+      await noAsaas(`/payments/${cobranca.id}/receiveInCash`, {
+        method: 'POST',
+        body: JSON.stringify({ paymentDate: emDias(0), value: 49.99, notifyCustomer: false }),
+      })
 
-    // RECEIVED depois de CONFIRMED, que é o par que preocupava -------------------
-    const recebido = await disparar({
-      event: 'PAYMENT_RECEIVED',
-      id: `evt_recebido_${MARCA}`,
-      payment: pagamento({ nextDueDate: proxima, status: 'RECEIVED' }),
-    })
-    const aposRecebido = await oficinaAgora(oficinaId)
-    recebido.corpo.aplicado === true && aposRecebido.acesso_ate === proxima
-      ? ok('CONFIRMED e RECEIVED na mesma cobrança dão o mesmo resultado', 'a operação é absoluta')
-      : erro('recebido', JSON.stringify({ resposta: recebido.corpo, depois: aposRecebido }))
+      await admin.from('assinaturas')
+        .update({ id_externo_cliente: cliente.id }).eq('oficina_id', oficinaId)
 
-    // Sem a data da próxima cobrança --------------------------------------------
-    const semProxima = await disparar({
-      event: 'PAYMENT_CONFIRMED',
-      id: `evt_sem_proxima_${MARCA}`,
-      payment: pagamento({ dueDate: emDias(-3), status: 'CONFIRMED' }),
-    })
-    const contado = await oficinaAgora(oficinaId)
-    const esperado = emDias(27) // 30 dias a partir do vencimento, não de hoje
-    semProxima.corpo.aplicado === true && contado.acesso_ate === esperado
-      ? ok('sem a próxima data, conta 30 dias do vencimento pago', 'quem paga atrasado não perde os dias')
-      : erro('30 dias', JSON.stringify({ obtido: contado.acesso_ate, esperado }))
+      const proxima = emDias(30)
+      const confirmado = await disparar({
+        event: 'PAYMENT_CONFIRMED',
+        id: `evt_real_${MARCA}`,
+        payment: { id: cobranca.id, customer: cliente.id, value: 49.99, nextDueDate: proxima },
+      })
+      const depois = await oficinaAgora(oficinaId)
+      confirmado.corpo.aplicado === true && depois.acesso_ate === proxima
+        ? ok('cobrança de verdade, conferida no provedor, move o acesso', proxima)
+        : erro('pagamento real', JSON.stringify({ resposta: confirmado.corpo, depois }))
+
+      const { data: situacaoAgora } = await admin.rpc('situacao_da_oficina', { p_oficina: oficinaId })
+      situacaoAgora === 'ativa'
+        ? ok('e a oficina volta a ser ativa na hora')
+        : erro('situação após pagamento', String(situacaoAgora))
+
+      const repetido = await disparar({
+        event: 'PAYMENT_CONFIRMED',
+        id: `evt_real_${MARCA}`,
+        payment: { id: cobranca.id, customer: cliente.id, nextDueDate: emDias(999) },
+      })
+      const semMudanca = await oficinaAgora(oficinaId)
+      repetido.corpo.repetido === true && semMudanca.acesso_ate === proxima
+        ? ok('o mesmo evento reenviado não aplica de novo', 'nem com data diferente dentro')
+        : erro('reenvio', JSON.stringify({ resposta: repetido.corpo, depois: semMudanca }))
+    }
 
     // Atraso só registra ---------------------------------------------------------
+    const antesDoAtraso = (await oficinaAgora(oficinaId)).acesso_ate
+
     const atrasado = await disparar({
       event: 'PAYMENT_OVERDUE',
       id: `evt_atraso_${MARCA}`,
       payment: pagamento({ status: 'OVERDUE' }),
     })
     const aposAtraso = await oficinaAgora(oficinaId)
-    atrasado.corpo.aplicado === false && aposAtraso.acesso_ate === esperado
+    atrasado.corpo.aplicado === false && aposAtraso.acesso_ate === antesDoAtraso
       ? ok('atraso é só registrado — a situação já vem das datas')
       : erro('atraso', JSON.stringify({ resposta: atrasado.corpo, depois: aposAtraso }))
 
@@ -217,7 +258,7 @@ async function main() {
       payment: pagamento({ status: 'REFUNDED' }),
     })
     const aposEstorno = await oficinaAgora(oficinaId)
-    estorno.corpo.aplicado === false && aposEstorno.acesso_ate === esperado
+    estorno.corpo.aplicado === false && aposEstorno.acesso_ate === antesDoAtraso
       ? ok('estorno não tira acesso sozinho — fica para uma pessoa decidir')
       : erro('estorno', JSON.stringify({ resposta: estorno.corpo, depois: aposEstorno }))
 
@@ -232,7 +273,7 @@ async function main() {
     const aposFim = await oficinaAgora(oficinaId)
     encerrada.corpo.aplicado === true &&
     assinatura?.situacao === 'encerrada' &&
-    aposFim.acesso_ate === esperado
+    aposFim.acesso_ate === antesDoAtraso
       ? ok('cancelar encerra a assinatura e NÃO tira o acesso', 'vale até o fim do período pago')
       : erro('cancelamento', JSON.stringify({ assinatura, depois: aposFim }))
 

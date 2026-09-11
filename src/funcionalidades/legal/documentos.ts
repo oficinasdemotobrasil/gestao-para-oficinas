@@ -15,8 +15,8 @@
  * jurídica — principalmente as partes de responsabilidade e rescisão.
  */
 
-export const VERSAO_DOS_DOCUMENTOS = '2026-09-10'
-export const ATUALIZADO_EM = '10 de setembro de 2026'
+export const VERSAO_DOS_DOCUMENTOS = '2026-09-11'
+export const ATUALIZADO_EM = '11 de setembro de 2026'
 
 export interface Secao {
   titulo: string
@@ -50,9 +50,17 @@ export const TERMOS: Secao[] = [
     ],
   },
   {
+    titulo: 'Desistir nos primeiros sete dias',
+    paragrafos: [
+      'A contratação é feita pela internet, então vale o direito de arrependimento do Código de Defesa do Consumidor: dentro de sete dias corridos a partir da assinatura, a oficina pode desistir e receber de volta o valor pago, integralmente.',
+      'Basta cancelar pela tela de assinatura dentro desse prazo e nos avisar. A devolução é feita pelo mesmo meio do pagamento.',
+      'Esse prazo é separado do período de teste gratuito: o teste vem antes de qualquer cobrança, e o arrependimento conta a partir do dia em que a assinatura começou.',
+    ],
+  },
+  {
     titulo: 'Cancelar',
     paragrafos: [
-      'A oficina pode cancelar quando quiser, pela própria tela de assinatura, sem multa e sem precisar falar com ninguém.',
+      'Passados os sete dias de arrependimento, a oficina pode cancelar quando quiser, pela própria tela de assinatura, sem multa e sem precisar falar com ninguém.',
       'O acesso continua até o fim do período já pago. Não devolvemos valor proporcional de um mês em andamento, e também não cortamos antes do prazo que a oficina comprou.',
       'Ao encerrar a conta, os dados ficam guardados por mais trinta dias, e nesse prazo dá para voltar atrás. Depois disso podem ser apagados definitivamente.',
     ],

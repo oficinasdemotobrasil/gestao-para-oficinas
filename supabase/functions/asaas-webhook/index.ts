@@ -19,6 +19,19 @@
  * atrasado" já são consequência do calendário. O webhook só precisa mover a
  * data quando entra dinheiro.
  *
+ * E quando entra dinheiro, o corpo do POST NÃO é acreditado: a função pergunta
+ * ao provedor se aquele pagamento existe e está mesmo pago, usando a chave de
+ * API. Duas razões, e as duas só passam a importar com dinheiro de verdade:
+ *
+ *   1. O token é a única tranca, e token vaza — em registro de servidor, em
+ *      captura de tela, em conversa. Com ele, qualquer um forjaria um
+ *      PAGAMENTO_CONFIRMADO e teria acesso de graça para sempre.
+ *   2. Sandbox e produção mandam para a mesma URL. Sem conferir, um teste no
+ *      sandbox estenderia o acesso de uma oficina que paga de verdade.
+ *
+ * Perguntando ao provedor, as duas somem: o pagamento forjado não existe, e o
+ * do sandbox não existe no ambiente de produção.
+ *
  * Estorno e chargeback também só registram. Tirar acesso automaticamente por
  * um estorno que pode ser erro do banco é o tipo de automação que dói quando
  * erra — fica visível no painel para uma pessoa decidir.
@@ -32,6 +45,38 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 const PAGOU = ['PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED']
 /** A assinatura acabou: o acesso segue até o fim do período já pago. */
 const ACABOU = ['SUBSCRIPTION_DELETED', 'SUBSCRIPTION_INACTIVATED']
+
+/**
+ * O pagamento existe mesmo, e está mesmo pago?
+ *
+ * Devolve os dados VINDOS DO PROVEDOR, não os do POST. Nulo quando não dá para
+ * confirmar — aí o evento fica registrado e não aplicado, e o provedor tenta
+ * de novo mais tarde.
+ */
+async function conferirNoProvedor(
+  idDoPagamento: string,
+): Promise<Record<string, unknown> | null> {
+  const chave = Deno.env.get('ASAAS_API_KEY')
+  if (!chave) return null
+
+  const ambiente = (Deno.env.get('ASAAS_AMBIENTE') ?? 'sandbox').toLowerCase()
+  const base =
+    ambiente === 'producao' || ambiente === 'produção'
+      ? 'https://api.asaas.com/v3'
+      : 'https://api-sandbox.asaas.com/v3'
+
+  try {
+    const resposta = await fetch(`${base}/payments/${idDoPagamento}`, {
+      headers: { access_token: chave },
+    })
+    if (!resposta.ok) return null
+    const pagamento = await resposta.json()
+    const pagos = ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH']
+    return pagos.includes(String(pagamento?.status)) ? pagamento : null
+  } catch {
+    return null
+  }
+}
 
 function responder(corpo: unknown, status = 200): Response {
   return new Response(JSON.stringify(corpo), {
@@ -110,13 +155,20 @@ Deno.serve(async (req: Request) => {
     observacao: oficinaId ? null : 'não foi possível descobrir a oficina',
   })
 
-  // Chave duplicada: já recebemos este evento. Responder 200 é o certo — o
-  // Asaas para de reenviar, e nada é aplicado duas vezes.
+  // Chave duplicada: já recebemos este evento.
+  //
+  // Só é motivo para parar se ele já tiver sido APLICADO. Um evento que chegou
+  // e não pôde ser aplicado — porque o provedor não respondeu na hora, por
+  // exemplo — precisa poder ser tentado de novo, senão um pagamento real se
+  // perderia para sempre por causa de uma indisponibilidade de trinta segundos.
   if (erroRegistro) {
     const repetido = /duplicate key|unique/i.test(erroRegistro.message)
-    return repetido
-      ? responder({ ok: true, repetido: true })
-      : responder({ erro: erroRegistro.message }, 500)
+    if (!repetido) return responder({ erro: erroRegistro.message }, 500)
+
+    const { data: jaVisto } = await servico
+      .from('eventos_asaas').select('aplicado').eq('evento_id', eventoId).maybeSingle()
+    if (jaVisto?.aplicado) return responder({ ok: true, repetido: true })
+    // Segue adiante para tentar aplicar de novo.
   }
 
   if (!oficinaId) {
@@ -130,14 +182,31 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (PAGOU.includes(tipo)) {
+      // Não acreditamos no corpo do POST: perguntamos ao provedor.
+      const idDoPagamento = String(pagamento.id ?? '')
+      const conferido = idDoPagamento ? await conferirNoProvedor(idDoPagamento) : null
+
+      if (!conferido) {
+        observacao =
+          'o provedor não confirmou este pagamento — nada aplicado, e o evento continua na fila'
+        await servico
+          .from('eventos_asaas')
+          .update({ aplicado: false, observacao })
+          .eq('evento_id', eventoId)
+        // 502 para o provedor tentar de novo: pode ter sido indisponibilidade
+        // momentânea, e um pagamento real não pode se perder por isso.
+        return responder({ ok: false, tipo, aplicado: false, observacao }, 502)
+      }
+
+      const ate = ateQuando(conferido)
       const { error } = await servico.rpc('registrar_pagamento', {
         p_oficina: oficinaId,
-        p_acesso_ate: ateQuando(pagamento),
+        p_acesso_ate: ate,
         p_plano: null,
       })
       if (error) throw error
       aplicado = true
-      observacao = `acesso até ${ateQuando(pagamento)}`
+      observacao = `conferido no provedor; acesso até ${ate}`
     } else if (ACABOU.includes(tipo)) {
       const { error } = await servico.rpc('encerrar_assinatura', {
         p_oficina: oficinaId,
