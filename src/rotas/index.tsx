@@ -25,6 +25,7 @@ import { Financeiro } from '@/funcionalidades/financeiro/paginas/Financeiro'
 import { ListaOrcamentos } from '@/funcionalidades/orcamentos/paginas/ListaOrcamentos'
 import { EditorOrcamento } from '@/funcionalidades/orcamentos/paginas/EditorOrcamento'
 import { DetalheOrcamento } from '@/funcionalidades/orcamentos/paginas/DetalheOrcamento'
+import { Privacidade, Termos } from '@/funcionalidades/legal/PaginaLegal'
 import { ListaOrdens } from '@/funcionalidades/ordens/paginas/ListaOrdens'
 import { OrdemDeServico } from '@/funcionalidades/ordens/paginas/OrdemDeServico'
 
@@ -36,6 +37,11 @@ export const rotas = createBrowserRouter([
       { path: '/esqueci-a-senha', element: <EsqueciSenha /> },
     ],
   },
+
+  // Termos e privacidade ficam fora do RotaPublica: quem já está logado
+  // também precisa poder reler, e lá seria expulso para a home.
+  { path: '/termos', element: <Termos /> },
+  { path: '/privacidade', element: <Privacidade /> },
 
   // Fora do RotaPublica: o link do e-mail cria uma sessão temporária, então
   // quem chega aqui já está "logado" e seria expulso para a home.

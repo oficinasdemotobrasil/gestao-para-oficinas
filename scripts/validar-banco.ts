@@ -2255,6 +2255,56 @@ async function testarPrimeirosPassos() {
   `)
 }
 
+async function testarAceiteDosTermos() {
+  console.log('\n\x1b[1mO aceite dos termos\x1b[0m')
+
+  await comoAdministradorDoBanco()
+  await db.query(`
+    update public.oficinas
+       set termos_aceitos_em = now(), termos_versao = '2026-09-10'
+     where id = '${ID.oficinaA}'
+  `)
+  await esperaLinhas(
+    'o cadastro grava a data e a versão juntas',
+    `select count(*) as n from public.oficinas
+      where id = '${ID.oficinaA}' and termos_aceitos_em is not null and termos_versao = '2026-09-10'`,
+    1,
+  )
+
+  // A versão é o que dá sentido à data: sem ela, o aceite aponta para o texto
+  // de hoje, e não para o que a pessoa leu.
+  await logarComo(ID.adminA)
+  // Data inequivocamente diferente: `now()` sobre um `now()` gravado no mesmo
+  // instante é o mesmo valor, e o gatilho deixa passar com razão — não houve
+  // mudança. Quem quisesse fraudar mudaria a data, e é isso que se mede.
+  await esperaErro(
+    'o admin não adianta o próprio aceite',
+    `update public.oficinas set termos_aceitos_em = timestamptz '2030-01-01' where id = '${ID.oficinaA}'`,
+  )
+  await esperaErro(
+    'nem troca a versão que aceitou',
+    `update public.oficinas set termos_versao = '1999-01-01' where id = '${ID.oficinaA}'`,
+  )
+  await esperaErro(
+    'nem apaga o aceite',
+    `update public.oficinas set termos_aceitos_em = null where id = '${ID.oficinaA}'`,
+  )
+
+  // E continua conseguindo editar o resto da própria oficina.
+  await db.query(`update public.oficinas set telefone = '(11) 90000-9999' where id = '${ID.oficinaA}'`)
+  await esperaLinhas(
+    'mas continua editando o que é dele na oficina',
+    `select count(*) as n from public.oficinas where id = '${ID.oficinaA}' and telefone = '(11) 90000-9999'`,
+    1,
+  )
+
+  await comoAdministradorDoBanco()
+  await db.query(`
+    update public.oficinas set termos_aceitos_em = null, termos_versao = null
+     where id = '${ID.oficinaA}'
+  `)
+}
+
 async function testarPerfisNaFase2() {
   console.log('\n\x1b[1mQuem alcança o que na Fase 2\x1b[0m')
 
@@ -2365,6 +2415,7 @@ async function main() {
     await testarPainelDaPlataforma()
     await testarAvisoDeTeste()
     await testarPrimeirosPassos()
+    await testarAceiteDosTermos()
     await testarPerfisNaFase2()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a

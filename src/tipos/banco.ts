@@ -75,6 +75,9 @@ type Oficina = {
   motivo_da_saida: string | null
   /** A oficina dispensou a lista de primeiros passos (migration 0049). */
   primeiros_passos_ocultos: boolean
+  /** Quando os termos foram aceitos, e qual versão (migration 0052). */
+  termos_aceitos_em: string | null
+  termos_versao: string | null
 }
 
 /** Catálogo de planos: a mesma lista para todas as oficinas (migration 0042). */

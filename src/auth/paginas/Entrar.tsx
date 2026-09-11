@@ -117,6 +117,15 @@ export function Entrar() {
         O acesso é criado pelo responsável da oficina. Se você ainda não tem
         login, peça a ele para cadastrar você.
       </p>
+
+      <nav className="flex flex-wrap justify-center gap-4 pt-8 text-apoio text-em-fundo-2">
+        <Link to="/termos" className="min-h-toque-fino">
+          Termos de Uso
+        </Link>
+        <Link to="/privacidade" className="min-h-toque-fino">
+          Política de Privacidade
+        </Link>
+      </nav>
     </main>
   )
 }
