@@ -152,6 +152,13 @@ async function main() {
   confere('cancelou 90 dias depois: sem direito', acha(lista, 'pay_tarde')?.tem_direito, false)
   confere('assinatura viva: nada a devolver', acha(lista, 'pay_ativa')?.situacao, 'sem_pedido')
 
+  console.log('\n\x1b[1mA frase que a pessoa lê\x1b[0m')
+  const f1 = acha(lista, 'pay_arrependeu')?.motivo ?? ''
+  if (f1 === 'cancelou 3 dias depois — tem direito ao arrependimento') ok('dias no plural', f1)
+  else erro('dias no plural', `veio "${f1}"`)
+  if (!/\(s\)/.test(f1 + (acha(lista, 'pay_tarde')?.motivo ?? ''))) ok('sem "(s)" na tela')
+  else erro('sem "(s)" na tela', 'a gambiarra de plural vazou para a frase')
+
   console.log('\n\x1b[1mA ordem: o urgente primeiro\x1b[0m')
   confere('o arrependimento vem na frente', lista[0].cobranca_id, 'pay_arrependeu')
 

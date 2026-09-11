@@ -13,7 +13,17 @@
 import { useEffect, useState } from 'react'
 import { dinheiro, listarEstornos, marcarEstorno, type Estorno } from './plataforma'
 
-const data = (iso: string) => new Date(iso).toLocaleDateString('pt-BR')
+/**
+ * Uma data pura do banco ("2026-09-11") não tem fuso, mas `new Date` finge que
+ * tem: lê como meia-noite em UTC, que no Brasil é 21h do dia anterior. Numa
+ * tela de dinheiro isso vira um pagamento com a data errada. Então a data pura
+ * é montada peça por peça, e só o que tem hora passa pelo caminho normal.
+ */
+const data = (iso: string) => {
+  const soData = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  if (soData) return `${soData[3]}/${soData[2]}/${soData[1]}`
+  return new Date(iso).toLocaleDateString('pt-BR')
+}
 
 /** Onde fica o estorno dentro do Asaas. O caminho muda pouco; o código, nunca. */
 const CAMINHO_NO_ASAAS = 'Cobranças → busque o código → menu (⋮) → Estornar'
@@ -277,8 +287,10 @@ export function Estornos() {
             aria-expanded={mostrarResolvidos}
             className="text-sm text-escuro-secundario underline"
           >
-            {mostrarResolvidos ? 'Esconder' : 'Ver'} as {resolvidos.length} cobranças já
-            resolvidas
+            {mostrarResolvidos ? 'Esconder' : 'Ver'}{' '}
+            {resolvidos.length === 1
+              ? 'a outra cobrança paga'
+              : `as outras ${resolvidos.length} cobranças pagas`}
           </button>
           {mostrarResolvidos && (
             <ul className="grid gap-2 pt-3">
