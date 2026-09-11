@@ -278,11 +278,16 @@ async function main() {
       : erro('cancelamento', JSON.stringify({ assinatura, depois: aposFim }))
 
     // O registro bruto ------------------------------------------------------------
+    //
+    // Quantos esperar depende de o caminho do pagamento ter rodado: sem a chave
+    // da API, três eventos a menos acontecem. Contar um número fixo fazia o
+    // teste acusar falha por causa de um bloco que ele mesmo pulou.
     const { data: eventos } = await admin
       .from('eventos_asaas').select('tipo, aplicado').eq('oficina_id', oficinaId)
-    ;(eventos?.length ?? 0) >= 6
+    const esperados = CHAVE_ASAAS ? 6 : 3
+    ;(eventos?.length ?? 0) >= esperados
       ? ok(`os ${eventos!.length} eventos ficaram guardados como chegaram`)
-      : erro('registro', JSON.stringify(eventos))
+      : erro('registro', `esperava ao menos ${esperados}: ${JSON.stringify(eventos)}`)
   } catch (e) {
     erro('execução', (e as Error).message)
   } finally {
