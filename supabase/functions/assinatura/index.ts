@@ -38,7 +38,7 @@ const FORMAS = ['PIX', 'CREDIT_CARD'] as const
 type Forma = (typeof FORMAS)[number]
 
 interface Corpo {
-  acao?: 'assinar' | 'cancelar' | 'ambiente'
+  acao?: 'assinar' | 'cancelar' | 'ambiente' | 'conferir'
   plano?: string
   forma?: string
   motivo?: string
@@ -122,11 +122,74 @@ Deno.serve(async (req: Request) => {
   // o nome do ambiente e o endereço do provedor, que são públicos — nunca a
   // chave, e nunca nada que dependa dela.
   if (corpo.acao === 'ambiente') {
+    // O PIX do provedor só funciona se a conta dele tiver uma chave PIX
+    // registrada. Sem isso a cobrança sai como boleto, em silêncio — foi o que
+    // aconteceu na primeira tentativa real, e é a pergunta certa a fazer.
+    let chavesPix: { quantas: number; ativas: number } | { erro: string }
+    try {
+      const r = await fetch(`${baseAsaas}/pix/addressKeys`, {
+        headers: { access_token: chaveAsaas! },
+      })
+      if (!r.ok) {
+        chavesPix = { erro: `o provedor respondeu ${r.status}` }
+      } else {
+        const lista = await r.json()
+        const chaves = (lista?.data ?? []) as { status?: string }[]
+        chavesPix = {
+          quantas: chaves.length,
+          ativas: chaves.filter((c) => String(c.status) === 'ACTIVE').length,
+        }
+      }
+    } catch (e) {
+      chavesPix = { erro: (e as Error).message }
+    }
+
     return responder({
       ambiente: baseAsaas.includes('sandbox') ? 'sandbox' : 'producao',
       base: baseAsaas,
       chave_configurada: Boolean(chaveAsaas),
+      chaves_pix: chavesPix,
     })
+  }
+
+  // O que o provedor realmente criou ---------------------------------------------
+  //
+  // Existe porque a primeira cobrança real saiu como boleto mesmo tendo sido
+  // pedida como PIX. Perguntar ao provedor o que ele guardou é a única forma
+  // honesta de saber onde a escolha se perdeu.
+  if (corpo.acao === 'conferir') {
+    const { data: assinatura } = await servico
+      .from('assinaturas').select('id_externo_assinatura')
+      .eq('oficina_id', oficinaId).order('criado_em', { ascending: false })
+      .limit(1).maybeSingle()
+
+    if (!assinatura?.id_externo_assinatura) {
+      return responder({ erro: 'Esta oficina não tem assinatura no provedor.' }, 404)
+    }
+    try {
+      const noProvedor = await noAsaas(`/subscriptions/${assinatura.id_externo_assinatura}`)
+      const cobrancas = await noAsaas(
+        `/subscriptions/${assinatura.id_externo_assinatura}/payments`,
+      )
+      return responder({
+        assinatura: {
+          id: noProvedor?.id,
+          billingType: noProvedor?.billingType,
+          value: noProvedor?.value,
+          cycle: noProvedor?.cycle,
+          status: noProvedor?.status,
+        },
+        cobrancas: (cobrancas?.data ?? []).map((c: Record<string, unknown>) => ({
+          id: c.id,
+          billingType: c.billingType,
+          status: c.status,
+          value: c.value,
+          dueDate: c.dueDate,
+        })),
+      })
+    } catch (e) {
+      return responder({ erro: (e as Error).message }, 400)
+    }
   }
 
   // Cancelar ---------------------------------------------------------------------

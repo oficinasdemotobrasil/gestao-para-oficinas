@@ -63,6 +63,17 @@ export function Assinatura() {
     },
   })
 
+  const pessoas = useQuery({
+    queryKey: ['pessoas-ativas', oficina?.id],
+    enabled: Boolean(oficina),
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('usuarios').select('*', { count: 'exact', head: true }).eq('ativo', true)
+      if (error) throw error
+      return count ?? 0
+    },
+  })
+
   const assinatura = useQuery({
     queryKey: ['assinatura', oficina?.id],
     enabled: Boolean(oficina),
@@ -77,6 +88,29 @@ export function Assinatura() {
 
   if (!oficina) return null
   const temAssinatura = Boolean(assinatura.data)
+
+  /**
+   * O que a oficina perde ao escolher este plano.
+   *
+   * Dito ANTES de confirmar, não depois. Descobrir que o financeiro sumiu
+   * porque você economizou vinte reais é o tipo de surpresa que faz cancelar.
+   */
+  const planoAtual = planos.data?.find((p) => p.id === oficina.plano)
+  const planoEscolhido = planos.data?.find((p) => p.id === escolhido)
+  const perdas: string[] = []
+  if (planoAtual && planoEscolhido) {
+    if (planoAtual.tem_financeiro && !planoEscolhido.tem_financeiro) {
+      perdas.push('Você perde o módulo financeiro: contas a receber, contas a pagar e cobrança por PIX.')
+    }
+    const limite = planoEscolhido.limite_colaboradores
+    const quantas = pessoas.data ?? 0
+    if (limite != null && quantas > limite) {
+      perdas.push(
+        `A sua oficina tem ${quantas} pessoas com acesso e este plano permite ${limite}. ` +
+          'Ninguém é desativado, mas você não consegue cadastrar mais ninguém até liberar vagas.',
+      )
+    }
+  }
 
   async function assinar() {
     if (!escolhido) return
@@ -145,6 +179,22 @@ export function Assinatura() {
             Assinatura ativa no plano{' '}
             <strong>{planos.data?.find((p) => p.id === assinatura.data!.plano)?.nome}</strong>.
           </p>
+
+          {/* Enquanto o pagamento não é identificado, o plano que vale ainda é
+              o antigo. Mostrar os dois números sem explicar foi o que fez
+              alguém pagar 29,99, ver 49,99 na tela e não saber qual valia. */}
+          {assinatura.data!.plano !== oficina.plano && (
+            <p className="mt-2 rounded-controle bg-atencao-fundo px-4 py-3 text-apoio text-em-superficie">
+              Você assinou o{' '}
+              <strong>
+                {planos.data?.find((p) => p.id === assinatura.data!.plano)?.nome}
+              </strong>
+              , e hoje ainda está valendo o{' '}
+              <strong>{planos.data?.find((p) => p.id === oficina.plano)?.nome}</strong>. A
+              troca acontece quando o pagamento for identificado.
+            </p>
+          )}
+
           <p className="pt-1 text-apoio text-em-superficie-2">
             Próxima cobrança em{' '}
             {assinatura.data!.proxima_cobranca
@@ -247,6 +297,24 @@ export function Assinatura() {
         titulo="Como você prefere pagar?"
       >
         <div className="space-y-4">
+          {perdas.length > 0 && (
+            <div
+              role="alert"
+              className="rounded-controle bg-atencao-fundo px-4 py-3 text-apoio text-em-superficie"
+            >
+              <p className="font-semibold">Atenção ao trocar de plano</p>
+              <ul className="list-disc pt-1 pl-5">
+                {perdas.map((perda) => (
+                  <li key={perda}>{perda}</li>
+                ))}
+              </ul>
+              <p className="pt-2">
+                Nada é apagado — os dados continuam guardados e voltam a
+                aparecer se você subir de plano de novo.
+              </p>
+            </div>
+          )}
+
           {FORMAS.map(({ valor, rotulo, detalhe, Icone }) => (
             <button
               key={valor}

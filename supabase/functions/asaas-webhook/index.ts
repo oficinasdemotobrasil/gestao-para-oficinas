@@ -230,14 +230,31 @@ Deno.serve(async (req: Request) => {
       }
 
       const ate = ateQuando(conferido)
+
+      // A oficina passa a ter o plano que ela está PAGANDO.
+      //
+      // Sem isto, quem assinava o plano mais barato continuava com o mais caro
+      // — pagando trinta e usando cinquenta. Não é generosidade, é defeito: a
+      // tela mostrava os dois números se contradizendo e ninguém sabia qual
+      // valia.
+      //
+      // Repare que rebaixar não expulsa ninguém: o limite de pessoas só barra
+      // quem passa a ocupar vaga nova. Quem já tem acesso continua entrando.
+      const { data: assinatura } = await servico
+        .from('assinaturas').select('plano')
+        .eq('oficina_id', oficinaId).eq('situacao', 'ativa')
+        .order('criado_em', { ascending: false }).limit(1).maybeSingle()
+
       const { error } = await servico.rpc('registrar_pagamento', {
         p_oficina: oficinaId,
         p_acesso_ate: ate,
-        p_plano: null,
+        p_plano: assinatura?.plano ?? null,
       })
       if (error) throw error
       aplicado = true
-      observacao = `conferido no provedor; acesso até ${ate}`
+      observacao = assinatura?.plano
+        ? `conferido no provedor; plano ${assinatura.plano}; acesso até ${ate}`
+        : `conferido no provedor; acesso até ${ate}`
     } else if (ACABOU.includes(tipo)) {
       const idDaAssinatura = String(pagamento.id ?? '')
       const acabou = idDaAssinatura ? await assinaturaAcabouMesmo(idDaAssinatura) : false
