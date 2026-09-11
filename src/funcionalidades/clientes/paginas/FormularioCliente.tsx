@@ -141,7 +141,7 @@ export function FormularioCliente() {
 
         {errors.root && (
           <LinhaInteira>
-            <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
+            <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
               {errors.root.message}
             </p>
           </LinhaInteira>

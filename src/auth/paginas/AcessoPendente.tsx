@@ -12,11 +12,11 @@ export function AcessoPendente() {
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col items-center justify-center gap-4 px-6 text-center">
-      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-superficie-escura text-acento">
+      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-fundo-2 text-acento-forte">
         <UserX aria-hidden size={30} />
       </span>
-      <h1 className="text-titulo text-escuro">Acesso ainda não liberado</h1>
-      <p className="max-w-[38ch] text-corpo text-escuro-secundario">
+      <h1 className="text-titulo text-em-fundo">Acesso ainda não liberado</h1>
+      <p className="max-w-[38ch] text-corpo text-em-fundo-2">
         Seu login funciona, mas {sessao?.user.email} ainda não está vinculado a
         nenhuma oficina. Peça ao responsável para liberar seu acesso.
       </p>

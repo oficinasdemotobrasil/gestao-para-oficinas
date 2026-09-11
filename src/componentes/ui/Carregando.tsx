@@ -8,8 +8,8 @@ export function Carregando({ rotulo = 'Carregando…' }: { rotulo?: string }) {
       aria-live="polite"
       className="flex flex-col items-center gap-3 px-6 py-12 text-center"
     >
-      <Loader2 aria-hidden size={28} className="animate-spin text-acento" />
-      <span className="text-corpo text-escuro-secundario">{rotulo}</span>
+      <Loader2 aria-hidden size={28} className="animate-spin text-acento-forte" />
+      <span className="text-corpo text-em-fundo-2">{rotulo}</span>
     </div>
   )
 }
@@ -32,7 +32,7 @@ export function Esqueleto({
         'animate-pulse rounded-controle',
         // Dentro de uma folha branca, o bloco escuro do app vira um borrão
         // preto sem sentido. Aqui ele precisa ser um cinza claro.
-        sobreClaro ? 'bg-borda-clara' : 'bg-superficie-escura',
+        sobreClaro ? 'bg-borda-em-superficie' : 'bg-fundo-2',
         className,
       )}
     />

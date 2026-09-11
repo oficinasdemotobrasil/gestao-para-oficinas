@@ -31,15 +31,15 @@ export function EstadoVazio({
   return (
     <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
       {icone && (
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-superficie-escura text-acento">
+        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-fundo-2 text-acento-forte">
           {icone}
         </span>
       )}
-      <h2 className={cn('text-secao', sobreClaro ? 'text-claro' : 'text-escuro')}>{titulo}</h2>
+      <h2 className={cn('text-secao', sobreClaro ? 'text-em-superficie' : 'text-em-fundo')}>{titulo}</h2>
       <p
         className={cn(
           'max-w-[36ch] text-corpo',
-          sobreClaro ? 'text-claro-secundario' : 'text-escuro-secundario',
+          sobreClaro ? 'text-em-superficie-2' : 'text-em-fundo-2',
         )}
       >
         {descricao}
@@ -67,14 +67,14 @@ export function EstadoErro({
 }) {
   return (
     <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
-      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-erro-fundo text-erro">
+      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-erro-fundo text-erro-forte">
         <AlertTriangle aria-hidden size={28} />
       </span>
-      <h2 className={cn('text-secao', sobreClaro ? 'text-claro' : 'text-escuro')}>{titulo}</h2>
+      <h2 className={cn('text-secao', sobreClaro ? 'text-em-superficie' : 'text-em-fundo')}>{titulo}</h2>
       <p
         className={cn(
           'max-w-[36ch] text-corpo',
-          sobreClaro ? 'text-claro-secundario' : 'text-escuro-secundario',
+          sobreClaro ? 'text-em-superficie-2' : 'text-em-fundo-2',
         )}
       >
         {descricao}

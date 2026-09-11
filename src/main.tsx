@@ -4,6 +4,7 @@ import { registerSW } from 'virtual:pwa-register'
 import { App } from './App'
 import './estilos/globais.css'
 import { aplicarCorDaMarca, marcaLembrada } from './lib/marca'
+import { aplicarTema, temaEscolhido } from './lib/tema'
 
 /**
  * Mantém o app atualizado sozinho.
@@ -26,6 +27,7 @@ registerSW({
  * primeira tela pintar. Sem isto, quem abre o app veria o amarelo do produto
  * por um instante e depois a própria cor — o pisca-pisca que denuncia gambiarra.
  */
+aplicarTema(temaEscolhido())
 aplicarCorDaMarca(marcaLembrada()?.cor)
 
 createRoot(document.getElementById('root')!).render(

@@ -109,9 +109,9 @@ export function Mais() {
       {noIOS && !jaInstalado && (
         <>
           <TituloSecao>Instalar no celular</TituloSecao>
-          <div className="rounded-card bg-superficie-escura p-5">
-            <p className="flex items-start gap-2 text-corpo text-escuro">
-              <Share aria-hidden size={20} className="mt-0.5 shrink-0 text-acento" />
+          <div className="rounded-card bg-fundo-2 p-5">
+            <p className="flex items-start gap-2 text-corpo text-em-fundo">
+              <Share aria-hidden size={20} className="mt-0.5 shrink-0 text-acento-forte" />
               <span>
                 Toque em <strong>Compartilhar</strong> na barra do Safari e escolha
                 <strong> Adicionar à Tela de Início</strong>. O app passa a abrir
@@ -127,7 +127,7 @@ export function Mais() {
         Sair
       </Botao>
 
-      <p className="flex items-start gap-2 px-1 pt-8 text-apoio text-escuro-secundario">
+      <p className="flex items-start gap-2 px-1 pt-8 text-apoio text-em-fundo-2">
         <Info aria-hidden size={16} className="mt-0.5 shrink-0" />
         Gestão para Oficinas · Fase 3
       </p>

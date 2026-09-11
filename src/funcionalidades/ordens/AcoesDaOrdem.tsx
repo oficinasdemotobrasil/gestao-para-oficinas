@@ -261,7 +261,7 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
       )}
 
       {ordem.status === 'aguardando_conferencia' && !p.gerenciarOrdens && (
-        <p className="rounded-controle bg-atencao-fundo px-4 py-3 text-corpo text-atencao">
+        <p className="rounded-controle bg-atencao-fundo px-4 py-3 text-corpo text-atencao-forte">
           Serviço entregue para conferência. Quem confere é quem finaliza.
         </p>
       )}
@@ -288,7 +288,7 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
       )}
 
       {pronta && p.gerenciarOrdens && (contas ?? []).length > 0 && (
-        <p className="rounded-controle bg-sucesso-fundo px-4 py-3 text-corpo text-sucesso">
+        <p className="rounded-controle bg-sucesso-fundo px-4 py-3 text-corpo text-sucesso-forte">
           Cobrança lançada
           {(contas ?? []).length > 1 ? ` em ${(contas ?? []).length} parcelas` : ''}. Acompanhe em
           Financeiro.
@@ -302,7 +302,7 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
             href={enderecoDoWhatsApp(texto, ordem.cliente?.telefone ?? null)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex h-botao w-full items-center justify-center gap-2 rounded-controle bg-acento px-5 text-corpo font-semibold text-claro active:bg-acento-pressionado"
+            className="inline-flex h-botao w-full items-center justify-center gap-2 rounded-controle bg-acento px-5 text-corpo font-semibold text-em-superficie active:bg-acento-pressionado"
           >
             <MessageCircle aria-hidden size={20} />
             Avisar que está pronta
@@ -373,7 +373,7 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
           </div>
         }
       >
-        <p className="pb-4 text-corpo text-claro-secundario">
+        <p className="pb-4 text-corpo text-em-superficie-2">
           O cadastro do estoque não tem estas peças na quantidade da ordem. Se
           elas foram mesmo aplicadas na moto, pode finalizar: o saldo fica
           negativo e você acerta depois.
@@ -383,26 +383,26 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
           {(faltas ?? []).map((f) => (
             <div
               key={f.produto_id}
-              className="flex items-start justify-between gap-3 rounded-controle border border-borda-clara px-4 py-3"
+              className="flex items-start justify-between gap-3 rounded-controle border border-borda-em-superficie px-4 py-3"
             >
               <span className="min-w-0">
-                <span className="block truncate text-corpo font-medium text-claro">
+                <span className="block truncate text-corpo font-medium text-em-superficie">
                   {f.nome}
                 </span>
-                <span className="block text-apoio text-claro-secundario">
+                <span className="block text-apoio text-em-superficie-2">
                   tem {formatarQuantidade(f.em_estoque)} {f.unidade} · precisa de{' '}
                   {formatarQuantidade(f.necessario)}
                 </span>
               </span>
-              <span className="shrink-0 rounded-badge bg-erro-fundo px-2.5 py-1 text-apoio font-medium text-erro">
+              <span className="shrink-0 rounded-badge bg-erro-fundo px-2.5 py-1 text-apoio font-medium text-erro-forte">
                 faltam {formatarQuantidade(f.falta)}
               </span>
             </div>
           ))}
         </div>
 
-        <p className="flex items-start gap-2 pb-2 text-apoio text-claro-secundario">
-          <TriangleAlert aria-hidden size={18} className="mt-0.5 shrink-0 text-atencao" />
+        <p className="flex items-start gap-2 pb-2 text-apoio text-em-superficie-2">
+          <TriangleAlert aria-hidden size={18} className="mt-0.5 shrink-0 text-atencao-forte" />
           A saída fica marcada no extrato como feita sem saldo, para você achar
           depois onde o cadastro descolou da prateleira.
         </p>
@@ -424,7 +424,7 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
           </div>
         }
       >
-        <p className="pb-4 text-corpo text-claro-secundario">
+        <p className="pb-4 text-corpo text-em-superficie-2">
           A conta a receber nasce com o valor da ordem. Parcelando, cada parcela
           vence um mês depois da anterior.
         </p>
@@ -467,7 +467,7 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
           </Botao>
         }
       >
-        <p className="pb-4 text-corpo text-claro-secundario">
+        <p className="pb-4 text-corpo text-em-superficie-2">
           {ordem.status === 'finalizada'
             ? `As peças que saíram voltam para o estoque, e o valor de ${moeda(ordem.valor_total)} deixa de ser cobrado.`
             : 'A ordem fica guardada como cancelada, com o histórico do que aconteceu.'}

@@ -35,10 +35,10 @@ export function EsqueciSenha() {
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-5 py-10 text-center">
         <span className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-acento">
-          <MailCheck aria-hidden size={30} className="text-claro" />
+          <MailCheck aria-hidden size={30} className="text-em-superficie" />
         </span>
-        <h1 className="text-titulo text-escuro">Verifique seu e-mail</h1>
-        <p className="mx-auto max-w-[38ch] pt-2 text-corpo text-escuro-secundario">
+        <h1 className="text-titulo text-em-fundo">Verifique seu e-mail</h1>
+        <p className="mx-auto max-w-[38ch] pt-2 text-corpo text-em-fundo-2">
           Se existir uma conta para {getValues('email')}, o link para criar uma
           nova senha chega em instantes. Ele vale por uma hora.
         </p>
@@ -54,8 +54,8 @@ export function EsqueciSenha() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-5 py-10">
       <div className="pb-6">
-        <h1 className="text-titulo text-escuro">Esqueci minha senha</h1>
-        <p className="pt-1 text-corpo text-escuro-secundario">
+        <h1 className="text-titulo text-em-fundo">Esqueci minha senha</h1>
+        <p className="pt-1 text-corpo text-em-fundo-2">
           Informe o e-mail do seu acesso. Enviamos um link para você criar uma
           nova senha.
         </p>
@@ -79,7 +79,7 @@ export function EsqueciSenha() {
         />
 
         {erroGeral && (
-          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
+          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
             {erroGeral}
           </p>
         )}
@@ -91,7 +91,7 @@ export function EsqueciSenha() {
 
       <Link
         to="/entrar"
-        className="flex min-h-toque items-center justify-center pt-4 text-corpo text-acento"
+        className="flex min-h-toque items-center justify-center pt-4 text-corpo text-acento-forte"
       >
         Voltar para o login
       </Link>

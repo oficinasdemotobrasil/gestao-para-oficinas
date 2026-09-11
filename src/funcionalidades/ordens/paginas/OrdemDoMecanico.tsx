@@ -118,23 +118,23 @@ export function OrdemDoMecanico() {
       <Card>
         <div className="flex items-center gap-3 pb-2">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
-            <Bike aria-hidden size={20} className="text-claro" />
+            <Bike aria-hidden size={20} className="text-em-superficie" />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-secao text-claro">
+            <p className="truncate text-secao text-em-superficie">
               {ordem.placa ? exibirPlaca(ordem.placa) : 'Moto removida'}
             </p>
-            <p className="truncate text-apoio text-claro-secundario">
+            <p className="truncate text-apoio text-em-superficie-2">
               {modelo}
               {ordem.km_entrada ? ` · ${quilometragem(ordem.km_entrada)}` : ''}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3 border-t border-borda-clara pt-3">
+        <div className="flex items-center gap-3 border-t border-borda-em-superficie pt-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
-            <User aria-hidden size={20} className="text-claro" />
+            <User aria-hidden size={20} className="text-em-superficie" />
           </span>
-          <p className="truncate text-corpo text-claro">{ordem.cliente_nome ?? '—'}</p>
+          <p className="truncate text-corpo text-em-superficie">{ordem.cliente_nome ?? '—'}</p>
         </div>
       </Card>
 
@@ -188,7 +188,7 @@ export function OrdemDoMecanico() {
           </Botao>
         )}
         {ordem.status === 'aguardando_conferencia' && (
-          <p className="rounded-controle bg-atencao-fundo px-4 py-3 text-corpo text-atencao">
+          <p className="rounded-controle bg-atencao-fundo px-4 py-3 text-corpo text-atencao-forte">
             Avisado que está pronta. Quem confere o serviço é que finaliza.
           </p>
         )}
@@ -209,19 +209,19 @@ export function OrdemDoMecanico() {
               className="flex items-start gap-3 rounded-card bg-superficie p-4 text-left shadow-card disabled:opacity-60"
             >
               {feito ? (
-                <CheckCircle2 aria-hidden size={24} className="mt-0.5 shrink-0 text-sucesso" />
+                <CheckCircle2 aria-hidden size={24} className="mt-0.5 shrink-0 text-sucesso-forte" />
               ) : (
-                <Circle aria-hidden size={24} className="mt-0.5 shrink-0 text-claro-secundario" />
+                <Circle aria-hidden size={24} className="mt-0.5 shrink-0 text-em-superficie-2" />
               )}
               <span className="min-w-0">
                 <span
                   className={`block text-corpo font-medium ${
-                    feito ? 'text-claro-secundario line-through' : 'text-claro'
+                    feito ? 'text-em-superficie-2 line-through' : 'text-em-superficie'
                   }`}
                 >
                   {item.descricao}
                 </span>
-                <span className="block text-apoio text-claro-secundario">
+                <span className="block text-apoio text-em-superficie-2">
                   {item.tipo === 'produto' ? 'Peça' : item.tipo === 'servico' ? 'Serviço' : 'Item'}
                   {Number(item.quantidade) !== 1 &&
                     ` · ${String(item.quantidade).replace('.', ',')} unidades`}

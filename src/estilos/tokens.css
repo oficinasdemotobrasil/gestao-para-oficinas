@@ -1,29 +1,83 @@
 /* Fonte única de verdade dos tokens de design. Ver DESIGN.md.
    Nenhum valor daqui deve ser repetido dentro de componente. */
 
+/*
+ * Por que as cores estão em canais soltos ("11 11 12") e não em hexadecimal:
+ *
+ * É o que faz `bg-alguma-coisa/40` funcionar. O Tailwind precisa injetar a
+ * opacidade DENTRO da cor — `rgb(var(--cor-x) / 0.4)` — e não consegue fazer
+ * isso com uma variável que já vem fechada como `#0b0b0c`. Quando vinha, ele
+ * não gerava regra nenhuma: a classe existia no elemento, o CSS não existia, e
+ * o elemento herdava a cor do pai em silêncio. Quinze estados de toque ficaram
+ * invisíveis assim, e o subtítulo do botão principal da tela inicial virou
+ * branco sobre amarelo — 1,63:1.
+ *
+ * Quem usa estes tokens em CSS escrito à mão precisa envolver: rgb(var(--cor-x)).
+ *
+ * Dois temas, um jogo de nomes.
+ *
+ * Os tokens são nomeados pelo que ficam EM CIMA, não pela claridade que têm:
+ * `em-fundo` é o texto sobre o fundo da tela, `em-superficie` é o texto sobre o
+ * cartão. No tema escuro o primeiro é branco; no claro, é escuro. Um token
+ * chamado "texto-escuro" guardando cor escura para fundo claro seria uma
+ * armadilha para quem vier depois — foi por isso que eles mudaram de nome.
+ *
+ * O escuro é o padrão da casa: é como o produto nasceu e é o que a oficina vê
+ * na bancada, onde a tela fica em pé o dia inteiro. O claro entra quando o
+ * aparelho pede, ou quando a pessoa escolhe em Configurações.
+ */
+
 :root {
-  /* Cor ------------------------------------------------------------------ */
-  --cor-fundo: #0b0b0c;
-  --cor-superficie: #ffffff;
-  --cor-superficie-escura: #1a1a1c;
-  --cor-borda-escura: #2a2a2e;
-  --cor-borda-clara: #e6e6e9;
+  /* Cor — tema escuro, o padrão ------------------------------------------- */
+  --cor-fundo: 11 11 12;
+  --cor-fundo-2: 26 26 28;
+  --cor-superficie: 255 255 255;
+  --cor-borda-em-fundo: 42 42 46;
+  --cor-borda-em-superficie: 230 230 233;
 
-  --cor-acento: #f5c518;
-  --cor-acento-pressionado: #dcaf10;
-  --cor-acento-suave: #fdf3cc;
+  --cor-acento: 245 197 24;
+  --cor-acento-pressionado: 220 175 16;
+  --cor-acento-suave: 253 243 204;
+  /*
+   * O acento quando ele é TEXTO, e não fundo.
+   *
+   * O amarelo dá 10,7:1 sobre o preto e 1,7:1 sobre o branco — o mesmo tom que
+   * salta no escuro some no claro. Este token é a versão que se lê sobre o
+   * fundo do tema, e é ele que `text-acento-forte` usa.
+   */
+  --cor-acento-forte: 245 197 24;
 
-  --cor-texto-claro: #111113;
-  --cor-texto-claro-secundario: #6b6b70;
-  --cor-texto-escuro: #ffffff;
-  --cor-texto-escuro-secundario: #9a9aa0;
+  /*
+   * Superfície invertida: sempre o oposto do cartão, nos dois temas.
+   * É o botão secundário — preto com texto branco sobre o cartão branco. Sem
+   * um token próprio, ele usava a cor de TEXTO como fundo, e no tema claro
+   * viraria escuro sobre escuro.
+   */
+  --cor-inverso: 17 17 19;
+  --cor-em-inverso: 255 255 255;
 
-  --cor-sucesso: #2e9e5b;
-  --cor-sucesso-fundo: #e6f5ec;
-  --cor-atencao: #e0a800;
-  --cor-atencao-fundo: #fdf4dc;
-  --cor-erro: #d93a3a;
-  --cor-erro-fundo: #fdecec;
+  --cor-em-superficie: 17 17 19;
+  --cor-em-superficie-2: 107 107 112;
+  --cor-em-fundo: 255 255 255;
+  --cor-em-fundo-2: 154 154 160;
+
+  /*
+   * As cores semânticas têm duas vidas, como o acento: pintam fundo (com texto
+   * escuro em cima) e viram texto (sobre branco ou sobre a própria tinta). O
+   * mesmo valor não serve para as duas — o amarelo de atenção dava 2,15:1 como
+   * texto sobre branco, que é quase invisível para quem enxerga mal.
+   *
+   * A cor sem sufixo pinta; a `-forte` escreve.
+   */
+  --cor-sucesso: 46 158 91;
+  --cor-sucesso-forte: 27 122 61;
+  --cor-sucesso-fundo: 230 245 236;
+  --cor-atencao: 224 168 0;
+  --cor-atencao-forte: 138 106 0;
+  --cor-atencao-fundo: 253 244 220;
+  --cor-erro: 217 58 58;
+  --cor-erro-forte: 196 43 43;
+  --cor-erro-fundo: 253 236 236;
 
   /* Raio ----------------------------------------------------------------- */
   --raio-card: 20px;
@@ -76,4 +130,40 @@
   :root {
     --altura-tabbar: 0px;
   }
+}
+
+/*
+ * Tema claro.
+ *
+ * Só os tokens mudam — nenhum componente sabe em que tema está, o que é o
+ * motivo de isto caber num arquivo só. O cartão continua branco nos dois: o
+ * que muda é o chão em volta dele, que sai do preto para um cinza de papel.
+ *
+ * `--cor-acento` NÃO é redefinido aqui: ele continua sendo fundo de botão com
+ * texto escuro em cima, e isso se lê igual nos dois temas. Quem muda é o
+ * `--cor-acento-forte`, o acento como texto, que precisa escurecer para ser
+ * legível sobre o cinza claro.
+ */
+@media (prefers-color-scheme: light) {
+  :root:not([data-tema='escuro']) {
+    --cor-fundo: 243 243 245;
+    --cor-fundo-2: 232 232 236;
+    --cor-borda-em-fundo: 220 220 226;
+
+    --cor-acento-forte: 138 106 0;
+
+    --cor-em-fundo: 17 17 19;
+    --cor-em-fundo-2: 95 95 104;
+  }
+}
+
+:root[data-tema='claro'] {
+  --cor-fundo: 243 243 245;
+  --cor-fundo-2: 232 232 236;
+  --cor-borda-em-fundo: 220 220 226;
+
+  --cor-acento-forte: 138 106 0;
+
+  --cor-em-fundo: 17 17 19;
+  --cor-em-fundo-2: 95 95 104;
 }

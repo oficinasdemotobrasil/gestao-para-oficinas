@@ -105,25 +105,25 @@ export function SeletorClienteMoto({ escolha, aoEscolher, somenteLeitura = false
       disabled={desabilitado || somenteLeitura}
       className="flex min-h-linha w-full items-center gap-3 px-5 text-left disabled:opacity-60"
     >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave text-claro">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave text-em-superficie">
         <Icone aria-hidden size={20} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="text-apoio text-claro-secundario">{rotulo}</span>
-        <span className="truncate text-corpo font-medium text-claro">
+        <span className="text-apoio text-em-superficie-2">{rotulo}</span>
+        <span className="truncate text-corpo font-medium text-em-superficie">
           {valor ?? 'Toque para escolher'}
         </span>
-        {apoio && <span className="truncate text-apoio text-claro-secundario">{apoio}</span>}
+        {apoio && <span className="truncate text-apoio text-em-superficie-2">{apoio}</span>}
       </span>
       {!somenteLeitura && (
-        <ChevronRight aria-hidden size={20} className="shrink-0 text-claro-secundario" />
+        <ChevronRight aria-hidden size={20} className="shrink-0 text-em-superficie-2" />
       )}
     </button>
   )
 
   return (
     <>
-      <div className="overflow-hidden rounded-card bg-superficie shadow-card [&>*+*]:border-t [&>*+*]:border-borda-clara">
+      <div className="overflow-hidden rounded-card bg-superficie shadow-card [&>*+*]:border-t [&>*+*]:border-borda-em-superficie">
         <Linha
           rotulo="Cliente"
           valor={escolha.clienteNome}
@@ -141,7 +141,7 @@ export function SeletorClienteMoto({ escolha, aoEscolher, somenteLeitura = false
       </div>
 
       {!escolha.clienteId && !somenteLeitura && (
-        <p className="px-1 pt-2 text-apoio text-escuro-secundario">
+        <p className="px-1 pt-2 text-apoio text-em-fundo-2">
           Escolha o cliente primeiro; as motos dele aparecem em seguida.
         </p>
       )}
@@ -311,7 +311,7 @@ function ModalClienteRapido({
           onChange={(e) => setTel(mascararTelefone(e.target.value))}
         />
         {erro && (
-          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
+          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
             {erro}
           </p>
         )}
@@ -425,7 +425,7 @@ function ModalMotoRapida({
           onChange={(e) => setKm(e.target.value)}
         />
         {erro && (
-          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
+          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
             {erro}
           </p>
         )}

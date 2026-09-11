@@ -37,8 +37,8 @@ const carregarPdf = () =>
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-2">
-      <span className="text-rotulo text-claro-secundario">{rotulo}</span>
-      <span className="text-corpo text-claro">{valor}</span>
+      <span className="text-rotulo text-em-superficie-2">{rotulo}</span>
+      <span className="text-corpo text-em-superficie">{valor}</span>
     </div>
   )
 }
@@ -128,11 +128,11 @@ export function DetalheMoto() {
         <Card>
           <div className="flex items-end justify-between gap-4">
             <div className="flex flex-col gap-1">
-              <span className="text-rotulo text-claro-secundario">Quilometragem</span>
-              <span className="text-destaque text-claro">
+              <span className="text-rotulo text-em-superficie-2">Quilometragem</span>
+              <span className="text-destaque text-em-superficie">
                 {new Intl.NumberFormat('pt-BR').format(moto.km_atual)}
               </span>
-              <span className="text-apoio text-claro-secundario">
+              <span className="text-apoio text-em-superficie-2">
                 Atualizada em {data(moto.atualizado_em)}
               </span>
             </div>
@@ -209,11 +209,11 @@ export function DetalheMoto() {
         <Card escuro>
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento">
-              <ClipboardList aria-hidden size={20} className="text-claro" />
+              <ClipboardList aria-hidden size={20} className="text-em-superficie" />
             </span>
             <div>
-              <p className="text-corpo text-escuro">Nenhum serviço concluído ainda</p>
-              <p className="pt-1 text-apoio text-escuro-secundario">
+              <p className="text-corpo text-em-fundo">Nenhum serviço concluído ainda</p>
+              <p className="pt-1 text-apoio text-em-fundo-2">
                 Todo serviço concluído nesta placa vai aparecer aqui, com a data e
                 quem era o dono na época — mesmo que a moto troque de mãos.
               </p>
@@ -231,21 +231,21 @@ export function DetalheMoto() {
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-corpo font-medium text-claro">
+                  <p className="text-corpo font-medium text-em-superficie">
                     OS {String(s.numero).padStart(3, '0')} · {data(s.data)}
                   </p>
-                  <p className="text-apoio text-claro-secundario">
+                  <p className="text-apoio text-em-superficie-2">
                     {s.km ? `${quilometragem(s.km)} · ` : ''}
                     dono na época: {s.dono_na_epoca ?? '—'}
                   </p>
                 </div>
-                <span className="shrink-0 text-corpo font-semibold text-claro">
+                <span className="shrink-0 text-corpo font-semibold text-em-superficie">
                   {moeda(s.valor)}
                 </span>
               </div>
 
               {(s.servicos.length > 0 || s.pecas.length > 0) && (
-                <p className="border-t border-borda-clara pt-3 mt-3 text-apoio text-claro-secundario">
+                <p className="border-t border-borda-em-superficie pt-3 mt-3 text-apoio text-em-superficie-2">
                   {[...s.servicos, ...s.pecas].join(' · ')}
                 </p>
               )}

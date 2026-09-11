@@ -39,8 +39,8 @@ import {
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-2">
-      <span className="text-rotulo text-claro-secundario">{rotulo}</span>
-      <span className="text-corpo text-claro">{valor}</span>
+      <span className="text-rotulo text-em-superficie-2">{rotulo}</span>
+      <span className="text-corpo text-em-superficie">{valor}</span>
     </div>
   )
 }
@@ -155,29 +155,29 @@ export function DetalheOrdemServico() {
         <Card>
           <div className="flex items-center gap-3 pb-2">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
-              <User aria-hidden size={20} className="text-claro" />
+              <User aria-hidden size={20} className="text-em-superficie" />
             </span>
             <div className="min-w-0">
-              <p className="truncate text-corpo font-medium text-claro">
+              <p className="truncate text-corpo font-medium text-em-superficie">
                 {ordem.cliente?.nome ?? 'Cliente removido'}
               </p>
               {ordem.cliente?.telefone && (
-                <p className="text-apoio text-claro-secundario">
+                <p className="text-apoio text-em-superficie-2">
                   {telefone(ordem.cliente.telefone)}
                 </p>
               )}
             </div>
           </div>
 
-          <div className="flex items-center gap-3 border-t border-borda-clara pt-3">
+          <div className="flex items-center gap-3 border-t border-borda-em-superficie pt-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
-              <Bike aria-hidden size={20} className="text-claro" />
+              <Bike aria-hidden size={20} className="text-em-superficie" />
             </span>
             <div className="min-w-0">
-              <p className="truncate text-corpo font-medium text-claro">
+              <p className="truncate text-corpo font-medium text-em-superficie">
                 {ordem.moto ? exibirPlaca(ordem.moto.placa) : 'Moto removida'}
               </p>
-              <p className="truncate text-apoio text-claro-secundario">
+              <p className="truncate text-apoio text-em-superficie-2">
                 {[ordem.moto?.marca, ordem.moto?.modelo].filter(Boolean).join(' ')}
                 {ordem.km_entrada ? ` · ${quilometragem(ordem.km_entrada)}` : ''}
               </p>
@@ -208,19 +208,19 @@ export function DetalheOrdemServico() {
           {ordem.responsavel ? (
             <div className="flex items-center gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
-                <UserCog aria-hidden size={20} className="text-claro" />
+                <UserCog aria-hidden size={20} className="text-em-superficie" />
               </span>
               <div className="min-w-0">
-                <p className="truncate text-corpo font-medium text-claro">
+                <p className="truncate text-corpo font-medium text-em-superficie">
                   {ordem.responsavel.nome}
                 </p>
-                <p className="text-apoio text-claro-secundario">
+                <p className="text-apoio text-em-superficie-2">
                   {nomeDoPerfil[ordem.responsavel.perfil]}
                 </p>
               </div>
             </div>
           ) : (
-            <p className="py-2 text-corpo text-claro-secundario">Ninguém atribuído ainda.</p>
+            <p className="py-2 text-corpo text-em-superficie-2">Ninguém atribuído ainda.</p>
           )}
         </Card>
     </>
@@ -238,8 +238,8 @@ export function DetalheOrdemServico() {
 
       {acima != null && mostraValores && (
         <div className="mt-6 flex items-start gap-3 rounded-card bg-atencao-fundo px-4 py-4">
-          <TriangleAlert aria-hidden size={20} className="mt-0.5 shrink-0 text-atencao" />
-          <p className="text-corpo text-atencao">
+          <TriangleAlert aria-hidden size={20} className="mt-0.5 shrink-0 text-atencao-forte" />
+          <p className="text-corpo text-atencao-forte">
             Esta ordem está <strong>{moeda(acima)} acima</strong> do orçamento
             aprovado ({moeda(aprovado!)}). Confirme com o cliente antes de
             finalizar.
@@ -273,9 +273,9 @@ export function DetalheOrdemServico() {
                 valor={`− ${moeda(desconto)}`}
               />
             )}
-            <div className="flex items-baseline justify-between gap-4 border-t border-borda-clara py-3">
-              <span className="text-secao text-claro">Total</span>
-              <span className="text-destaque text-claro">{moeda(total)}</span>
+            <div className="flex items-baseline justify-between gap-4 border-t border-borda-em-superficie py-3">
+              <span className="text-secao text-em-superficie">Total</span>
+              <span className="text-destaque text-em-superficie">{moeda(total)}</span>
             </div>
             <Linha
               rotulo="Garantia até"
@@ -317,7 +317,7 @@ export function DetalheOrdemServico() {
         <>
           <TituloSecao>Do orçamento aprovado</TituloSecao>
           <Card>
-            <p className="whitespace-pre-line text-corpo text-claro">{ordem.observacoes}</p>
+            <p className="whitespace-pre-line text-corpo text-em-superficie">{ordem.observacoes}</p>
           </Card>
         </>
       )}
@@ -327,17 +327,17 @@ export function DetalheOrdemServico() {
         {ordem.historico.map((passo) => (
           <div
             key={passo.id}
-            className="flex items-baseline justify-between gap-4 border-b border-borda-clara py-2 last:border-b-0"
+            className="flex items-baseline justify-between gap-4 border-b border-borda-em-superficie py-2 last:border-b-0"
           >
-            <span className="min-w-0 text-corpo text-claro">
+            <span className="min-w-0 text-corpo text-em-superficie">
               {passo.de ? rotuloDoStatusOs(passo.para) : 'Ordem aberta'}
               {passo.usuario && (
-                <span className="block text-apoio text-claro-secundario">
+                <span className="block text-apoio text-em-superficie-2">
                   {passo.usuario.nome}
                 </span>
               )}
             </span>
-            <span className="shrink-0 text-apoio text-claro-secundario">
+            <span className="shrink-0 text-apoio text-em-superficie-2">
               {dataHora(passo.criado_em)}
             </span>
           </div>
@@ -347,7 +347,7 @@ export function DetalheOrdemServico() {
       {ordem.orcamento_id && ordem.orcamento && (
         <Link
           to={`/orcamentos/${ordem.orcamento_id}`}
-          className="mt-8 flex min-h-toque items-center justify-center gap-2 rounded-controle border border-borda-escura px-5 text-corpo font-semibold text-escuro"
+          className="mt-8 flex min-h-toque items-center justify-center gap-2 rounded-controle border border-borda-em-fundo px-5 text-corpo font-semibold text-em-fundo"
         >
           <FileText aria-hidden size={20} />
           Ver o orçamento aprovado
@@ -359,7 +359,7 @@ export function DetalheOrdemServico() {
         aoFechar={() => setTrocandoResponsavel(false)}
         titulo="Quem vai executar?"
       >
-        <p className="pb-4 text-corpo text-claro-secundario">
+        <p className="pb-4 text-corpo text-em-superficie-2">
           A ordem passa para a lista de quem você escolher. O tempo já apontado
           continua no nome de quem trabalhou.
         </p>

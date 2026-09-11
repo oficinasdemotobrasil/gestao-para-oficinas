@@ -86,29 +86,29 @@ export function ClientesInativos() {
               <Card key={c.cliente_id}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-corpo font-medium text-claro">{c.nome}</p>
+                    <p className="truncate text-corpo font-medium text-em-superficie">{c.nome}</p>
                     {c.telefone && (
-                      <p className="text-apoio text-claro-secundario">
+                      <p className="text-apoio text-em-superficie-2">
                         {formatarTelefone(c.telefone)}
                       </p>
                     )}
                   </div>
-                  <span className="shrink-0 rounded-badge bg-atencao-fundo px-2.5 py-1 text-apoio font-medium text-atencao">
+                  <span className="shrink-0 rounded-badge bg-atencao-fundo px-2.5 py-1 text-apoio font-medium text-atencao-forte">
                     {c.dias_sem_voltar} dias
                   </span>
                 </div>
 
-                <p className="pt-3 text-apoio text-claro-secundario">
+                <p className="pt-3 text-apoio text-em-superficie-2">
                   {c.placa ? exibirPlaca(c.placa) : 'sem moto'}
                   {[c.marca, c.modelo].filter(Boolean).length > 0 &&
                     ` · ${[c.marca, c.modelo].filter(Boolean).join(' ')}`}
                 </p>
-                <p className="text-apoio text-claro-secundario">
+                <p className="text-apoio text-em-superficie-2">
                   Última vez: {data(c.ultima_visita)}
                   {c.ultimo_servico && ` · ${c.ultimo_servico}`}
                 </p>
 
-                <div className="border-t border-borda-clara pt-3 mt-3">
+                <div className="border-t border-borda-em-superficie pt-3 mt-3">
                   <Botao
                     largo
                     icone={<MessageCircle aria-hidden size={20} />}
@@ -133,14 +133,14 @@ export function ClientesInativos() {
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setEscrevendo(null)}
-            className="inline-flex h-botao w-full items-center justify-center gap-2 rounded-controle bg-acento px-5 text-corpo font-semibold text-claro active:bg-acento-pressionado"
+            className="inline-flex h-botao w-full items-center justify-center gap-2 rounded-controle bg-acento px-5 text-corpo font-semibold text-em-superficie active:bg-acento-pressionado"
           >
             <MessageCircle aria-hidden size={20} />
             Abrir no WhatsApp
           </a>
         }
       >
-        <p className="pb-4 text-corpo text-claro-secundario">
+        <p className="pb-4 text-corpo text-em-superficie-2">
           Ajuste o texto antes de mandar. Mensagem igual para todo mundo o cliente
           percebe.
         </p>

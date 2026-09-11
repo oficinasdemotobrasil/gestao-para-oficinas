@@ -19,7 +19,7 @@ export function LinhaDoPeriodo({
   const maior = Math.max(...valores)
   if (maior <= 0) {
     return (
-      <p className="py-6 text-center text-corpo text-claro-secundario">
+      <p className="py-6 text-center text-corpo text-em-superficie-2">
         Nenhum serviço concluído neste período.
       </p>
     )
@@ -57,7 +57,7 @@ export function LinhaDoPeriodo({
           vectorEffect="non-scaling-stroke"
         />
       </svg>
-      <div className="flex justify-between pt-1 text-micro text-claro-secundario">
+      <div className="flex justify-between pt-1 text-micro text-em-superficie-2">
         <span>{moeda(0)}</span>
         <span>pico {moeda(maior)}</span>
       </div>
@@ -74,7 +74,7 @@ export function BarraDeComposicao({
   const total = partes.reduce((a, p) => a + p.valor, 0)
   if (total === 0) {
     return (
-      <p className="py-4 text-center text-corpo text-claro-secundario">
+      <p className="py-4 text-center text-corpo text-em-superficie-2">
         Nenhum orçamento neste período.
       </p>
     )
@@ -96,7 +96,7 @@ export function BarraDeComposicao({
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 pt-3">
         {partes.map((p) => (
-          <span key={p.rotulo} className="flex items-center gap-1.5 text-apoio text-claro-secundario">
+          <span key={p.rotulo} className="flex items-center gap-1.5 text-apoio text-em-superficie-2">
             <span className={`h-2.5 w-2.5 rounded-full ${p.classe}`} aria-hidden />
             {p.rotulo} {p.valor}
           </span>

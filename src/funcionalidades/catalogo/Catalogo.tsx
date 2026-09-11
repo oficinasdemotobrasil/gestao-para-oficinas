@@ -123,10 +123,10 @@ export function Catalogo() {
                   onClick={() => setParametros({}, { replace: true })}
                   className="mb-3 flex min-h-toque w-full items-center justify-between gap-3 rounded-controle bg-atencao-fundo px-4 text-left"
                 >
-                  <span className="text-corpo font-medium text-claro">
+                  <span className="text-corpo font-medium text-em-superficie">
                     Mostrando só o que precisa repor
                   </span>
-                  <X aria-hidden size={18} className="shrink-0 text-claro-secundario" />
+                  <X aria-hidden size={18} className="shrink-0 text-em-superficie-2" />
                 </button>
               )}
 

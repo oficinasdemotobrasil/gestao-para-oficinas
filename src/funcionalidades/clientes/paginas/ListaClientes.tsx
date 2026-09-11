@@ -130,7 +130,7 @@ export function ListaClientes() {
       </div>
 
       {clientes && clientes.length >= 100 && (
-        <p className="flex items-start gap-2 px-1 pt-4 text-apoio text-escuro-secundario">
+        <p className="flex items-start gap-2 px-1 pt-4 text-apoio text-em-fundo-2">
           <Phone aria-hidden size={16} className="mt-0.5 shrink-0" />
           Mostrando os 100 primeiros. Use a busca para encontrar alguém específico.
         </p>

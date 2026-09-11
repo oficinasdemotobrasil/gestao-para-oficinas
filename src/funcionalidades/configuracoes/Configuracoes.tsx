@@ -18,6 +18,7 @@ import type { TipoChavePix } from '@/tipos/banco'
 import { Marca } from './Marca'
 import { Conta } from './Conta'
 import { Exemplos } from './Exemplos'
+import { Aparencia } from './Aparencia'
 
 const opcional = z
   .string()
@@ -191,7 +192,7 @@ export function Configuracoes() {
 
         {errors.root && (
           <LinhaInteira>
-            <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
+            <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
               {errors.root.message}
             </p>
           </LinhaInteira>
@@ -255,6 +256,9 @@ export function Configuracoes() {
 
       <TituloSecao>A marca da oficina</TituloSecao>
       <Marca />
+
+      <TituloSecao>Aparência</TituloSecao>
+      <Aparencia />
 
       <TituloSecao>Exemplos para começar</TituloSecao>
       <Exemplos />

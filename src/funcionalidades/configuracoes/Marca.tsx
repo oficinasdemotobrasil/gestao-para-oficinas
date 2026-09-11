@@ -160,7 +160,7 @@ export function Marca() {
       {/* Logo ------------------------------------------------------------- */}
       <div className="rounded-card bg-superficie p-4 tablet:p-6">
         <div className="flex flex-col gap-4 tablet:flex-row tablet:items-center">
-          <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-controle border border-borda-clara bg-fundo">
+          <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-controle border border-borda-em-superficie bg-fundo">
             {oficina.logo_miniatura_url ? (
               <img
                 src={oficina.logo_miniatura_url}
@@ -168,18 +168,18 @@ export function Marca() {
                 className="max-h-full max-w-full object-contain"
               />
             ) : (
-              <span className="text-titulo font-bold text-acento">
+              <span className="text-titulo font-bold text-acento-forte">
                 {oficina.nome.trim().charAt(0).toUpperCase()}
               </span>
             )}
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="text-corpo text-claro">
+            <p className="text-corpo text-em-superficie">
               Aparece no menu, no cabeçalho do PDF de orçamento e de ordem de
               serviço, e na tela de entrar deste aparelho.
             </p>
-            <p className="pt-1 text-apoio text-claro-secundario">
+            <p className="pt-1 text-apoio text-em-superficie-2">
               PNG ou JPG, até {Math.round(TAMANHO_MAXIMO_EM_BYTES / 1024 / 1024)} MB.
               A imagem é reduzida aqui antes de subir.
             </p>
@@ -222,7 +222,7 @@ export function Marca() {
 
       {/* Cor -------------------------------------------------------------- */}
       <div className="rounded-card bg-superficie p-4 tablet:p-6">
-        <p className="text-corpo text-claro">
+        <p className="text-corpo text-em-superficie">
           A cor entra nos destaques: botão principal, item ativo do menu e
           números em evidência. O resto do app continua igual, porque é ele que
           garante a leitura.
@@ -242,12 +242,12 @@ export function Marca() {
                 onClick={() => void gravarCor(hex)}
                 className={[
                   'flex h-12 items-center justify-center rounded-controle border-2 transition-transform',
-                  escolhida ? 'border-claro scale-105' : 'border-transparent hover:scale-105',
+                  escolhida ? 'border-em-superficie scale-105' : 'border-transparent hover:scale-105',
                 ].join(' ')}
                 style={{ backgroundColor: hex }}
               >
                 {escolhida && (
-                  <span className="text-rotulo font-bold text-claro">✓</span>
+                  <span className="text-rotulo font-bold text-em-superficie">✓</span>
                 )}
               </button>
             )
@@ -255,14 +255,14 @@ export function Marca() {
         </div>
 
         <div className="pt-6">
-          <p className="pb-2 text-rotulo text-claro">Outra cor</p>
+          <p className="pb-2 text-rotulo text-em-superficie">Outra cor</p>
           <div className="flex flex-wrap items-end gap-3">
             <input
               type="color"
               aria-label="Escolher outra cor"
               value={ehHexadecimal(corDigitada) ? corDigitada : corAtual}
               onChange={(e) => tentarCorDigitada(e.target.value)}
-              className="h-12 w-16 cursor-pointer rounded-controle border border-borda-clara bg-superficie p-1"
+              className="h-12 w-16 cursor-pointer rounded-controle border border-borda-em-superficie bg-superficie p-1"
             />
             <div className="min-w-[10rem] flex-1">
               <Campo
@@ -279,17 +279,17 @@ export function Marca() {
           {avisoDeCor && (
             <div
               role="alert"
-              className="mt-3 rounded-controle bg-atencao-fundo px-4 py-3 text-corpo text-claro"
+              className="mt-3 rounded-controle bg-atencao-fundo px-4 py-3 text-corpo text-em-superficie"
             >
               <p>{avisoDeCor}</p>
               {sugestao && (
                 <div className="flex flex-wrap items-center gap-3 pt-3">
                   <span
                     aria-hidden
-                    className="h-9 w-9 rounded-controle border border-borda-clara"
+                    className="h-9 w-9 rounded-controle border border-borda-em-superficie"
                     style={{ backgroundColor: sugestao }}
                   />
-                  <span className="text-rotulo text-claro-secundario">{sugestao}</span>
+                  <span className="text-rotulo text-em-superficie-2">{sugestao}</span>
                   <Botao
                     type="button"
                     variante="contorno-no-card"
@@ -304,7 +304,7 @@ export function Marca() {
             </div>
           )}
 
-          <p className="pt-3 text-apoio text-claro-secundario">
+          <p className="pt-3 text-apoio text-em-superficie-2">
             Toda cor é medida contra o texto que fica por cima dela e contra o
             fundo escuro do app. O mínimo é {CONTRASTE_MINIMO.toString().replace('.', ',')}:1,
             a régua das normas de acessibilidade.

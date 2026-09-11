@@ -30,12 +30,12 @@ const NOME_DA_SITUACAO: Record<StatusOficina, string> = {
 }
 
 const TOM_DA_SITUACAO: Record<StatusOficina, string> = {
-  teste: 'bg-atencao-fundo text-atencao',
-  ativa: 'bg-sucesso-fundo text-sucesso',
-  atrasada: 'bg-atencao-fundo text-atencao',
-  bloqueada: 'bg-erro-fundo text-erro',
-  suspensa: 'bg-erro-fundo text-erro',
-  cancelada: 'bg-erro-fundo text-erro',
+  teste: 'bg-atencao-fundo text-atencao-forte',
+  ativa: 'bg-sucesso-fundo text-sucesso-forte',
+  atrasada: 'bg-atencao-fundo text-atencao-forte',
+  bloqueada: 'bg-erro-fundo text-erro-forte',
+  suspensa: 'bg-erro-fundo text-erro-forte',
+  cancelada: 'bg-erro-fundo text-erro-forte',
 }
 
 /** As razões que vale a pena separar. O campo livre continua existindo. */
@@ -131,10 +131,10 @@ export function Conta() {
       <div className="rounded-card bg-superficie p-4 tablet:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-apoio text-claro-secundario">Seu plano</p>
-            <p className="text-secao text-claro">{plano.data?.nome ?? '—'}</p>
+            <p className="text-apoio text-em-superficie-2">Seu plano</p>
+            <p className="text-secao text-em-superficie">{plano.data?.nome ?? '—'}</p>
             {plano.data?.descricao && (
-              <p className="pt-1 text-apoio text-claro-secundario">{plano.data.descricao}</p>
+              <p className="pt-1 text-apoio text-em-superficie-2">{plano.data.descricao}</p>
             )}
           </div>
           {situacao && (
@@ -148,22 +148,22 @@ export function Conta() {
 
         <dl className="grid gap-4 pt-5 tablet:grid-cols-3">
           <div>
-            <dt className="text-apoio text-claro-secundario">Mensalidade</dt>
-            <dd className="text-corpo text-claro">
+            <dt className="text-apoio text-em-superficie-2">Mensalidade</dt>
+            <dd className="text-corpo text-em-superficie">
               {plano.data ? moeda(Number(plano.data.preco_mensal)) : '—'}
             </dd>
           </div>
           <div>
-            <dt className="text-apoio text-claro-secundario">Pessoas com acesso</dt>
-            <dd className="text-corpo text-claro">
+            <dt className="text-apoio text-em-superficie-2">Pessoas com acesso</dt>
+            <dd className="text-corpo text-em-superficie">
               {plano.data?.limite_colaboradores == null
                 ? 'Sem limite'
                 : `Até ${plano.data.limite_colaboradores}`}
             </dd>
           </div>
           <div>
-            <dt className="text-apoio text-claro-secundario">Acesso garantido até</dt>
-            <dd className="text-corpo text-claro">
+            <dt className="text-apoio text-em-superficie-2">Acesso garantido até</dt>
+            <dd className="text-corpo text-em-superficie">
               {oficina.acesso_ate ? formatarData(oficina.acesso_ate) : 'Sem prazo'}
             </dd>
           </div>
@@ -176,8 +176,8 @@ export function Conta() {
 
       {/* Levar os dados ------------------------------------------------------ */}
       <div className="rounded-card bg-superficie p-4 tablet:p-6">
-        <p className="text-corpo text-claro">Seus dados são seus.</p>
-        <p className="pt-1 text-apoio text-claro-secundario">
+        <p className="text-corpo text-em-superficie">Seus dados são seus.</p>
+        <p className="pt-1 text-apoio text-em-superficie-2">
           Baixe tudo — clientes, motos, orçamentos, ordens de serviço, estoque e
           financeiro — numa pasta de planilhas que abre no Excel ou no Google
           Planilhas. Funciona em qualquer situação da conta, inclusive encerrada.
@@ -200,7 +200,7 @@ export function Conta() {
       <div className="rounded-card bg-superficie p-4 tablet:p-6">
         {saindo ? (
           <>
-            <p className="text-corpo text-claro">
+            <p className="text-corpo text-em-superficie">
               Encerramento pedido. Seus dados continuam aqui até{' '}
               <strong>{formatarData(oficina.excluir_em!)}</strong>
               {diasParaSair !== null && diasParaSair >= 0 && (
@@ -208,7 +208,7 @@ export function Conta() {
               )}
               .
             </p>
-            <p className="pt-1 text-apoio text-claro-secundario">
+            <p className="pt-1 text-apoio text-em-superficie-2">
               Nada foi apagado. Até essa data, dá para voltar atrás.
             </p>
             <div className="pt-4">
@@ -224,8 +224,8 @@ export function Conta() {
           </>
         ) : (
           <>
-            <p className="text-corpo text-claro">Encerrar a conta</p>
-            <p className="pt-1 text-apoio text-claro-secundario">
+            <p className="text-corpo text-em-superficie">Encerrar a conta</p>
+            <p className="pt-1 text-apoio text-em-superficie-2">
               Seus dados ficam guardados por mais 30 dias, e nesse prazo dá para
               voltar atrás. Baixe suas planilhas antes.
             </p>
@@ -249,7 +249,7 @@ export function Conta() {
         titulo="Encerrar a conta"
       >
         <div className="space-y-4">
-          <p className="text-corpo text-claro">
+          <p className="text-corpo text-em-superficie">
             Sua conta fica encerrada, mas <strong>nada é apagado agora</strong>. Os
             dados ficam guardados até{' '}
             {formatarData(new Date(Date.now() + 30 * 86_400_000).toISOString())}, e

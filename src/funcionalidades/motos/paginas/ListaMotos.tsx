@@ -18,7 +18,7 @@ import { listarMotos } from '../api'
 /** A placa é o que identifica a moto, então ela ocupa o lugar de destaque. */
 function Placa({ placa }: { placa: string }) {
   return (
-    <span className="flex h-10 min-w-[86px] items-center justify-center rounded-badge bg-acento px-2 text-rotulo font-semibold tracking-wide text-claro">
+    <span className="flex h-10 min-w-[86px] items-center justify-center rounded-badge bg-acento px-2 text-rotulo font-semibold tracking-wide text-em-superficie">
       {exibirPlaca(placa)}
     </span>
   )

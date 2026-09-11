@@ -14,8 +14,8 @@ import { obterCliente, motosDoCliente } from '../api'
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-2">
-      <span className="text-rotulo text-claro-secundario">{rotulo}</span>
-      <span className="text-corpo text-claro">{valor}</span>
+      <span className="text-rotulo text-em-superficie-2">{rotulo}</span>
+      <span className="text-corpo text-em-superficie">{valor}</span>
     </div>
   )
 }
@@ -84,7 +84,7 @@ export function DetalheCliente() {
         <>
           <TituloSecao>Observações</TituloSecao>
           <Card>
-            <p className="whitespace-pre-line text-corpo text-claro">{cliente.observacoes}</p>
+            <p className="whitespace-pre-line text-corpo text-em-superficie">{cliente.observacoes}</p>
           </Card>
         </>
       )}
@@ -107,7 +107,7 @@ export function DetalheCliente() {
 
       {!motos || motos.length === 0 ? (
         <Card escuro>
-          <p className="text-corpo text-escuro-secundario">
+          <p className="text-corpo text-em-fundo-2">
             Nenhuma moto vinculada a este cliente ainda.
           </p>
         </Card>

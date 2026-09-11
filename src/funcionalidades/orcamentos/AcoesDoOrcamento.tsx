@@ -215,7 +215,7 @@ export function AcoesDoOrcamento({ orcamento, statusEfetivo, podeAgir }: Props) 
         onClick={() => {
           if (orcamento.status === 'rascunho') enviar.mutate()
         }}
-        className="inline-flex h-botao w-full items-center justify-center gap-2 rounded-controle bg-acento px-5 text-corpo font-semibold text-claro active:bg-acento-pressionado"
+        className="inline-flex h-botao w-full items-center justify-center gap-2 rounded-controle bg-acento px-5 text-corpo font-semibold text-em-superficie active:bg-acento-pressionado"
       >
         <MessageCircle aria-hidden size={20} />
         Enviar pelo WhatsApp
@@ -253,7 +253,7 @@ export function AcoesDoOrcamento({ orcamento, statusEfetivo, podeAgir }: Props) 
       )}
 
       {podeAgir && !decidido && (
-        <div className="flex flex-col gap-3 border-t border-borda-escura pt-5">
+        <div className="flex flex-col gap-3 border-t border-borda-em-fundo pt-5">
           <Botao
             largo
             icone={<CheckCircle2 aria-hidden size={20} />}
@@ -290,13 +290,13 @@ export function AcoesDoOrcamento({ orcamento, statusEfetivo, podeAgir }: Props) 
           </Botao>
         }
       >
-        <p className="pb-4 text-corpo text-claro-secundario">
+        <p className="pb-4 text-corpo text-em-superficie-2">
           A ordem de serviço nasce aberta, com os itens deste orçamento. O estoque
           só é baixado quando o serviço for executado.
         </p>
 
         {statusEfetivo === 'expirado' && (
-          <p className="mb-4 rounded-controle bg-atencao-fundo px-4 py-3 text-corpo text-atencao">
+          <p className="mb-4 rounded-controle bg-atencao-fundo px-4 py-3 text-corpo text-atencao-forte">
             Este orçamento passou da validade. Se os preços mudaram, cancele e
             duplique em vez de aprovar.
           </p>
@@ -319,7 +319,7 @@ export function AcoesDoOrcamento({ orcamento, statusEfetivo, podeAgir }: Props) 
           </Botao>
         }
       >
-        <p className="pb-4 text-corpo text-claro-secundario">
+        <p className="pb-4 text-corpo text-em-superficie-2">
           O orçamento fica guardado como recusado. Dá para duplicar depois, se o
           cliente voltar atrás.
         </p>

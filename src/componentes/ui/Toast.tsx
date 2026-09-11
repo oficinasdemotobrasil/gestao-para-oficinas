@@ -20,9 +20,9 @@ interface Contexto {
 const ToastContexto = createContext<Contexto | null>(null)
 
 const tons: Record<Tom, { classe: string; Icone: typeof Info }> = {
-  sucesso: { classe: 'bg-sucesso-fundo text-sucesso', Icone: CheckCircle2 },
-  erro: { classe: 'bg-erro-fundo text-erro', Icone: AlertTriangle },
-  aviso: { classe: 'bg-atencao-fundo text-atencao', Icone: Info },
+  sucesso: { classe: 'bg-sucesso-fundo text-sucesso-forte', Icone: CheckCircle2 },
+  erro: { classe: 'bg-erro-fundo text-erro-forte', Icone: AlertTriangle },
+  aviso: { classe: 'bg-atencao-fundo text-atencao-forte', Icone: Info },
 }
 
 export function ProvedorToast({ children }: { children: ReactNode }) {

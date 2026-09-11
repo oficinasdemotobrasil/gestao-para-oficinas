@@ -71,8 +71,8 @@ function mesCorrente(): { de: string; ate: string } {
 function LinhaResumo({ rotulo, valor, tom }: { rotulo: string; valor: string; tom?: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-1.5 desktop:flex-col desktop:items-start desktop:gap-1">
-      <span className="text-rotulo text-claro-secundario">{rotulo}</span>
-      <span className={`text-corpo font-medium desktop:text-secao ${tom ?? 'text-claro'}`}>
+      <span className="text-rotulo text-em-superficie-2">{rotulo}</span>
+      <span className={`text-corpo font-medium desktop:text-secao ${tom ?? 'text-em-superficie'}`}>
         {valor}
       </span>
     </div>
@@ -145,11 +145,11 @@ export function Financeiro() {
         <Card>
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
-              <Lock aria-hidden size={20} className="text-claro" />
+              <Lock aria-hidden size={20} className="text-em-superficie" />
             </span>
             <div>
-              <p className="text-secao text-claro">O seu plano ainda não inclui o financeiro</p>
-              <p className="pt-1 text-corpo text-claro-secundario">
+              <p className="text-secao text-em-superficie">O seu plano ainda não inclui o financeiro</p>
+              <p className="pt-1 text-corpo text-em-superficie-2">
                 Contas a receber, contas a pagar e cobrança por PIX entram no plano
                 completo. Fale com a gente para mudar de plano — o que já está
                 lançado continua aqui, esperando.
@@ -174,14 +174,14 @@ export function Financeiro() {
       <Card className="desktop:grid desktop:grid-cols-4 desktop:gap-6">
         <LinhaResumo rotulo="A receber no período" valor={moeda(numeros.aReceber)} />
         {numeros.atrasado > 0 && (
-          <LinhaResumo rotulo="Em atraso" valor={moeda(numeros.atrasado)} tom="text-erro" />
+          <LinhaResumo rotulo="Em atraso" valor={moeda(numeros.atrasado)} tom="text-erro-forte" />
         )}
-        <LinhaResumo rotulo="Já recebido" valor={moeda(numeros.recebido)} tom="text-sucesso" />
+        <LinhaResumo rotulo="Já recebido" valor={moeda(numeros.recebido)} tom="text-sucesso-forte" />
         <LinhaResumo rotulo="A pagar no período" valor={moeda(numeros.aPagar)} />
-        <div className="flex items-baseline justify-between gap-4 border-t border-borda-clara pt-3 desktop:col-span-4">
-          <span className="text-secao text-claro">Saldo previsto</span>
+        <div className="flex items-baseline justify-between gap-4 border-t border-borda-em-superficie pt-3 desktop:col-span-4">
+          <span className="text-secao text-em-superficie">Saldo previsto</span>
           <span
-            className={`text-destaque ${numeros.saldo < 0 ? 'text-erro' : 'text-claro'}`}
+            className={`text-destaque ${numeros.saldo < 0 ? 'text-erro-forte' : 'text-em-superficie'}`}
           >
             {moeda(numeros.saldo)}
           </span>
@@ -202,6 +202,7 @@ export function Financeiro() {
           <div className="flex-1 desktop:w-40 desktop:flex-none">
             <Campo
               rotulo="De"
+              sobreFundo
               type="date"
               value={periodo.de}
               onChange={(e) => setPeriodo((p) => ({ ...p, de: e.target.value }))}
@@ -210,6 +211,7 @@ export function Financeiro() {
           <div className="flex-1 desktop:w-40 desktop:flex-none">
             <Campo
               rotulo="Até"
+              sobreFundo
               type="date"
               value={periodo.ate}
               onChange={(e) => setPeriodo((p) => ({ ...p, ate: e.target.value }))}
@@ -259,8 +261,8 @@ export function Financeiro() {
                   <Card>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-corpo font-medium text-claro">{c.descricao}</p>
-                        <p className="truncate text-apoio text-claro-secundario">
+                        <p className="truncate text-corpo font-medium text-em-superficie">{c.descricao}</p>
+                        <p className="truncate text-apoio text-em-superficie-2">
                           {c.cliente?.nome ?? 'sem cliente'} · vence {formatarData(c.vencimento)}
                         </p>
                       </div>
@@ -268,16 +270,16 @@ export function Financeiro() {
                     </div>
 
                     <div className="flex items-baseline justify-between gap-4 pt-3">
-                      <span className="text-apoio text-claro-secundario">
+                      <span className="text-apoio text-em-superficie-2">
                         {Number(c.valor_recebido) > 0 && efetivo !== 'paga'
                           ? `${moeda(c.valor_recebido)} de ${moeda(c.valor)} · faltam ${moeda(falta)}`
                           : rotuloDaForma(c.forma_pagamento)}
                       </span>
-                      <span className="text-corpo font-semibold text-claro">{moeda(c.valor)}</span>
+                      <span className="text-corpo font-semibold text-em-superficie">{moeda(c.valor)}</span>
                     </div>
 
                     {efetivo !== 'paga' && efetivo !== 'cancelada' && (
-                      <div className="flex flex-col gap-2 border-t border-borda-clara pt-3 mt-3">
+                      <div className="flex flex-col gap-2 border-t border-borda-em-superficie pt-3 mt-3">
                         <Botao
                           largo
                           variante="contorno-no-card"
@@ -331,7 +333,7 @@ export function Financeiro() {
                   <span className="font-semibold">
                     {moeda(c.valor)}
                     {Number(c.valor_recebido) > 0 && statusDaConta(c) !== 'paga' && (
-                      <span className="block text-apoio font-normal text-claro-secundario">
+                      <span className="block text-apoio font-normal text-em-superficie-2">
                         faltam {moeda(Number(c.valor) - Number(c.valor_recebido))}
                       </span>
                     )}
@@ -391,8 +393,8 @@ export function Financeiro() {
                   <Card>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-corpo font-medium text-claro">{c.descricao}</p>
-                        <p className="truncate text-apoio text-claro-secundario">
+                        <p className="truncate text-corpo font-medium text-em-superficie">{c.descricao}</p>
+                        <p className="truncate text-apoio text-em-superficie-2">
                           {[c.fornecedor, c.categoria].filter(Boolean).join(' · ') || 'sem categoria'}
                           {` · vence ${formatarData(c.vencimento)}`}
                         </p>
@@ -401,14 +403,14 @@ export function Financeiro() {
                     </div>
 
                     <div className="flex items-baseline justify-between gap-4 pt-3">
-                      <span className="text-apoio text-claro-secundario">
+                      <span className="text-apoio text-em-superficie-2">
                         {rotuloDaForma(c.forma_pagamento)}
                       </span>
-                      <span className="text-corpo font-semibold text-claro">{moeda(c.valor)}</span>
+                      <span className="text-corpo font-semibold text-em-superficie">{moeda(c.valor)}</span>
                     </div>
 
                     {efetivo !== 'paga' && efetivo !== 'cancelada' && (
-                      <div className="border-t border-borda-clara pt-3 mt-3">
+                      <div className="border-t border-borda-em-superficie pt-3 mt-3">
                         <Botao
                           largo
                           icone={<CheckCircle2 aria-hidden size={20} />}
@@ -503,7 +505,7 @@ export function Financeiro() {
           </Botao>
         }
       >
-        <p className="pb-4 text-corpo text-claro-secundario">
+        <p className="pb-4 text-corpo text-em-superficie-2">
           {baixando?.conta.descricao} — {moeda(baixando?.conta.valor ?? 0)}
         </p>
 

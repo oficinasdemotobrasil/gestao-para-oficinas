@@ -5,8 +5,8 @@
  * acento aparece de duas formas opostas no app, e uma cor pode servir para uma
  * e arruinar a outra:
  *
- *   1. como FUNDO de botão, com texto escuro por cima  (bg-acento text-claro)
- *   2. como TEXTO, sobre o fundo escuro do app          (text-acento)
+ *   1. como FUNDO de botão, com texto escuro por cima  (bg-acento text-em-superficie)
+ *   2. como TEXTO, sobre o fundo escuro do app          (text-acento-forte)
  *
  * Um azul-marinho passa como fundo de botão e some como texto. Por isso toda
  * cor é medida contra os dois, e só entra se passar nos dois.
@@ -19,10 +19,17 @@
 const TEXTO_SOBRE_O_ACENTO = '#111113'
 
 /**
- * Fundo mais claro do app, onde o acento vira texto. É o pior caso: qualquer
- * cor que se leia aqui também se lê sobre o preto do fundo.
+ * Fundo mais claro do TEMA ESCURO, onde o acento vira texto. É o pior caso
+ * daquele tema: qualquer cor que se leia aqui também se lê sobre o preto.
  */
 const FUNDO_MAIS_CLARO_DO_APP = '#1a1a1c'
+
+/**
+ * O fundo do TEMA CLARO. O mesmo amarelo que salta sobre o preto (10,7:1) some
+ * sobre este cinza (1,8:1) — e é por isso que existe uma segunda versão do
+ * acento, escurecida, para quando ele é texto no tema claro.
+ */
+const FUNDO_DO_TEMA_CLARO = '#f3f3f5'
 
 export const CONTRASTE_MINIMO = 4.5
 
@@ -151,14 +158,35 @@ export function corMaisProximaQuePassa(hex: string): string | null {
 }
 
 /**
- * O acento não é uma cor, são três: a cor, a versão pressionada e o fundo
- * suave usado em etiquetas. Deriva as outras duas para a oficina escolher uma
- * só e não ter que entender o resto.
+ * A mesma cor, escurecida até se ler sobre o fundo claro.
+ *
+ * É a função irmã de `corMaisProximaQuePassa`, no sentido contrário: lá
+ * clareamos até a cor aparecer sobre o preto; aqui escurecemos até ela
+ * aparecer sobre o cinza claro. O tom e a saturação não mudam — uma oficina
+ * que escolheu vermelho vê vermelho nos dois temas, um mais claro e um mais
+ * fechado, como tinta na sombra e no sol.
+ */
+export function corLegivelSobreClaro(hex: string): string {
+  if (contraste(hex, FUNDO_DO_TEMA_CLARO) >= CONTRASTE_MINIMO) return hex.toLowerCase()
+  const { h, s, l } = paraHsl(hex)
+  for (let passo = 1; passo <= 100; passo++) {
+    const tentativa = deHsl({ h, s, l: limitar(l - passo / 100, 0, 1) })
+    if (contraste(tentativa, FUNDO_DO_TEMA_CLARO) >= CONTRASTE_MINIMO) return tentativa
+  }
+  // Preto sempre passa; este retorno existe para o compilador, não para a vida.
+  return '#000000'
+}
+
+/**
+ * O acento não é uma cor, são quatro: a cor, a versão pressionada, o fundo
+ * suave das etiquetas e a versão que se lê como texto no tema claro. Deriva as
+ * três para a oficina escolher uma só e não ter que entender o resto.
  */
 export function tonsDoAcento(hex: string): {
   acento: string
   pressionado: string
   suave: string
+  forteNoTemaClaro: string
 } {
   const { h, s, l } = paraHsl(hex)
   return {
@@ -168,6 +196,7 @@ export function tonsDoAcento(hex: string): {
     // Fundo de etiqueta: quase branco com o tom por baixo, para o texto
     // escuro do projeto continuar legível em cima sem nenhum ajuste.
     suave: deHsl({ h, s: limitar(s * 0.55, 0, 1), l: 0.9 }),
+    forteNoTemaClaro: corLegivelSobreClaro(hex),
   }
 }
 

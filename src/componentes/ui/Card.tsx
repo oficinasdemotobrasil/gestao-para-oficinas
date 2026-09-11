@@ -15,8 +15,8 @@ export function Card({ children, className, escuro = false }: PropsCard) {
       className={cn(
         'rounded-card p-5',
         escuro
-          ? 'bg-superficie-escura text-escuro'
-          : 'bg-superficie text-claro shadow-card',
+          ? 'bg-fundo-2 text-em-fundo'
+          : 'bg-superficie text-em-superficie shadow-card',
         className,
       )}
     >
@@ -52,17 +52,17 @@ export function LinhaLista({
     <>
       {inicio && <span className="shrink-0">{inicio}</span>}
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-corpo font-medium text-claro">{titulo}</span>
+        <span className="truncate text-corpo font-medium text-em-superficie">{titulo}</span>
         {/* O título trunca (nome de cliente pode ser longo), mas a descrição
             quebra em até duas linhas: é onde mora o período de posse, a
             quilometragem, o preço — cortar isso esvazia a linha. */}
         {descricao && (
-          <span className="line-clamp-2 text-apoio text-claro-secundario">{descricao}</span>
+          <span className="line-clamp-2 text-apoio text-em-superficie-2">{descricao}</span>
         )}
       </span>
       {fim}
       {aoTocar && comSeta && (
-        <ChevronRight aria-hidden size={20} className="shrink-0 text-claro-secundario" />
+        <ChevronRight aria-hidden size={20} className="shrink-0 text-em-superficie-2" />
       )}
     </>
   )
@@ -76,7 +76,7 @@ export function LinhaLista({
   }
 
   return (
-    <button type="button" onClick={aoTocar} className={cn(classes, 'active:bg-borda-clara/50')}>
+    <button type="button" onClick={aoTocar} className={cn(classes, 'active:bg-borda-em-superficie/50')}>
       {conteudo}
     </button>
   )
@@ -88,7 +88,7 @@ export function ListaCard({ children, className }: { children: ReactNode; classN
     <div
       className={cn(
         'overflow-hidden rounded-card bg-superficie shadow-card',
-        '[&>*+*]:border-t [&>*+*]:border-borda-clara',
+        '[&>*+*]:border-t [&>*+*]:border-borda-em-superficie',
         className,
       )}
     >
@@ -109,7 +109,7 @@ export function IconeCirculo({
     <span
       className={cn(
         'flex h-10 w-10 items-center justify-center rounded-full',
-        sobreEscuro ? 'bg-acento text-claro' : 'bg-acento-suave text-claro',
+        sobreEscuro ? 'bg-acento text-em-superficie' : 'bg-acento-suave text-em-superficie',
       )}
     >
       {children}
@@ -132,13 +132,13 @@ export function Destaque({
       <span
         className={cn(
           'text-rotulo',
-          sobreEscuro ? 'text-escuro-secundario' : 'text-claro-secundario',
+          sobreEscuro ? 'text-em-fundo-2' : 'text-em-superficie-2',
         )}
       >
         {rotulo}
       </span>
       <span
-        className={cn('text-destaque', sobreEscuro ? 'text-acento' : 'text-claro')}
+        className={cn('text-destaque', sobreEscuro ? 'text-acento-forte' : 'text-em-superficie')}
       >
         {valor}
       </span>

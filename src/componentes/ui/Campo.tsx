@@ -4,11 +4,11 @@ import { cn } from '@/lib/cn'
 
 /** Campos vivem dentro do card branco: fundo claro, texto escuro. */
 const controle =
-  'w-full rounded-controle border bg-white px-4 text-corpo text-claro ' +
-  'placeholder:text-claro-secundario transition-colors duration-padrao ease-padrao ' +
+  'w-full rounded-controle border bg-white px-4 text-corpo text-em-superficie ' +
+  'placeholder:text-em-superficie-2 transition-colors duration-padrao ease-padrao ' +
   'disabled:opacity-60'
 
-const semErro = 'border-borda-clara focus:border-acento'
+const semErro = 'border-borda-em-superficie focus:border-acento'
 const comErro = 'border-erro'
 
 interface Envolucro {
@@ -16,25 +16,36 @@ interface Envolucro {
   erro?: string
   dica?: string
   obrigatorio?: boolean
+  /**
+   * O campo está solto sobre o fundo da tela, e não dentro de um cartão.
+   *
+   * É o caso dos filtros de data do financeiro e da lista de ordens. Importa
+   * porque o cinza que se lê sobre o branco do cartão (5,3:1) não se lê sobre
+   * o preto do fundo (3,7:1) — e não existe um cinza que sirva nos dois.
+   */
+  sobreFundo?: boolean
   id: string
   children: React.ReactNode
 }
 
-function Envolver({ rotulo, erro, dica, obrigatorio, id, children }: Envolucro) {
+function Envolver({ rotulo, erro, dica, obrigatorio, sobreFundo, id, children }: Envolucro) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-rotulo text-claro-secundario">
+      <label
+        htmlFor={id}
+        className={`text-rotulo ${sobreFundo ? 'text-em-fundo-2' : 'text-em-superficie-2'}`}
+      >
         {rotulo}
-        {obrigatorio && <span className="text-erro"> *</span>}
+        {obrigatorio && <span className="text-erro-forte"> *</span>}
       </label>
       {children}
       {/* A mensagem de erro diz o que fazer, nunca só "inválido". */}
       {erro ? (
-        <p id={`${id}-erro`} role="alert" className="text-apoio text-erro">
+        <p id={`${id}-erro`} role="alert" className="text-apoio text-erro-forte">
           {erro}
         </p>
       ) : dica ? (
-        <p className="text-apoio text-claro-secundario">{dica}</p>
+        <p className="text-apoio text-em-superficie-2">{dica}</p>
       ) : null}
     </div>
   )
@@ -45,16 +56,25 @@ interface PropsCampo extends InputHTMLAttributes<HTMLInputElement> {
   erro?: string
   dica?: string
   obrigatorio?: boolean
+  /** Ver Envolucro: o campo está solto sobre o fundo, fora de um cartão. */
+  sobreFundo?: boolean
 }
 
 export const Campo = forwardRef<HTMLInputElement, PropsCampo>(function Campo(
-  { rotulo, erro, dica, obrigatorio, className, id, ...resto },
+  { rotulo, erro, dica, obrigatorio, sobreFundo, className, id, ...resto },
   ref,
 ) {
   const gerado = useId()
   const idCampo = id ?? gerado
   return (
-    <Envolver rotulo={rotulo} erro={erro} dica={dica} obrigatorio={obrigatorio} id={idCampo}>
+    <Envolver
+      rotulo={rotulo}
+      erro={erro}
+      dica={dica}
+      obrigatorio={obrigatorio}
+      sobreFundo={sobreFundo}
+      id={idCampo}
+    >
       <input
         ref={ref}
         id={idCampo}
@@ -157,14 +177,14 @@ export function Interruptor({
       className="flex min-h-toque w-full items-center justify-between gap-4 text-left disabled:opacity-60"
     >
       <span className="flex flex-col">
-        <span className="text-corpo text-claro">{rotulo}</span>
-        {descricao && <span className="text-apoio text-claro-secundario">{descricao}</span>}
+        <span className="text-corpo text-em-superficie">{rotulo}</span>
+        {descricao && <span className="text-apoio text-em-superficie-2">{descricao}</span>}
       </span>
       <span
         aria-hidden
         className={cn(
           'relative h-8 w-14 shrink-0 rounded-full transition-colors duration-padrao ease-padrao',
-          marcado ? 'bg-acento' : 'bg-borda-clara',
+          marcado ? 'bg-acento' : 'bg-borda-em-superficie',
         )}
       >
         <span

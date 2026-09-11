@@ -50,15 +50,15 @@ export function Estoque() {
           onClick={() => navegar('/catalogo?repor=1')}
           className="flex items-center gap-3 rounded-card bg-atencao-fundo p-4 text-left active:opacity-90"
         >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-atencao/20 text-atencao">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-atencao/20 text-atencao-forte">
             <TriangleAlert aria-hidden size={20} />
           </span>
           <span className="flex flex-col">
-            <span className="text-corpo font-medium text-claro">
+            <span className="text-corpo font-medium text-em-superficie">
               {repor.data.length}{' '}
               {repor.data.length === 1 ? 'produto para repor' : 'produtos para repor'}
             </span>
-            <span className="text-apoio text-claro-secundario">
+            <span className="text-apoio text-em-superficie-2">
               No mínimo ou abaixo dele. Toque para ver quais.
             </span>
           </span>

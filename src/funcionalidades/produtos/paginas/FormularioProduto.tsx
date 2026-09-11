@@ -145,8 +145,8 @@ export function FormularioProduto() {
 
         {temMargem && (
           <div className="flex items-baseline justify-between rounded-controle bg-acento-suave px-4 py-3">
-            <span className="text-rotulo text-claro-secundario">Margem</span>
-            <span className="text-corpo font-semibold text-claro">
+            <span className="text-rotulo text-em-superficie-2">Margem</span>
+            <span className="text-corpo font-semibold text-em-superficie">
               {moeda(lucro)} · {margem.toFixed(0)}%
             </span>
           </div>
@@ -184,7 +184,7 @@ export function FormularioProduto() {
           />
         </LinhaInteira>
 
-        <div className="border-t border-borda-clara pt-2">
+        <div className="border-t border-borda-em-superficie pt-2">
           <Controller
             name="ativo"
             control={control}
@@ -201,7 +201,7 @@ export function FormularioProduto() {
 
         {errors.root && (
           <LinhaInteira>
-            <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
+            <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
               {errors.root.message}
             </p>
           </LinhaInteira>

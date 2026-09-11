@@ -24,12 +24,12 @@ export function MenuLateral() {
     <nav
       aria-label="Navegação principal"
       className={cn(
-        'fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-borda-escura bg-fundo',
+        'fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-borda-em-fundo bg-fundo',
         'tablet:flex tablet:w-menu-estreito desktop:w-menu',
       )}
     >
       {/* Quem é a oficina. No tablet estreito só cabe a inicial. */}
-      <div className="flex items-center gap-3 border-b border-borda-escura px-4 py-5">
+      <div className="flex items-center gap-3 border-b border-borda-em-fundo px-4 py-5">
         {oficina?.logo_miniatura_url ? (
           <img
             src={oficina.logo_miniatura_url}
@@ -37,12 +37,12 @@ export function MenuLateral() {
             className="h-10 w-10 shrink-0 rounded-controle object-contain"
           />
         ) : (
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-controle bg-acento text-secao font-bold text-claro">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-controle bg-acento text-secao font-bold text-em-superficie">
             {(oficina?.nome ?? 'O').trim().charAt(0).toUpperCase()}
           </span>
         )}
         <span className="hidden min-w-0 desktop:block">
-          <span className="block truncate text-corpo font-semibold text-escuro">
+          <span className="block truncate text-corpo font-semibold text-em-fundo">
             {oficina?.nome ?? 'Sua oficina'}
           </span>
         </span>
@@ -62,8 +62,8 @@ export function MenuLateral() {
                   'desktop:flex-row desktop:gap-3 desktop:px-3 desktop:py-2.5',
                   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acento',
                   isActive
-                    ? 'bg-acento text-claro'
-                    : 'text-escuro-secundario hover:bg-superficie-escura hover:text-escuro',
+                    ? 'bg-acento text-em-superficie'
+                    : 'text-em-fundo-2 hover:bg-fundo-2 hover:text-em-fundo',
                 )
               }
             >
@@ -84,10 +84,10 @@ export function MenuLateral() {
       </ul>
 
       {/* Quem está logado e a saída, no pé — onde se procura por eles. */}
-      <div className="border-t border-borda-escura p-3">
+      <div className="border-t border-borda-em-fundo p-3">
         <div className="hidden px-1 pb-2 desktop:block">
-          <p className="truncate text-corpo text-escuro">{usuario?.nome}</p>
-          <p className="truncate text-apoio text-escuro-secundario">
+          <p className="truncate text-corpo text-em-fundo">{usuario?.nome}</p>
+          <p className="truncate text-apoio text-em-fundo-2">
             {usuario ? nomeDoPerfil[usuario.perfil] : ''}
           </p>
         </div>
@@ -95,8 +95,8 @@ export function MenuLateral() {
           type="button"
           onClick={() => void sair()}
           className={cn(
-            'flex w-full items-center rounded-controle text-escuro-secundario',
-            'transition-colors duration-padrao ease-padrao hover:bg-superficie-escura hover:text-erro',
+            'flex w-full items-center rounded-controle text-em-fundo-2',
+            'transition-colors duration-padrao ease-padrao hover:bg-fundo-2 hover:text-erro-forte',
             'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acento',
             'tablet:flex-col tablet:gap-1 tablet:px-1 tablet:py-2.5',
             'desktop:flex-row desktop:gap-3 desktop:px-3 desktop:py-2.5',

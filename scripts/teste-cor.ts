@@ -11,6 +11,7 @@
  *   npm run teste:cor
  */
 import {
+  corLegivelSobreClaro,
   PALETA,
   COR_DO_PRODUTO,
   CONTRASTE_MINIMO,
@@ -123,6 +124,47 @@ for (const { nome, hex } of PALETA) {
         `pressionado ${t.pressionado} escurece ${pressionadoEscurece}; suave ${t.suave} contra texto escuro ${contraste(t.suave, '#111113').toFixed(2)}:1`,
       )
 }
+
+console.log('\n\x1b[1mA mesma cor nos dois temas\x1b[0m')
+
+// Os valores fixos do tokens.css também são medidos aqui: um token escrito à
+// mão que deixa de passar é exatamente o defeito que ninguém vê.
+const ACENTO_FORTE_DO_TOKENS_CSS = '#8a6a00'
+contraste(ACENTO_FORTE_DO_TOKENS_CSS, '#f3f3f5') >= CONTRASTE_MINIMO &&
+contraste(ACENTO_FORTE_DO_TOKENS_CSS, '#ffffff') >= CONTRASTE_MINIMO
+  ? ok(
+      'o acento-forte do tokens.css se lê no fundo e no cartão',
+      `${contraste(ACENTO_FORTE_DO_TOKENS_CSS, '#f3f3f5').toFixed(1)}:1 e ${contraste(ACENTO_FORTE_DO_TOKENS_CSS, '#ffffff').toFixed(1)}:1`,
+    )
+  : erro('acento-forte fixo', ACENTO_FORTE_DO_TOKENS_CSS)
+
+// O tema claro é onde o amarelo some. Cada cor da paleta precisa de uma versão
+// que se leia sobre o cinza claro — senão o texto em destaque vira fantasma.
+const FUNDO_CLARO = '#f3f3f5'
+
+perto(contraste('#f5c518', FUNDO_CLARO), 1.47, 0.02)
+  ? ok('o amarelo do produto some sobre o fundo claro', `${contraste('#f5c518', FUNDO_CLARO).toFixed(1)}:1 — é por isso que existe a versão forte`)
+  : erro('premissa do tema claro', `deu ${contraste('#f5c518', FUNDO_CLARO).toFixed(2)}:1`)
+
+for (const { nome, hex } of PALETA) {
+  const forte = corLegivelSobreClaro(hex)
+  const razao = contraste(forte, FUNDO_CLARO)
+  const mesmoTom = perto(paraHsl(hex).h, paraHsl(forte).h, 0.001)
+  razao >= CONTRASTE_MINIMO && mesmoTom
+    ? ok(`${nome} tem versão legível no tema claro`, `${forte} · ${razao.toFixed(1)}:1, mesmo tom`)
+    : erro(`${nome} no tema claro`, `${forte} deu ${razao.toFixed(2)}:1, mesmo tom ${mesmoTom}`)
+}
+
+// E o caminho de volta: a versão forte não pode ser usada como fundo de botão.
+const forteDoAmarelo = corLegivelSobreClaro('#f5c518')
+forteDoAmarelo !== '#f5c518'
+  ? ok('a versão forte é diferente da cor escolhida', 'uma pinta o botão, a outra escreve')
+  : erro('versão forte', 'devolveu a mesma cor')
+
+// Uma cor que já se lê sobre o claro é devolvida sem mexer.
+corLegivelSobreClaro('#8a6a00') === '#8a6a00'
+  ? ok('cor que já se lê no claro passa intacta')
+  : erro('cor escura', 'a função alterou uma cor que já servia')
 
 console.log('\n\x1b[1mIda e volta entre formatos\x1b[0m')
 

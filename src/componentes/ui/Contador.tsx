@@ -55,12 +55,12 @@ export function Contador({
 
   const botao =
     'flex h-campo w-14 shrink-0 items-center justify-center rounded-controle ' +
-    'border border-borda-clara text-claro transition-colors duration-padrao ' +
-    'ease-padrao active:bg-borda-clara/50 disabled:opacity-40'
+    'border border-borda-em-superficie text-em-superficie transition-colors duration-padrao ' +
+    'ease-padrao active:bg-borda-em-superficie/50 disabled:opacity-40'
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-rotulo text-claro-secundario">{rotulo}</span>
+      <span className="text-rotulo text-em-superficie-2">{rotulo}</span>
 
       <div className="flex items-center gap-2">
         <button
@@ -82,13 +82,13 @@ export function Contador({
             aria-invalid={erro ? true : undefined}
             className={cn(
               'h-campo w-full rounded-controle border bg-white px-4 text-center',
-              'text-secao text-claro focus:border-acento',
+              'text-secao text-em-superficie focus:border-acento',
               unidade && 'pr-12',
-              erro ? 'border-erro' : 'border-borda-clara',
+              erro ? 'border-erro' : 'border-borda-em-superficie',
             )}
           />
           {unidade && (
-            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-rotulo text-claro-secundario">
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-rotulo text-em-superficie-2">
               {unidade}
             </span>
           )}
@@ -105,11 +105,11 @@ export function Contador({
       </div>
 
       {erro ? (
-        <p role="alert" className="text-apoio text-erro">
+        <p role="alert" className="text-apoio text-erro-forte">
           {erro}
         </p>
       ) : dica ? (
-        <p className="text-apoio text-claro-secundario">{dica}</p>
+        <p className="text-apoio text-em-superficie-2">{dica}</p>
       ) : null}
     </div>
   )

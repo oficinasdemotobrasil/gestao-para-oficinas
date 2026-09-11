@@ -48,25 +48,25 @@ export function Cronometro({ tempo }: { tempo: TempoDaOrdem }) {
         <Timer
           aria-hidden
           size={20}
-          className={tempo.rodando_desde ? 'text-claro animate-pulse' : 'text-claro'}
+          className={tempo.rodando_desde ? 'text-em-superficie animate-pulse' : 'text-em-superficie'}
         />
       </span>
 
       <div className="min-w-0">
-        <p className="text-corpo font-medium text-claro">
+        <p className="text-corpo font-medium text-em-superficie">
           {tempo.rodando_desde ? duracao(total) : duracao(total)}
           {tempo.rodando_desde && (
-            <span className="pl-2 text-apoio font-normal text-claro-secundario">
+            <span className="pl-2 text-apoio font-normal text-em-superficie-2">
               rodando agora
             </span>
           )}
         </p>
-        <p className="text-apoio text-claro-secundario">
+        <p className="text-apoio text-em-superficie-2">
           {estimado > 0 ? (
             <>
               Estimado {duracao(estimado)}
               {passou && (
-                <span className="text-atencao"> · passou em {duracao(total - estimado)}</span>
+                <span className="text-atencao-forte"> · passou em {duracao(total - estimado)}</span>
               )}
             </>
           ) : tempo.quem_esta_com_ela ? (

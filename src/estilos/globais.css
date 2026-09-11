@@ -6,15 +6,15 @@
 
 @layer base {
   html {
-    background-color: var(--cor-fundo);
+    background-color: rgb(var(--cor-fundo));
     /* Sem ajuste automático de fonte quando o iPhone gira. */
     -webkit-text-size-adjust: 100%;
   }
 
   body {
     margin: 0;
-    background-color: var(--cor-fundo);
-    color: var(--cor-texto-escuro);
+    background-color: rgb(var(--cor-fundo));
+    color: rgb(var(--cor-em-fundo));
     font-family: var(--fonte);
     font-size: 16px;
     line-height: 24px;
@@ -40,14 +40,14 @@
 
   /* Foco sempre visível, inclusive dentro do card branco. */
   :focus-visible {
-    outline: 2px solid var(--cor-acento);
+    outline: 2px solid rgb(var(--cor-acento));
     outline-offset: 2px;
     border-radius: 4px;
   }
 
   ::selection {
-    background-color: var(--cor-acento);
-    color: var(--cor-texto-claro);
+    background-color: rgb(var(--cor-acento));
+    color: rgb(var(--cor-em-superficie));
   }
 }
 

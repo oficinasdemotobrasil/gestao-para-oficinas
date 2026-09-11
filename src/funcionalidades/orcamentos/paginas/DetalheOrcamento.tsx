@@ -19,8 +19,8 @@ import { AcoesDoOrcamento } from '../AcoesDoOrcamento'
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-2">
-      <span className="text-rotulo text-claro-secundario">{rotulo}</span>
-      <span className="text-corpo text-claro">{valor}</span>
+      <span className="text-rotulo text-em-superficie-2">{rotulo}</span>
+      <span className="text-corpo text-em-superficie">{valor}</span>
     </div>
   )
 }
@@ -31,29 +31,29 @@ function CartaoDoCliente({ orcamento }: { orcamento: OrcamentoCompleto }) {
     <Card>
       <div className="flex items-center gap-3 pb-2">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
-          <User aria-hidden size={20} className="text-claro" />
+          <User aria-hidden size={20} className="text-em-superficie" />
         </span>
         <div className="min-w-0">
-          <p className="truncate text-corpo font-medium text-claro">
+          <p className="truncate text-corpo font-medium text-em-superficie">
             {orcamento.cliente?.nome ?? 'Cliente removido'}
           </p>
           {orcamento.cliente?.telefone && (
-            <p className="text-apoio text-claro-secundario">
+            <p className="text-apoio text-em-superficie-2">
               {telefone(orcamento.cliente.telefone)}
             </p>
           )}
         </div>
       </div>
 
-      <div className="flex items-center gap-3 border-t border-borda-clara pt-3">
+      <div className="flex items-center gap-3 border-t border-borda-em-superficie pt-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acento-suave">
-          <Bike aria-hidden size={20} className="text-claro" />
+          <Bike aria-hidden size={20} className="text-em-superficie" />
         </span>
         <div className="min-w-0">
-          <p className="truncate text-corpo font-medium text-claro">
+          <p className="truncate text-corpo font-medium text-em-superficie">
             {orcamento.moto ? exibirPlaca(orcamento.moto.placa) : 'Moto removida'}
           </p>
-          <p className="truncate text-apoio text-claro-secundario">
+          <p className="truncate text-apoio text-em-superficie-2">
             {[orcamento.moto?.marca, orcamento.moto?.modelo].filter(Boolean).join(' ')}
             {orcamento.km_registrado ? ` · ${quilometragem(orcamento.km_registrado)}` : ''}
           </p>
@@ -143,9 +143,9 @@ export function DetalheOrcamento() {
             valor={`− ${moeda(orcamento.desconto)}`}
           />
         )}
-        <div className="flex items-baseline justify-between gap-4 border-t border-borda-clara pt-3">
-          <span className="text-secao text-claro">Total</span>
-          <span className="text-destaque text-claro">{moeda(orcamento.valor_total)}</span>
+        <div className="flex items-baseline justify-between gap-4 border-t border-borda-em-superficie pt-3">
+          <span className="text-secao text-em-superficie">Total</span>
+          <span className="text-destaque text-em-superficie">{moeda(orcamento.valor_total)}</span>
         </div>
       </Card>
 
@@ -162,7 +162,7 @@ export function DetalheOrcamento() {
         <>
           <TituloSecao>Observações</TituloSecao>
           <Card>
-            <p className="whitespace-pre-line text-corpo text-claro">{orcamento.observacoes}</p>
+            <p className="whitespace-pre-line text-corpo text-em-superficie">{orcamento.observacoes}</p>
           </Card>
         </>
       )}
@@ -171,7 +171,7 @@ export function DetalheOrcamento() {
         <>
           <TituloSecao>Motivo da recusa</TituloSecao>
           <Card>
-            <p className="whitespace-pre-line text-corpo text-claro">{orcamento.motivo_recusa}</p>
+            <p className="whitespace-pre-line text-corpo text-em-superficie">{orcamento.motivo_recusa}</p>
           </Card>
         </>
       )}

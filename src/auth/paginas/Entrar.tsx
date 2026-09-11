@@ -49,11 +49,11 @@ export function Entrar() {
           />
         ) : (
           <span className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-acento">
-            <Wrench aria-hidden size={30} className="text-claro" />
+            <Wrench aria-hidden size={30} className="text-em-superficie" />
           </span>
         )}
-        <h1 className="text-titulo text-escuro">{marca?.nome ?? 'Gestão para Oficinas'}</h1>
-        <p className="pt-1 text-corpo text-escuro-secundario">
+        <h1 className="text-titulo text-em-fundo">{marca?.nome ?? 'Gestão para Oficinas'}</h1>
+        <p className="pt-1 text-corpo text-em-fundo-2">
           Entre para ver o movimento da sua oficina.
         </p>
       </div>
@@ -89,14 +89,14 @@ export function Entrar() {
             type="button"
             onClick={() => setMostrarSenha((v) => !v)}
             aria-label={mostrarSenha ? 'Esconder senha' : 'Mostrar senha'}
-            className="absolute right-1 top-7 flex h-toque w-toque items-center justify-center text-claro-secundario"
+            className="absolute right-1 top-7 flex h-toque w-toque items-center justify-center text-em-superficie-2"
           >
             {mostrarSenha ? <EyeOff aria-hidden size={20} /> : <Eye aria-hidden size={20} />}
           </button>
         </div>
 
         {erroGeral && (
-          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
+          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
             {erroGeral}
           </p>
         )}
@@ -107,13 +107,13 @@ export function Entrar() {
 
         <Link
           to="/esqueci-a-senha"
-          className="flex min-h-toque items-center justify-center text-corpo text-claro-secundario"
+          className="flex min-h-toque items-center justify-center text-corpo text-em-superficie-2"
         >
           Esqueci minha senha
         </Link>
       </form>
 
-      <p className="px-4 pt-6 text-center text-apoio text-escuro-secundario">
+      <p className="px-4 pt-6 text-center text-apoio text-em-fundo-2">
         O acesso é criado pelo responsável da oficina. Se você ainda não tem
         login, peça a ele para cadastrar você.
       </p>

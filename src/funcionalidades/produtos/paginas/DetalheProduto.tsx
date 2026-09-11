@@ -20,8 +20,8 @@ import { listarMovimentacoes } from '@/funcionalidades/estoque/api'
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-2">
-      <span className="text-rotulo text-claro-secundario">{rotulo}</span>
-      <span className="text-corpo text-claro">{valor}</span>
+      <span className="text-rotulo text-em-superficie-2">{rotulo}</span>
+      <span className="text-corpo text-em-superficie">{valor}</span>
     </div>
   )
 }
@@ -77,15 +77,15 @@ export function DetalheProduto() {
         <Card>
           <div className="flex items-start justify-between gap-4">
             <div className="flex flex-col gap-1">
-              <span className="text-rotulo text-claro-secundario">Em estoque</span>
-              <span className="text-destaque text-claro">
+              <span className="text-rotulo text-em-superficie-2">Em estoque</span>
+              <span className="text-destaque text-em-superficie">
                 {formatarQuantidade(saldo)}
-                <span className="pl-2 text-secao font-normal text-claro-secundario">
+                <span className="pl-2 text-secao font-normal text-em-superficie-2">
                   {produto.unidade}
                 </span>
               </span>
               {minimo > 0 && (
-                <span className="text-apoio text-claro-secundario">
+                <span className="text-apoio text-em-superficie-2">
                   Mínimo: {formatarQuantidade(minimo)} {produto.unidade}
                 </span>
               )}
@@ -108,7 +108,7 @@ export function DetalheProduto() {
                 key={tipo}
                 type="button"
                 onClick={() => setMovimentando(tipo)}
-                className="flex min-h-[76px] flex-col items-center justify-center gap-1 rounded-controle border border-borda-clara text-claro active:bg-borda-clara/50"
+                className="flex min-h-[76px] flex-col items-center justify-center gap-1 rounded-controle border border-borda-em-superficie text-em-superficie active:bg-borda-em-superficie/50"
               >
                 <Icone aria-hidden size={22} />
                 <span className="text-rotulo font-medium">{rotulo}</span>

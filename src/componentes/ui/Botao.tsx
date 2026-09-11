@@ -33,20 +33,23 @@ const base =
   'disabled:opacity-50 disabled:pointer-events-none select-none'
 
 const variantes: Record<Variante, string> = {
-  principal: 'h-botao bg-acento text-claro active:bg-acento-pressionado',
+  principal: 'h-botao bg-acento text-em-superficie active:bg-acento-pressionado',
   // Sobre o card branco, quando a ação não é a principal da tela.
-  secundario: 'h-botao bg-claro text-escuro active:opacity-80',
+  // Preto com texto branco, sobre o cartão branco — nos dois temas. Usa token
+  // próprio: antes pegava a cor de TEXTO emprestada como fundo, e no tema
+  // claro isso viraria escuro sobre escuro.
+  secundario: 'h-botao bg-inverso text-em-inverso active:opacity-80',
   // Contorno sobre o fundo preto da tela.
   contorno:
-    'h-botao border border-borda-escura bg-transparent text-escuro active:bg-superficie-escura',
+    'h-botao border border-borda-em-fundo bg-transparent text-em-fundo active:bg-fundo-2',
   // Contorno dentro de um card branco. Existe como variante própria porque
-  // corrigir a cor por className não funciona: entre text-escuro e text-claro
+  // corrigir a cor por className não funciona: entre text-em-fundo e text-em-superficie
   // quem vence é a ordem no CSS gerado pelo Tailwind, não a ordem em que as
   // classes aparecem no atributo. O resultado era texto branco em card branco.
   'contorno-no-card':
-    'h-botao border border-borda-clara bg-transparent text-claro active:bg-borda-clara/40',
-  texto: 'min-h-toque text-acento active:opacity-70 px-2',
-  perigo: 'min-h-toque text-erro active:opacity-70 px-2',
+    'h-botao border border-borda-em-superficie bg-transparent text-em-superficie active:bg-borda-em-superficie/40',
+  texto: 'min-h-toque text-acento-forte active:opacity-70 px-2',
+  perigo: 'min-h-toque text-erro-forte active:opacity-70 px-2',
 }
 
 export function Botao({

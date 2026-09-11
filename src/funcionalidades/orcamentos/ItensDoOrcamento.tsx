@@ -102,8 +102,8 @@ export function ItensDoOrcamento({
             <div key={item.chave} className="rounded-card bg-superficie p-4 shadow-card">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-corpo font-medium text-claro">{item.descricao}</p>
-                  <p className="text-apoio text-claro-secundario">
+                  <p className="text-corpo font-medium text-em-superficie">{item.descricao}</p>
+                  <p className="text-apoio text-em-superficie-2">
                     {item.tipo === 'produto' ? 'Peça' : item.tipo === 'servico' ? 'Serviço' : 'Item avulso'}
                   </p>
                 </div>
@@ -112,7 +112,7 @@ export function ItensDoOrcamento({
                     type="button"
                     onClick={() => remover(item.chave)}
                     aria-label={`Remover ${item.descricao}`}
-                    className="-mr-2 -mt-1 flex h-toque w-toque shrink-0 items-center justify-center text-erro"
+                    className="-mr-2 -mt-1 flex h-toque w-toque shrink-0 items-center justify-center text-erro-forte"
                   >
                     <Trash2 aria-hidden size={18} />
                   </button>
@@ -121,16 +121,16 @@ export function ItensDoOrcamento({
 
               {semValores ? (
                 item.quantidade !== 1 && (
-                  <p className="pt-3 text-apoio text-claro-secundario">
+                  <p className="pt-3 text-apoio text-em-superficie-2">
                     {String(item.quantidade).replace('.', ',')} unidades
                   </p>
                 )
               ) : somenteLeitura ? (
                 <div className="flex items-baseline justify-between gap-4 pt-3">
-                  <span className="text-apoio text-claro-secundario">
+                  <span className="text-apoio text-em-superficie-2">
                     {item.quantidade} × {moeda(item.valor_unitario)}
                   </span>
-                  <span className="text-corpo font-semibold text-claro">
+                  <span className="text-corpo font-semibold text-em-superficie">
                     {moeda(item.quantidade * item.valor_unitario)}
                   </span>
                 </div>
@@ -151,9 +151,9 @@ export function ItensDoOrcamento({
                       }
                     />
                   </div>
-                  <div className="flex items-baseline justify-between gap-4 border-t border-borda-clara pt-3 mt-3">
-                    <span className="text-rotulo text-claro-secundario">Subtotal</span>
-                    <span className="text-corpo font-semibold text-claro">
+                  <div className="flex items-baseline justify-between gap-4 border-t border-borda-em-superficie pt-3 mt-3">
+                    <span className="text-rotulo text-em-superficie-2">Subtotal</span>
+                    <span className="text-corpo font-semibold text-em-superficie">
                       {moeda(item.quantidade * item.valor_unitario)}
                     </span>
                   </div>
@@ -171,7 +171,7 @@ export function ItensDoOrcamento({
               key={rotulo}
               type="button"
               onClick={aoTocar}
-              className="flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-card border border-borda-escura text-escuro active:bg-superficie-escura"
+              className="flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-card border border-borda-em-fundo text-em-fundo active:bg-fundo-2"
             >
               <span className="flex items-center gap-1">
                 <Plus aria-hidden size={14} />
@@ -289,7 +289,7 @@ function ModalAvulso({
           onChange={(e) => setValor(e.target.value)}
         />
         {erro && (
-          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
+          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
             {erro}
           </p>
         )}

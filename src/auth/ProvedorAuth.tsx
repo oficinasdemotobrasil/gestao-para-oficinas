@@ -9,7 +9,7 @@ import {
 import type { ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import { aplicarCorDaMarca, lembrarMarca } from '../lib/marca'
+import { acompanharTemaDoAparelho, aplicarCorDaMarca, lembrarMarca } from '../lib/marca'
 import type { Oficina, StatusOficina, Usuario } from '@/tipos/banco'
 
 interface Contexto {
@@ -125,6 +125,10 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
       })
     }
   }, [])
+
+  // O celular vira para o modo noturno no fim da tarde com o app aberto. Sem
+  // isto, a cor da marca ficaria na versão do tema anterior até recarregar.
+  useEffect(() => acompanharTemaDoAparelho(() => oficina?.cor_primaria), [oficina?.cor_primaria])
 
   useEffect(() => {
     let ativo = true

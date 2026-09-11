@@ -78,15 +78,15 @@ export function Exemplos() {
 
   return (
     <div className="rounded-card bg-superficie p-4 tablet:p-6">
-      <p className="text-corpo text-claro">
+      <p className="text-corpo text-em-superficie">
         Comece com um catálogo pronto para experimentar.
       </p>
-      <p className="pt-1 text-apoio text-claro-secundario">
+      <p className="pt-1 text-apoio text-em-superficie-2">
         Oito serviços e doze peças comuns de oficina de moto, com preços de
         referência para você trocar pelos seus. Serve para fazer um orçamento de
         teste e entender o sistema sem digitar nada.
       </p>
-      <p className="pt-2 text-apoio text-claro-secundario">
+      <p className="pt-2 text-apoio text-em-superficie-2">
         Eles não contam como “cadastrei meu primeiro serviço” — esse passo é o
         seu. E o que já tiver sido usado num orçamento ou entrado no estoque não
         é apagado: virou histórico de verdade.

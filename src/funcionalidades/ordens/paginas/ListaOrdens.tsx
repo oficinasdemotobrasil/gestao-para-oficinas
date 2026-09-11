@@ -112,6 +112,7 @@ export function ListaOrdens() {
               <div className="flex-1">
                 <Campo
                   rotulo="De"
+                  sobreFundo
                   type="date"
                   value={de}
                   onChange={(e) => setDe(e.target.value)}
@@ -120,6 +121,7 @@ export function ListaOrdens() {
               <div className="flex-1">
                 <Campo
                   rotulo="Até"
+                  sobreFundo
                   type="date"
                   value={ate}
                   onChange={(e) => setAte(e.target.value)}
@@ -176,7 +178,7 @@ export function ListaOrdens() {
             cartao={(o) => (
               <LinhaLista
                 inicio={
-                  <span className="flex h-10 min-w-[52px] items-center justify-center rounded-badge bg-acento-suave px-2 text-rotulo font-semibold text-claro">
+                  <span className="flex h-10 min-w-[52px] items-center justify-center rounded-badge bg-acento-suave px-2 text-rotulo font-semibold text-em-superficie">
                     {String(o.numero).padStart(3, '0')}
                   </span>
                 }

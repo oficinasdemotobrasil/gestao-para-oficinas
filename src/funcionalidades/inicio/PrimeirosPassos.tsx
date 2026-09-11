@@ -72,8 +72,8 @@ export function PrimeirosPassos() {
     <div className="mt-3 rounded-card bg-superficie p-4 tablet:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-secao text-claro">Comece por aqui</p>
-          <p className="text-apoio text-claro-secundario">
+          <p className="text-secao text-em-superficie">Comece por aqui</p>
+          <p className="text-apoio text-em-superficie-2">
             {feitos} de {ROTEIRO.length} — leva uns dez minutos
           </p>
         </div>
@@ -81,14 +81,14 @@ export function PrimeirosPassos() {
           type="button"
           onClick={() => dispensar.mutate()}
           aria-label="Dispensar a lista de primeiros passos"
-          className="-mr-1 -mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-claro-secundario active:bg-borda-clara/40"
+          className="-mr-1 -mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-em-superficie-2 active:bg-borda-em-superficie/40"
         >
           <X aria-hidden size={18} />
         </button>
       </div>
 
       {/* A barra é decorativa: o número acima já diz o mesmo em palavras. */}
-      <div aria-hidden className="mt-3 h-2 overflow-hidden rounded-full bg-borda-clara">
+      <div aria-hidden className="mt-3 h-2 overflow-hidden rounded-full bg-borda-em-superficie">
         <div
           className="h-full rounded-full bg-acento transition-[width] duration-padrao ease-padrao"
           style={{ width: `${(feitos / ROTEIRO.length) * 100}%` }}
@@ -106,13 +106,13 @@ export function PrimeirosPassos() {
                 onClick={() => navegar(para)}
                 className={[
                   'flex w-full items-center gap-3 rounded-controle py-2 text-left',
-                  feito ? 'cursor-default' : 'active:bg-borda-clara/40',
+                  feito ? 'cursor-default' : 'active:bg-borda-em-superficie/40',
                 ].join(' ')}
               >
                 <span
                   className={[
                     'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border',
-                    feito ? 'border-sucesso bg-sucesso text-superficie' : 'border-borda-clara',
+                    feito ? 'border-sucesso bg-sucesso text-superficie' : 'border-borda-em-superficie',
                   ].join(' ')}
                 >
                   {feito && <Check aria-hidden size={14} strokeWidth={3} />}
@@ -120,7 +120,7 @@ export function PrimeirosPassos() {
                 <span
                   className={[
                     'text-corpo',
-                    feito ? 'text-claro-secundario line-through' : 'text-claro',
+                    feito ? 'text-em-superficie-2 line-through' : 'text-em-superficie',
                   ].join(' ')}
                 >
                   {texto}
@@ -131,7 +131,7 @@ export function PrimeirosPassos() {
         })}
       </ul>
 
-      <p className="pt-2 text-apoio text-claro-secundario">
+      <p className="pt-2 text-apoio text-em-superficie-2">
         Sem catálogo ainda? Em Configurações dá para carregar peças e serviços de
         exemplo e apagar depois.
       </p>

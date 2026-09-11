@@ -117,7 +117,7 @@ export function FormularioServico() {
           />
         </LinhaInteira>
 
-        <div className="border-t border-borda-clara pt-2">
+        <div className="border-t border-borda-em-superficie pt-2">
           <Controller
             name="ativo"
             control={control}
@@ -134,7 +134,7 @@ export function FormularioServico() {
 
         {errors.root && (
           <LinhaInteira>
-            <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
+            <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
               {errors.root.message}
             </p>
           </LinhaInteira>

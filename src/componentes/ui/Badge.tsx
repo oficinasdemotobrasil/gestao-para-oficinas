@@ -4,10 +4,10 @@ import { cn } from '@/lib/cn'
 type Tom = 'sucesso' | 'atencao' | 'erro' | 'neutro'
 
 const tons: Record<Tom, string> = {
-  sucesso: 'bg-sucesso-fundo text-sucesso',
-  atencao: 'bg-atencao-fundo text-atencao',
-  erro: 'bg-erro-fundo text-erro',
-  neutro: 'bg-borda-clara text-claro-secundario',
+  sucesso: 'bg-sucesso-fundo text-sucesso-forte',
+  atencao: 'bg-atencao-fundo text-atencao-forte',
+  erro: 'bg-erro-fundo text-erro-forte',
+  neutro: 'bg-borda-em-superficie text-em-superficie-2',
 }
 
 /**

@@ -36,7 +36,7 @@ export function TabBar() {
         // Barra de navegação não é enfeite de vidro: ela precisa estar sempre
         // legível, e o único jeito de garantir isso é não deixar o conteúdo
         // aparecer por baixo.
-        'fixed inset-x-0 bottom-0 z-40 border-t border-borda-escura bg-fundo pb-seguro',
+        'fixed inset-x-0 bottom-0 z-40 border-t border-borda-em-fundo bg-fundo pb-seguro',
         // Do tablet em diante quem navega é o menu lateral. A altura reservada
         // para esta barra também zera, em tokens.css.
         'tablet:hidden',
@@ -57,7 +57,7 @@ export function TabBar() {
                   // texto pequeno. Deixá-lo branco resolveria a leitura e
                   // criaria outro problema — cinco itens brancos e um amarelo
                   // param de dizer onde a pessoa está.
-                  isActive ? 'text-acento' : 'text-escuro-secundario',
+                  isActive ? 'text-acento-forte' : 'text-em-fundo-2',
                 )
               }
             >

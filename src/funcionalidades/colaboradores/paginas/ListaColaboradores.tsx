@@ -108,7 +108,7 @@ export function ListaColaboradores() {
         )}
       </div>
 
-      <p className="px-1 pt-6 text-apoio text-escuro-secundario">
+      <p className="px-1 pt-6 text-apoio text-em-fundo-2">
         O mecânico enxerga somente as ordens de serviço atribuídas a ele. O
         vendedor cuida de clientes, motos e catálogo, mas não vê preço de custo
         nem financeiro.

@@ -25,7 +25,7 @@ export function Abas<T extends string>({ abas, ativa, aoTrocar, rotulo }: Props<
     <div
       role="tablist"
       aria-label={rotulo}
-      className="flex gap-1 rounded-controle bg-superficie-escura p-1"
+      className="flex gap-1 rounded-controle bg-fundo-2 p-1"
     >
       {abas.map(({ id, rotulo: texto }) => (
         <button
@@ -42,7 +42,7 @@ export function Abas<T extends string>({ abas, ativa, aoTrocar, rotulo }: Props<
             // com a palavra encostando na borda.
             'desktop:min-h-toque-fino desktop:flex-none desktop:px-4',
             'transition-colors duration-padrao ease-padrao',
-            ativa === id ? 'bg-acento text-claro' : 'text-escuro-secundario',
+            ativa === id ? 'bg-acento text-em-superficie' : 'text-em-fundo-2',
           )}
         >
           {texto}

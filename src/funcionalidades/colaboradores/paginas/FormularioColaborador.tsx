@@ -151,7 +151,7 @@ export function FormularioColaborador() {
                 type="button"
                 onClick={() => setMostrarSenha((v) => !v)}
                 aria-label={mostrarSenha ? 'Esconder senha' : 'Mostrar senha'}
-                className="absolute right-1 top-7 flex h-toque w-toque items-center justify-center text-claro-secundario"
+                className="absolute right-1 top-7 flex h-toque w-toque items-center justify-center text-em-superficie-2"
               >
                 {mostrarSenha ? <EyeOff aria-hidden size={20} /> : <Eye aria-hidden size={20} />}
               </button>
@@ -199,7 +199,7 @@ export function FormularioColaborador() {
 
         {errors.root && (
           <LinhaInteira>
-            <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
+            <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
               {errors.root.message}
             </p>
           </LinhaInteira>

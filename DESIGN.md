@@ -146,6 +146,57 @@ não existe.
 Foi assim que "Acesso bloqueado por falta de pagamento" virou "esso bloqueado
 por falta de pagamento" na tela — nenhum teste pegaria.
 
+## Dois temas, e os nomes que os sustentam
+
+O escuro é o padrão da casa. O claro entra quando o aparelho pede, ou quando a
+pessoa escolhe em Configurações — a escolha fica **no aparelho**, não na
+oficina: o celular do mecânico e o computador do balcão quase nunca concordam.
+
+**Os tokens são nomeados pelo que ficam em cima, não pela claridade que têm.**
+`em-fundo` é o texto sobre o fundo da tela; `em-superficie` é o texto sobre o
+cartão. No escuro o primeiro é branco; no claro, é escuro. Um token chamado
+"texto-escuro" guardando cor escura para fundo claro é uma armadilha para quem
+vier depois — foi por isso que eles mudaram de nome.
+
+### Cores com duas vidas
+
+Acento, sucesso, atenção e erro pintam fundo **e** viram texto, e o mesmo valor
+não serve para as duas coisas. A cor sem sufixo pinta; a `-forte` escreve.
+
+| Uso | Classe |
+|---|---|
+| fundo de botão, faixa, etiqueta | `bg-acento`, `bg-atencao`, `bg-erro` |
+| texto, ícone, número em destaque | `text-acento-forte`, `text-atencao-forte`, `text-erro-forte` |
+
+O amarelo de atenção dava **2,15:1** como texto sobre branco. O acento do
+produto dá 10,7:1 sobre o preto e **1,47:1** sobre o cinza claro. É a mesma
+tinta se comportando de forma oposta conforme o chão.
+
+A cor da marca de cada oficina segue a mesma regra: `tonsDoAcento()` devolve a
+versão que pinta e a que escreve, e `aplicarCorDaMarca()` escolhe conforme o
+tema que está valendo — inclusive quando o aparelho troca de tema com o app
+aberto.
+
+### Os valores ficam em canais, não em hexadecimal
+
+`--cor-fundo: 11 11 12`, e não `#0b0b0c`. É o que faz `bg-alguma-coisa/40`
+funcionar: o Tailwind precisa injetar a opacidade dentro da cor, e não consegue
+com uma variável já fechada.
+
+Quando estava em hexadecimal, ele **não gerava regra nenhuma** — a classe
+existia no elemento, o CSS não existia, e o elemento herdava a cor do pai em
+silêncio. Quinze estados de toque ficaram invisíveis assim, e o subtítulo do
+botão principal da tela inicial virou branco sobre amarelo, a 1,63:1.
+
+Quem usar estes tokens em CSS escrito à mão precisa envolver: `rgb(var(--cor-x))`.
+
+### Como isso é conferido
+
+Um auditor percorre as telas nos dois temas, mede o contraste de **todo texto
+visível** contra o fundo real que está atrás dele, e aplica a régua da WCAG
+(4,5:1, ou 3:1 para texto grande). Foi ele que achou os cinco defeitos acima —
+nenhum deles apareceria num teste de código.
+
 ## A cor da marca da oficina
 
 Cada oficina escolhe uma cor, e ela substitui o amarelo **apenas nos destaques**:

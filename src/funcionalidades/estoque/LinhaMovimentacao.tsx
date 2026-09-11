@@ -9,9 +9,9 @@ const aparencia: Record<
   TipoMovimentacao,
   { Icone: typeof ArrowDown; classe: string; sinal: string }
 > = {
-  entrada: { Icone: ArrowDown, classe: 'bg-sucesso-fundo text-sucesso', sinal: '+' },
-  saida: { Icone: ArrowUp, classe: 'bg-erro-fundo text-erro', sinal: '−' },
-  ajuste: { Icone: Scale, classe: 'bg-atencao-fundo text-atencao', sinal: '' },
+  entrada: { Icone: ArrowDown, classe: 'bg-sucesso-fundo text-sucesso-forte', sinal: '+' },
+  saida: { Icone: ArrowUp, classe: 'bg-erro-fundo text-erro-forte', sinal: '−' },
+  ajuste: { Icone: Scale, classe: 'bg-atencao-fundo text-atencao-forte', sinal: '' },
 }
 
 /**
@@ -49,7 +49,7 @@ export function LinhaMovimentacao({
             }`
       }
       fim={
-        <span className="shrink-0 text-corpo font-semibold text-claro">
+        <span className="shrink-0 text-corpo font-semibold text-em-superficie">
           {prefixo}
           {qtd} {movimentacao.produto_unidade}
         </span>

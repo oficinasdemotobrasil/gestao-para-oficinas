@@ -9,7 +9,27 @@
  * evidência. Fundo, cartões e texto continuam iguais para todo mundo, porque
  * são eles que garantem a legibilidade que a cor da marca não pode estragar.
  */
-import { COR_DO_PRODUTO, ehHexadecimal, tonsDoAcento } from './cor'
+import { COR_DO_PRODUTO, ehHexadecimal, paraRgb, tonsDoAcento } from './cor'
+
+/**
+ * Os tokens guardam canais soltos ("245 197 24"), e não hexadecimal, para o
+ * Tailwind conseguir injetar opacidade dentro da cor. Ver tokens.css.
+ */
+function emCanais(hex: string): string {
+  const { r, g, b } = paraRgb(hex)
+  return `${r} ${g} ${b}`
+}
+
+type Tons = ReturnType<typeof tonsDoAcento>
+
+/** Qual versão do acento se lê como texto no tema que está valendo agora. */
+function corForteDoTema(tons: Tons): string {
+  const forcado = document.documentElement.getAttribute('data-tema')
+  const claro =
+    forcado === 'claro' ||
+    (forcado !== 'escuro' && window.matchMedia('(prefers-color-scheme: light)').matches)
+  return claro ? tons.forteNoTemaClaro : tons.acento
+}
 
 const CHAVE = 'marca-da-ultima-oficina'
 
@@ -27,13 +47,20 @@ export function aplicarCorDaMarca(cor: string | null | undefined) {
     raiz.style.removeProperty('--cor-acento')
     raiz.style.removeProperty('--cor-acento-pressionado')
     raiz.style.removeProperty('--cor-acento-suave')
+    raiz.style.removeProperty('--cor-acento-forte')
     return
   }
 
   const tons = tonsDoAcento(escolhida)
-  raiz.style.setProperty('--cor-acento', tons.acento)
-  raiz.style.setProperty('--cor-acento-pressionado', tons.pressionado)
-  raiz.style.setProperty('--cor-acento-suave', tons.suave)
+  raiz.style.setProperty('--cor-acento', emCanais(tons.acento))
+  raiz.style.setProperty('--cor-acento-pressionado', emCanais(tons.pressionado))
+  raiz.style.setProperty('--cor-acento-suave', emCanais(tons.suave))
+
+  // No tema escuro o acento se lê como texto do jeito que veio; no claro,
+  // precisa da versão fechada. Escrever as duas e deixar o CSS escolher seria
+  // o ideal, mas variável em linha não tem media query: então perguntamos ao
+  // aparelho qual tema está valendo, e reaplicamos quando ele mudar.
+  raiz.style.setProperty('--cor-acento-forte', emCanais(corForteDoTema(tons)))
 }
 
 /**
@@ -74,6 +101,18 @@ export function marcaLembrada(): MarcaLembrada | null {
   } catch {
     return null
   }
+}
+
+/**
+ * O aparelho mudou de tema com o app aberto — acontece quando o celular vira
+ * para o modo noturno no fim da tarde. Sem isto, a cor da marca ficaria na
+ * versão do tema anterior até alguém recarregar a página.
+ */
+export function acompanharTemaDoAparelho(corDaOficina: () => string | null | undefined) {
+  const consulta = window.matchMedia('(prefers-color-scheme: light)')
+  const reagir = () => aplicarCorDaMarca(corDaOficina())
+  consulta.addEventListener('change', reagir)
+  return () => consulta.removeEventListener('change', reagir)
 }
 
 export function esquecerMarca() {

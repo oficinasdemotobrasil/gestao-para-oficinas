@@ -141,11 +141,11 @@ export function Assinatura() {
     <div className="rounded-card bg-superficie p-4 tablet:p-6">
       {temAssinatura ? (
         <>
-          <p className="text-corpo text-claro">
+          <p className="text-corpo text-em-superficie">
             Assinatura ativa no plano{' '}
             <strong>{planos.data?.find((p) => p.id === assinatura.data!.plano)?.nome}</strong>.
           </p>
-          <p className="pt-1 text-apoio text-claro-secundario">
+          <p className="pt-1 text-apoio text-em-superficie-2">
             Próxima cobrança em{' '}
             {assinatura.data!.proxima_cobranca
               ? formatarData(assinatura.data!.proxima_cobranca)
@@ -165,8 +165,8 @@ export function Assinatura() {
         </>
       ) : (
         <>
-          <p className="text-secao text-claro">Escolha o plano ideal para sua oficina</p>
-          <p className="pt-1 text-apoio text-claro-secundario">
+          <p className="text-secao text-em-superficie">Escolha o plano ideal para sua oficina</p>
+          <p className="pt-1 text-apoio text-em-superficie-2">
             Sem surpresas: ao clicar em “Assinar”, você vai direto para o
             pagamento seguro. O plano de teste é liberado na hora por 7 dias.
           </p>
@@ -180,21 +180,21 @@ export function Assinatura() {
                   key={p.id}
                   className={[
                     'flex flex-col rounded-controle border p-4',
-                    atual ? 'border-acento' : 'border-borda-clara',
+                    atual ? 'border-acento' : 'border-borda-em-superficie',
                   ].join(' ')}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-secao text-claro">{p.nome}</p>
+                    <p className="text-secao text-em-superficie">{p.nome}</p>
                     {atual && (
-                      <span className="rounded-badge bg-acento-suave px-2 py-0.5 text-micro text-claro">
+                      <span className="rounded-badge bg-acento-suave px-2 py-0.5 text-micro text-em-superficie">
                         Atual
                       </span>
                     )}
                   </div>
-                  <p className="pt-1 text-destaque text-claro">
+                  <p className="pt-1 text-destaque text-em-superficie">
                     {gratuito ? 'Grátis' : moeda(Number(p.preco_mensal))}
                     {!gratuito && (
-                      <span className="text-apoio text-claro-secundario"> /mês</span>
+                      <span className="text-apoio text-em-superficie-2"> /mês</span>
                     )}
                   </p>
 
@@ -208,12 +208,12 @@ export function Assinatura() {
                       return (
                         <li
                           key={beneficio}
-                          className="flex gap-2 text-apoio text-claro-secundario"
+                          className="flex gap-2 text-apoio text-em-superficie-2"
                         >
                           <Check
                             aria-hidden
                             size={16}
-                            className={`mt-0.5 shrink-0 ${ausencia ? 'text-claro-secundario opacity-40' : 'text-sucesso'}`}
+                            className={`mt-0.5 shrink-0 ${ausencia ? 'text-em-superficie-2 opacity-40' : 'text-sucesso-forte'}`}
                           />
                           {beneficio}
                         </li>
@@ -255,18 +255,18 @@ export function Assinatura() {
               aria-pressed={forma === valor}
               className={[
                 'flex w-full items-start gap-3 rounded-controle border p-4 text-left',
-                forma === valor ? 'border-acento bg-acento-suave' : 'border-borda-clara',
+                forma === valor ? 'border-acento bg-acento-suave' : 'border-borda-em-superficie',
               ].join(' ')}
             >
-              <Icone aria-hidden size={22} className="mt-0.5 shrink-0 text-claro" />
+              <Icone aria-hidden size={22} className="mt-0.5 shrink-0 text-em-superficie" />
               <span>
-                <span className="block text-corpo font-semibold text-claro">{rotulo}</span>
-                <span className="block text-apoio text-claro-secundario">{detalhe}</span>
+                <span className="block text-corpo font-semibold text-em-superficie">{rotulo}</span>
+                <span className="block text-apoio text-em-superficie-2">{detalhe}</span>
               </span>
             </button>
           ))}
 
-          <p className="text-apoio text-claro-secundario">
+          <p className="text-apoio text-em-superficie-2">
             Não trabalhamos com boleto: ele leva até dois dias para compensar, e
             isso faria a oficina entrar em atraso todo mês sem ter culpa.
           </p>
@@ -299,11 +299,11 @@ export function Assinatura() {
         titulo="Sua cobrança está pronta"
       >
         <div className="space-y-4">
-          <p className="text-corpo text-claro">
+          <p className="text-corpo text-em-superficie">
             A assinatura foi criada e a cobrança chega no seu e-mail em alguns
             minutos.
           </p>
-          <p className="text-apoio text-claro-secundario">
+          <p className="text-apoio text-em-superficie-2">
             Assim que o pagamento for identificado, o acesso se estende sozinho.
             Até lá, nada muda por aqui.
           </p>

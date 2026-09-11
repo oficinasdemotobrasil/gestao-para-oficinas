@@ -215,7 +215,7 @@ export function EditorOrcamento() {
               onChange={(e) => setDesconto(e.target.value)}
             />
             {valorDoDesconto > 0 && (
-              <p className="text-apoio text-claro-secundario">
+              <p className="text-apoio text-em-superficie-2">
                 Abate {moeda(valorDoDesconto)} de {moeda(soma)}.
               </p>
             )}
@@ -228,7 +228,7 @@ export function EditorOrcamento() {
       <button
         type="button"
         onClick={() => setMaisOpcoes((v) => !v)}
-        className="mt-6 flex min-h-toque w-full items-center justify-between gap-3 rounded-controle border border-borda-escura px-4 text-escuro"
+        className="mt-6 flex min-h-toque w-full items-center justify-between gap-3 rounded-controle border border-borda-em-fundo px-4 text-em-fundo"
       >
         <span className="text-corpo font-medium">Validade, garantia e observações</span>
         {maisOpcoes ? (
@@ -261,7 +261,7 @@ export function EditorOrcamento() {
               type="button"
               onClick={() => void gerarComIA()}
               disabled={gerandoTexto || itens.length === 0}
-              className="flex min-h-toque w-fit items-center gap-1.5 self-end rounded-badge bg-acento-suave px-3 text-apoio font-medium text-claro disabled:opacity-50"
+              className="flex min-h-toque w-fit items-center gap-1.5 self-end rounded-badge bg-acento-suave px-3 text-apoio font-medium text-em-superficie disabled:opacity-50"
             >
               <Sparkles aria-hidden size={14} className={gerandoTexto ? 'animate-pulse' : undefined} />
               {gerandoTexto ? 'Gerando…' : 'Gerar com IA'}
@@ -280,7 +280,7 @@ export function EditorOrcamento() {
       {erroGeral && (
         <p
           role="alert"
-          className="mt-4 rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro"
+          className="mt-4 rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte"
         >
           {erroGeral}
         </p>
@@ -292,14 +292,14 @@ export function EditorOrcamento() {
           cima dos cards brancos dos itens, e com 5% de transparência o branco
           atravessava e lavava o total e o botão — justamente os dois números
           que a pessoa precisa ver antes de mandar o orçamento. */}
-      <div className="fixed inset-x-0 bottom-[calc(var(--altura-tabbar)+env(safe-area-inset-bottom))] z-30 border-t border-borda-escura bg-fundo px-5 py-3">
+      <div className="fixed inset-x-0 bottom-[calc(var(--altura-tabbar)+env(safe-area-inset-bottom))] z-30 border-t border-borda-em-fundo bg-fundo px-5 py-3">
         <div className="mx-auto flex max-w-lg flex-col gap-2">
           <div className="flex items-baseline justify-between">
-            <span className="text-rotulo text-escuro-secundario">
+            <span className="text-rotulo text-em-fundo-2">
               {itens.length} {itens.length === 1 ? 'item' : 'itens'}
               {valorDoDesconto > 0 && ` · −${moeda(valorDoDesconto)}`}
             </span>
-            <span className="text-titulo text-acento">{moeda(total)}</span>
+            <span className="text-titulo text-acento-forte">{moeda(total)}</span>
           </div>
           <Botao largo carregando={salvar.isPending} onClick={enviar}>
             {editando ? 'Salvar alterações' : 'Criar orçamento'}

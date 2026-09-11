@@ -40,16 +40,16 @@ export function ListaDeColaboradores({
             onClick={() => aoEscolher(c.id)}
             aria-pressed={escolhido}
             className={`flex min-h-toque items-center justify-between gap-3 rounded-controle border px-4 py-3 text-left ${
-              escolhido ? 'border-acento bg-acento-suave' : 'border-borda-clara bg-transparent'
+              escolhido ? 'border-acento bg-acento-suave' : 'border-borda-em-superficie bg-transparent'
             }`}
           >
             <span className="min-w-0">
-              <span className="block truncate text-corpo font-medium text-claro">{c.nome}</span>
-              <span className="block text-apoio text-claro-secundario">
+              <span className="block truncate text-corpo font-medium text-em-superficie">{c.nome}</span>
+              <span className="block text-apoio text-em-superficie-2">
                 {nomeDoPerfil[c.perfil]}
               </span>
             </span>
-            {escolhido && <CheckCircle2 aria-hidden size={22} className="shrink-0 text-acento" />}
+            {escolhido && <CheckCircle2 aria-hidden size={22} className="shrink-0 text-acento-forte" />}
           </button>
         )
       })}

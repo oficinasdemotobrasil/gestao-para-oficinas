@@ -23,7 +23,7 @@ export function CampoBusca({
       <Search
         aria-hidden
         size={20}
-        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-claro-secundario"
+        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-em-superficie-2"
       />
       <input
         type="search"
@@ -35,14 +35,14 @@ export function CampoBusca({
         autoCorrect="off"
         spellCheck={false}
         inputMode={inputMode}
-        className="h-campo w-full rounded-controle border border-transparent bg-superficie pl-12 pr-11 text-corpo text-claro placeholder:text-claro-secundario focus:border-acento [&::-webkit-search-cancel-button]:hidden"
+        className="h-campo w-full rounded-controle border border-transparent bg-superficie pl-12 pr-11 text-corpo text-em-superficie placeholder:text-em-superficie-2 focus:border-acento [&::-webkit-search-cancel-button]:hidden"
       />
       {valor && (
         <button
           type="button"
           onClick={() => aoMudar('')}
           aria-label="Limpar busca"
-          className="absolute right-1 top-1/2 flex h-toque w-toque -translate-y-1/2 items-center justify-center text-claro-secundario"
+          className="absolute right-1 top-1/2 flex h-toque w-toque -translate-y-1/2 items-center justify-center text-em-superficie-2"
         >
           <X aria-hidden size={18} />
         </button>

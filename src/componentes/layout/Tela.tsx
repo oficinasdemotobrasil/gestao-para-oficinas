@@ -86,8 +86,8 @@ export function CabecalhoTela({
   return (
     <header className="flex items-start justify-between gap-4 pb-6 pt-6">
       <div className="min-w-0">
-        <h1 className="text-titulo text-escuro">{titulo}</h1>
-        {contexto && <p className="pt-1 text-apoio text-escuro-secundario">{contexto}</p>}
+        <h1 className="text-titulo text-em-fundo">{titulo}</h1>
+        {contexto && <p className="pt-1 text-apoio text-em-fundo-2">{contexto}</p>}
       </div>
       {acao}
     </header>
@@ -112,15 +112,15 @@ export function CabecalhoInterno({
       <button
         type="button"
         onClick={() => (aoVoltar ? aoVoltar() : navegar(-1))}
-        className="-ml-2 flex min-h-toque items-center gap-1 pr-3 text-corpo text-acento"
+        className="-ml-2 flex min-h-toque items-center gap-1 pr-3 text-corpo text-acento-forte"
       >
         <ChevronLeft aria-hidden size={22} />
         Voltar
       </button>
       <div className="flex items-start justify-between gap-4 pt-2">
         <div className="min-w-0">
-          <h1 className="text-titulo text-escuro">{titulo}</h1>
-          {contexto && <p className="pt-1 text-apoio text-escuro-secundario">{contexto}</p>}
+          <h1 className="text-titulo text-em-fundo">{titulo}</h1>
+          {contexto && <p className="pt-1 text-apoio text-em-fundo-2">{contexto}</p>}
         </div>
         {acao}
       </div>
@@ -132,7 +132,7 @@ export function CabecalhoInterno({
 export function TituloSecao({ children, acao }: { children: ReactNode; acao?: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 pb-3 pt-6">
-      <h2 className="text-secao text-escuro">{children}</h2>
+      <h2 className="text-secao text-em-fundo">{children}</h2>
       {acao}
     </div>
   )

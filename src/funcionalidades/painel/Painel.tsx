@@ -33,9 +33,9 @@ function Numero({
 }) {
   return (
     <div className="min-w-0 flex-1">
-      <p className="text-rotulo text-claro-secundario">{rotulo}</p>
-      <p className={`truncate text-secao ${tom ?? 'text-claro'}`}>{valor}</p>
-      {detalhe && <p className="truncate text-apoio text-claro-secundario">{detalhe}</p>}
+      <p className="text-rotulo text-em-superficie-2">{rotulo}</p>
+      <p className={`truncate text-secao ${tom ?? 'text-em-superficie'}`}>{valor}</p>
+      {detalhe && <p className="truncate text-apoio text-em-superficie-2">{detalhe}</p>}
     </div>
   )
 }
@@ -70,6 +70,7 @@ export function Painel() {
             <div className="flex-1">
               <Campo
                 rotulo="De"
+                sobreFundo
                 type="date"
                 value={personalizado.de}
                 onChange={(e) => setPersonalizado((p) => ({ ...p, de: e.target.value }))}
@@ -78,6 +79,7 @@ export function Painel() {
             <div className="flex-1">
               <Campo
                 rotulo="Até"
+                sobreFundo
                 type="date"
                 value={personalizado.ate}
                 onChange={(e) => setPersonalizado((p) => ({ ...p, ate: e.target.value }))}
@@ -147,7 +149,7 @@ export function Painel() {
               />
             </div>
             {data.servicos.horas_medias > 0 && (
-              <p className="border-t border-borda-clara pt-3 mt-3 text-apoio text-claro-secundario">
+              <p className="border-t border-borda-em-superficie pt-3 mt-3 text-apoio text-em-superficie-2">
                 Da abertura à conclusão: {duracao(data.servicos.horas_medias * 60)} em média
               </p>
             )}
@@ -158,7 +160,7 @@ export function Painel() {
               disponível, e ocupando o monitor inteiro um único dia de movimento
               vira um pico absurdo em vez de um gráfico. */}
           <Card className="tablet:col-span-2">
-            <p className="text-rotulo text-claro-secundario">Serviço concluído por dia</p>
+            <p className="text-rotulo text-em-superficie-2">Serviço concluído por dia</p>
             <LinhaDoPeriodo pontos={data.evolucao} />
           </Card>
 
@@ -173,15 +175,15 @@ export function Painel() {
               <Numero rotulo="A pagar" valor={moeda(data.financeiro.a_pagar)} />
             </div>
             {data.financeiro.em_atraso > 0 && (
-              <p className="pt-3 text-corpo text-erro">
+              <p className="pt-3 text-corpo text-erro-forte">
                 {moeda(data.financeiro.em_atraso)} vencidos e não recebidos
               </p>
             )}
-            <div className="flex items-baseline justify-between gap-4 border-t border-borda-clara pt-3 mt-3">
-              <span className="text-secao text-claro">Saldo previsto</span>
+            <div className="flex items-baseline justify-between gap-4 border-t border-borda-em-superficie pt-3 mt-3">
+              <span className="text-secao text-em-superficie">Saldo previsto</span>
               <span
                 className={`text-destaque ${
-                  data.financeiro.a_receber - data.financeiro.a_pagar < 0 ? 'text-erro' : 'text-claro'
+                  data.financeiro.a_receber - data.financeiro.a_pagar < 0 ? 'text-erro-forte' : 'text-em-superficie'
                 }`}
               >
                 {moeda(data.financeiro.a_receber - data.financeiro.a_pagar)}
@@ -192,14 +194,14 @@ export function Painel() {
           {/* Quem fez o quê ------------------------------------------------ */}
           {data.ranking.length > 0 && (
             <Card className="tablet:col-span-2 desktop:col-span-1">
-              <p className="pb-2 text-rotulo text-claro-secundario">Serviços concluídos por pessoa</p>
+              <p className="pb-2 text-rotulo text-em-superficie-2">Serviços concluídos por pessoa</p>
               {data.ranking.map((r) => (
                 <div
                   key={r.nome}
-                  className="flex items-baseline justify-between gap-4 border-b border-borda-clara py-2 last:border-b-0"
+                  className="flex items-baseline justify-between gap-4 border-b border-borda-em-superficie py-2 last:border-b-0"
                 >
-                  <span className="min-w-0 truncate text-corpo text-claro">{r.nome}</span>
-                  <span className="shrink-0 text-apoio text-claro-secundario">
+                  <span className="min-w-0 truncate text-corpo text-em-superficie">{r.nome}</span>
+                  <span className="shrink-0 text-apoio text-em-superficie-2">
                     {r.ordens} {r.ordens === 1 ? 'ordem' : 'ordens'}
                     {r.minutos > 0 && ` · ${duracao(r.minutos)}`}
                   </span>
@@ -215,12 +217,12 @@ export function Painel() {
               onClick={() => navegar('/catalogo')}
               className="flex items-center gap-3 rounded-card bg-atencao-fundo px-4 py-4 text-left tablet:col-span-2 desktop:col-span-3"
             >
-              <TriangleAlert aria-hidden size={20} className="shrink-0 text-atencao" />
-              <span className="min-w-0 flex-1 text-corpo text-atencao">
+              <TriangleAlert aria-hidden size={20} className="shrink-0 text-atencao-forte" />
+              <span className="min-w-0 flex-1 text-corpo text-atencao-forte">
                 {data.produtos_para_repor}{' '}
                 {data.produtos_para_repor === 1 ? 'peça abaixo do mínimo' : 'peças abaixo do mínimo'}
               </span>
-              <ChevronRight aria-hidden size={20} className="shrink-0 text-atencao" />
+              <ChevronRight aria-hidden size={20} className="shrink-0 text-atencao-forte" />
             </button>
           )}
         </div>

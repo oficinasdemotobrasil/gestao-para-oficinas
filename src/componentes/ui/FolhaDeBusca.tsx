@@ -116,7 +116,7 @@ function ConteudoDaFolha({
             descricao={termo ? `Nenhum resultado para "${termo}".` : vazio.descricao}
           />
         ) : (
-          <ListaCard className="border border-borda-clara shadow-none">
+          <ListaCard className="border border-borda-em-superficie shadow-none">
             {opcoes.map((o) => (
               <LinhaLista
                 key={o.id}

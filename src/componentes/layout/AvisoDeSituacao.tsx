@@ -25,7 +25,7 @@ export function AvisoDeSituacao() {
 
   const avisos = {
     teste: {
-      tom: 'bg-acento text-claro',
+      tom: 'bg-acento text-em-superficie',
       Icone: Clock,
       texto:
         faltam === null
@@ -35,25 +35,25 @@ export function AvisoDeSituacao() {
             : `Seu teste termina em ${faltam} ${faltam === 1 ? 'dia' : 'dias'}.`,
     },
     atrasada: {
-      tom: 'bg-atencao text-claro',
+      tom: 'bg-atencao text-em-superficie',
       Icone: AlertTriangle,
       texto:
         'Pagamento em atraso. Você continua trabalhando normalmente, mas o acesso é bloqueado se não for regularizado.',
     },
     bloqueada: {
-      tom: 'bg-erro text-escuro',
+      tom: 'bg-erro text-em-fundo',
       Icone: Lock,
       texto:
         'Acesso bloqueado por falta de pagamento. Você continua consultando tudo e pode exportar seus dados, mas não dá para registrar nada.',
     },
     suspensa: {
-      tom: 'bg-erro text-escuro',
+      tom: 'bg-erro text-em-fundo',
       Icone: Lock,
       texto:
         'Conta suspensa. Você continua consultando tudo, mas só volta a registrar depois de regularizar.',
     },
     cancelada: {
-      tom: 'bg-erro text-escuro',
+      tom: 'bg-erro text-em-fundo',
       Icone: Lock,
       texto: 'Esta conta foi encerrada. Você ainda pode exportar seus dados.',
     },

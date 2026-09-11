@@ -101,7 +101,7 @@ export function CobrancaPix({
   return (
     <Modal larga aberto={aberto} aoFechar={aoFechar} titulo="Cobrar por PIX">
       {semChave || chaveTorta ? (
-        <p className="mb-4 flex items-start gap-2 rounded-controle bg-atencao-fundo px-4 py-3 text-corpo text-atencao">
+        <p className="mb-4 flex items-start gap-2 rounded-controle bg-atencao-fundo px-4 py-3 text-corpo text-atencao-forte">
           <TriangleAlert aria-hidden size={20} className="mt-0.5 shrink-0" />
           {semChave
             ? 'Cadastre a chave PIX da oficina em Configurações para cobrar por aqui.'
@@ -109,8 +109,8 @@ export function CobrancaPix({
         </p>
       ) : (
         <>
-          <p className="pb-4 text-corpo text-claro-secundario">
-            {conta.descricao} — <strong className="text-claro">{moeda(falta)}</strong>
+          <p className="pb-4 text-corpo text-em-superficie-2">
+            {conta.descricao} — <strong className="text-em-superficie">{moeda(falta)}</strong>
           </p>
 
           {/* No celular o QR ocupa a largura e o código vem embaixo. No
@@ -126,13 +126,13 @@ export function CobrancaPix({
                   className="h-64 w-64 rounded-controle bg-white p-2"
                 />
               ) : (
-                <div className="flex h-64 w-64 items-center justify-center rounded-controle bg-borda-clara">
-                  <QrCode aria-hidden size={40} className="animate-pulse text-claro-secundario" />
+                <div className="flex h-64 w-64 items-center justify-center rounded-controle bg-borda-em-superficie">
+                  <QrCode aria-hidden size={40} className="animate-pulse text-em-superficie-2" />
                 </div>
               )}
             </div>
 
-            <p className="break-all rounded-controle bg-borda-clara/40 px-3 py-3 text-apoio text-claro-secundario desktop:min-w-0 desktop:flex-1">
+            <p className="break-all rounded-controle bg-borda-em-superficie/40 px-3 py-3 text-apoio text-em-superficie-2 desktop:min-w-0 desktop:flex-1">
               {codigo}
             </p>
           </div>
@@ -156,7 +156,7 @@ export function CobrancaPix({
               href={whatsapp}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex h-botao w-full items-center justify-center gap-2 rounded-controle border border-borda-clara px-5 text-corpo font-semibold text-claro"
+              className="inline-flex h-botao w-full items-center justify-center gap-2 rounded-controle border border-borda-em-superficie px-5 text-corpo font-semibold text-em-superficie"
             >
               <MessageCircle aria-hidden size={20} />
               Mandar pelo WhatsApp
@@ -166,7 +166,7 @@ export function CobrancaPix({
           {/* O código estático não avisa quando é pago. Dizer isso na tela é a
               diferença entre a oficina conferir o extrato e achar que o sistema
               confere por ela. */}
-          <p className="pt-4 text-apoio text-claro-secundario">
+          <p className="pt-4 text-apoio text-em-superficie-2">
             Este código não avisa o sistema quando for pago. Depois de confirmar o
             recebimento no seu banco, volte aqui e marque como recebida.
           </p>

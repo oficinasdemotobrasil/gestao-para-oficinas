@@ -60,8 +60,8 @@ export function RedefinirSenha() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-5 py-10">
       <div className="pb-6">
-        <h1 className="text-titulo text-escuro">Criar nova senha</h1>
-        <p className="pt-1 text-corpo text-escuro-secundario">
+        <h1 className="text-titulo text-em-fundo">Criar nova senha</h1>
+        <p className="pt-1 text-corpo text-em-fundo-2">
           Escolha uma senha de pelo menos 8 caracteres.
         </p>
       </div>
@@ -87,7 +87,7 @@ export function RedefinirSenha() {
         />
 
         {erroGeral && (
-          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
+          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
             {erroGeral}
           </p>
         )}

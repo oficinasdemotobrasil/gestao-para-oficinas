@@ -103,12 +103,12 @@ export function Modal({ aberto, aoFechar, titulo, children, rodape, larga = fals
         )}
       >
         <div className="flex items-center justify-between gap-4 px-5 pb-3 pt-5">
-          <h2 className="text-secao text-claro">{titulo}</h2>
+          <h2 className="text-secao text-em-superficie">{titulo}</h2>
           <button
             type="button"
             onClick={aoFechar}
             aria-label="Fechar"
-            className="flex h-toque w-toque -mr-3 items-center justify-center text-claro-secundario"
+            className="flex h-toque w-toque -mr-3 items-center justify-center text-em-superficie-2"
           >
             <X aria-hidden size={22} />
           </button>
@@ -117,7 +117,7 @@ export function Modal({ aberto, aoFechar, titulo, children, rodape, larga = fals
         <div className="flex-1 overflow-y-auto px-5 pb-2">{children}</div>
 
         {rodape && (
-          <div className="border-t border-borda-clara px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-4">
+          <div className="border-t border-borda-em-superficie px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-4">
             {rodape}
           </div>
         )}

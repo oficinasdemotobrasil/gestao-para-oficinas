@@ -114,8 +114,8 @@ export function ModalMovimentacao({ aberto, aoFechar, tipo, produto }: Props) {
     >
       <div className="flex flex-col gap-4 pb-2">
         <div className="flex items-baseline justify-between gap-4 rounded-controle bg-acento-suave px-4 py-3">
-          <span className="text-rotulo text-claro-secundario">{produto.nome}</span>
-          <span className="text-corpo font-semibold text-claro">
+          <span className="text-rotulo text-em-superficie-2">{produto.nome}</span>
+          <span className="text-corpo font-semibold text-em-superficie">
             {formatarQuantidade(produto.estoque_atual)} {produto.unidade}
           </span>
         </div>
@@ -134,11 +134,11 @@ export function ModalMovimentacao({ aberto, aoFechar, tipo, produto }: Props) {
 
         {Number.isFinite(digitado) && (
           <div className="flex items-baseline justify-between gap-4 px-1">
-            <span className="text-rotulo text-claro-secundario">Fica com</span>
-            <span className="text-corpo font-semibold text-claro">
+            <span className="text-rotulo text-em-superficie-2">Fica com</span>
+            <span className="text-corpo font-semibold text-em-superficie">
               {formatarQuantidade(saldoPrevisto)} {produto.unidade}
               {tipo === 'ajuste' && diferenca !== 0 && (
-                <span className="pl-2 text-apoio font-normal text-claro-secundario">
+                <span className="pl-2 text-apoio font-normal text-em-superficie-2">
                   ({diferenca > 0 ? '+' : ''}
                   {formatarQuantidade(diferenca)})
                 </span>
@@ -162,7 +162,7 @@ export function ModalMovimentacao({ aberto, aoFechar, tipo, produto }: Props) {
               key={s}
               type="button"
               onClick={() => setMotivo(s)}
-              className="min-h-toque rounded-badge border border-borda-clara px-3 text-apoio text-claro-secundario active:bg-borda-clara/50"
+              className="min-h-toque rounded-badge border border-borda-em-superficie px-3 text-apoio text-em-superficie-2 active:bg-borda-em-superficie/50"
             >
               {s}
             </button>
@@ -170,7 +170,7 @@ export function ModalMovimentacao({ aberto, aoFechar, tipo, produto }: Props) {
         </div>
 
         {erroGeral && (
-          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro">
+          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
             {erroGeral}
           </p>
         )}

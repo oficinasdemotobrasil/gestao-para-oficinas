@@ -93,7 +93,7 @@ export function ListaResponsiva<T>({
         <table className="w-full border-collapse text-left">
           <caption className="sr-only">{descricao}</caption>
           <thead>
-            <tr className="border-b border-borda-clara">
+            <tr className="border-b border-borda-em-superficie">
               {colunas.map((c) => (
                 <th
                   key={c.chave}
@@ -101,7 +101,7 @@ export function ListaResponsiva<T>({
                   className={cn(
                     // Cabeçalho que acompanha a rolagem: numa lista de 200
                     // linhas, sem isto a pessoa esquece o que é cada coluna.
-                    'sticky top-0 z-10 bg-superficie px-4 py-3 text-rotulo font-medium text-claro-secundario',
+                    'sticky top-0 z-10 bg-superficie px-4 py-3 text-rotulo font-medium text-em-superficie-2',
                     c.alinhar === 'direita' && 'text-right',
                     c.largura,
                     c.peso === 'apoio' && 'hidden amplo:table-cell',
@@ -120,15 +120,15 @@ export function ListaResponsiva<T>({
                 // A linha inteira é clicável, mas o teclado precisa de um alvo
                 // de verdade: a primeira célula carrega um botão invisível.
                 className={cn(
-                  'border-b border-borda-clara last:border-b-0',
-                  aoTocar && 'cursor-pointer transition-colors duration-padrao hover:bg-borda-clara/40',
+                  'border-b border-borda-em-superficie last:border-b-0',
+                  aoTocar && 'cursor-pointer transition-colors duration-padrao hover:bg-borda-em-superficie/40',
                 )}
               >
                 {colunas.map((c, i) => (
                   <td
                     key={c.chave}
                     className={cn(
-                      'px-4 py-3 text-corpo text-claro',
+                      'px-4 py-3 text-corpo text-em-superficie',
                       c.alinhar === 'direita' && 'text-right',
                       c.peso === 'apoio' && 'hidden amplo:table-cell',
                     )}
