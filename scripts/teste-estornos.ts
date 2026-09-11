@@ -59,9 +59,23 @@ const cobranca = (x: {
 
 async function semear() {
   await db.exec(`
-    insert into public.oficinas (id, nome, telefone, plano) values
-      ('11111111-1111-1111-1111-111111111111', 'Oficina que Arrependeu', '(11) 90000-0001', 'essencial'),
-      ('22222222-2222-2222-2222-222222222222', 'Oficina que Ficou',      '(11) 90000-0002', 'essencial');
+    insert into public.oficinas (id, nome, telefone, cnpj, plano) values
+      ('11111111-1111-1111-1111-111111111111', 'Oficina que Arrependeu', '(11) 90000-0001',
+       '12345678901', 'essencial'),
+      ('22222222-2222-2222-2222-222222222222', 'Oficina que Ficou',      '(11) 90000-0002',
+       null, 'essencial');
+
+    -- O responsável, que é de quem o e-mail foi para o provedor. O vendedor
+    -- entra junto e com data anterior: se a consulta pegar o usuário errado,
+    -- a busca no Asaas não acha nada.
+    insert into auth.users (id, email) values
+      ('aaaaaaaa-0000-0000-0000-000000000001', 'vendedor@teste.local'),
+      ('aaaaaaaa-0000-0000-0000-000000000002', 'dono@teste.local');
+    insert into public.usuarios (id, oficina_id, nome, email, perfil, criado_em) values
+      ('aaaaaaaa-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+       'Vendedor', 'vendedor@teste.local', 'vendedor', now() - interval '10 days'),
+      ('aaaaaaaa-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111',
+       'Dono', 'dono@teste.local', 'admin', now() - interval '5 days');
 
     insert into public.assinaturas
       (oficina_id, plano, situacao, inicio, id_externo_assinatura, cancelada_em)
@@ -117,6 +131,9 @@ async function semear() {
 
 type Linha = {
   cobranca_id: string
+  telefone: string | null
+  documento: string | null
+  email: string | null
   oficina: string
   valor: number
   situacao: string
@@ -151,6 +168,13 @@ async function main() {
   confere('cancelou 90 dias depois: pendente', acha(lista, 'pay_tarde')?.situacao, 'pendente')
   confere('cancelou 90 dias depois: sem direito', acha(lista, 'pay_tarde')?.tem_direito, false)
   confere('assinatura viva: nada a devolver', acha(lista, 'pay_ativa')?.situacao, 'sem_pedido')
+
+  console.log('\n\x1b[1mOs dados para buscar no Asaas\x1b[0m')
+  const b = acha(lista, 'pay_arrependeu')
+  confere('telefone da oficina', b?.telefone, '(11) 90000-0001')
+  confere('documento da oficina', b?.documento, '12345678901')
+  confere('e-mail do responsável, não do vendedor', b?.email, 'dono@teste.local')
+  confere('oficina sem documento não inventa um', acha(lista, 'pay_ativa')?.documento, null)
 
   console.log('\n\x1b[1mA frase que a pessoa lê\x1b[0m')
   const f1 = acha(lista, 'pay_arrependeu')?.motivo ?? ''

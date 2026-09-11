@@ -100,6 +100,14 @@ export interface Estorno {
   pago_em: string
   /** O endereço da cobrança no provedor. Veio dele, junto com o aviso. */
   endereco_no_provedor: string | null
+  /*
+   * O que a busca do Asaas aceita. São os mesmos três campos que a assinatura
+   * mandou para lá ao criar o cliente, então qualquer um deles encontra a
+   * cobrança. Podem faltar em oficina antiga que nunca assinou.
+   */
+  telefone: string | null
+  documento: string | null
+  email: string | null
   situacao: 'pendente' | 'devolvido' | 'dispensado' | 'sem_pedido'
   motivo: string
   /** Cancelou dentro de sete dias: o Código de Defesa do Consumidor manda devolver. */

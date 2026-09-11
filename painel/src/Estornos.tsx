@@ -25,8 +25,70 @@ const data = (iso: string) => {
   return new Date(iso).toLocaleDateString('pt-BR')
 }
 
-/** Onde fica o estorno dentro do Asaas. O caminho muda pouco; o código, nunca. */
-const CAMINHO_NO_ASAAS = 'Cobranças → busque o código → menu (⋮) → Estornar'
+/**
+ * A lista de cobranças recebidas no Asaas, que é onde o estorno acontece. O
+ * endereço é do painel de quem administra, não da fatura do cliente — e por
+ * isso leva direto ao lugar de clicar em Estornar.
+ */
+const LISTA_NO_ASAAS =
+  'https://www.asaas.com/payment/list?status=RECEIVED&itemsPerPage=10'
+
+/** Formata para ler, não para copiar: quem copia leva o valor cru. */
+function telefoneLegivel(t: string) {
+  const d = t.replace(/\D/g, '')
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return t
+}
+
+function documentoLegivel(v: string) {
+  const d = v.replace(/\D/g, '')
+  if (d.length === 11) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
+  if (d.length === 14)
+    return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`
+  return v
+}
+
+/**
+ * Um dado com botão de copiar ao lado.
+ *
+ * O que vai para a área de transferência é o valor CRU, sem ponto nem traço:
+ * a busca do Asaas casa por dígito, e um CPF pontuado costuma não achar nada.
+ * Na tela ele aparece pontuado, porque aí quem lê é gente.
+ */
+function Copiavel({
+  rotulo,
+  valor,
+  paraCopiar,
+}: {
+  rotulo: string
+  valor: string
+  paraCopiar: string
+}) {
+  const [copiado, setCopiado] = useState(false)
+  return (
+    <span className="inline-flex items-center gap-1 rounded-badge bg-superficie-escura/5 px-2 py-1">
+      <span className="text-xs text-claro-secundario">{rotulo}</span>
+      <span className="text-xs tabular-nums text-claro">{valor}</span>
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(paraCopiar)
+            setCopiado(true)
+            setTimeout(() => setCopiado(false), 2500)
+          } catch {
+            // Sem área de transferência o valor continua na tela, para copiar à mão.
+          }
+        }}
+        aria-label={`Copiar ${rotulo} de busca`}
+        className="rounded px-1.5 py-0.5 text-xs font-semibold text-acento-forte underline"
+      >
+        {copiado ? 'copiado' : 'copiar'}
+      </button>
+    </span>
+  )
+}
 
 function Selo({ situacao, temDireito }: { situacao: Estorno['situacao']; temDireito: boolean }) {
   if (situacao === 'devolvido') {
@@ -90,7 +152,7 @@ function Linha({
     } catch {
       // Sem área de transferência o código continua na tela, para copiar à mão.
     }
-    window.open(e.endereco_no_provedor ?? 'https://www.asaas.com/', '_blank', 'noopener')
+    window.open(LISTA_NO_ASAAS, '_blank', 'noopener')
   }
 
   return (
@@ -122,6 +184,33 @@ function Linha({
 
       <p className="pt-1.5 text-sm text-claro-secundario">{e.motivo}</p>
 
+      {/*
+        Os dados que a busca do Asaas aceita. Ficam no cartão porque é aqui que
+        a pessoa está olhando quando precisa deles — mandá-la procurar o
+        telefone na aba "As oficinas" é o tipo de ida e volta que faz alguém
+        desistir e deixar o estorno para depois.
+      */}
+      {!resolvido && (
+        <div className="flex flex-wrap items-center gap-1.5 pt-2">
+          <Copiavel rotulo="cobrança" valor={e.cobranca_id} paraCopiar={e.cobranca_id} />
+          {e.telefone && (
+            <Copiavel
+              rotulo="telefone"
+              valor={telefoneLegivel(e.telefone)}
+              paraCopiar={e.telefone.replace(/\D/g, '')}
+            />
+          )}
+          {e.email && <Copiavel rotulo="e-mail" valor={e.email} paraCopiar={e.email} />}
+          {e.documento && (
+            <Copiavel
+              rotulo={e.documento.replace(/\D/g, '').length === 14 ? 'CNPJ' : 'CPF'}
+              valor={documentoLegivel(e.documento)}
+              paraCopiar={e.documento.replace(/\D/g, '')}
+            />
+          )}
+        </div>
+      )}
+
       {e.situacao !== 'sem_pedido' && (
         <div className="flex flex-wrap items-center gap-2 pt-3">
           {!resolvido && (
@@ -149,6 +238,17 @@ function Linha({
               >
                 Não vou devolver
               </button>
+              {/* A fatura não deixa estornar, mas confirma o valor e a data. */}
+              {e.endereco_no_provedor && (
+                <a
+                  href={e.endereco_no_provedor}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-1 text-sm text-claro-secundario underline"
+                >
+                  ver a fatura
+                </a>
+              )}
             </>
           )}
 
@@ -271,8 +371,10 @@ export function Estornos() {
       {pendentes.length > 0 && (
         <>
           <p className="pb-3 text-xs text-escuro-secundario">
-            No Asaas: <strong className="text-escuro">{CAMINHO_NO_ASAAS}</strong>. O botão
-            abre a cobrança certa e copia o código para você colar na busca.
+            O botão abre a lista de cobranças recebidas no Asaas e copia o código.
+            Lá: <strong className="text-escuro">cole na busca → menu (⋮) na linha →
+            Estornar</strong>. Se o código não achar, tente o telefone, o e-mail ou
+            o CPF.
           </p>
           <ul className="grid gap-2">
             {pendentes.map((e) => (
