@@ -107,14 +107,20 @@ Deno.serve(async (req: Request) => {
   // As funções plataforma_* têm o execute revogado de authenticated e anon
   // (migration 0046): só a service_role chega nelas.
   if (corpo.acao === 'listar') {
-    const [lista, indicadores] = await Promise.all([
+    const [lista, indicadores, painel] = await Promise.all([
       servico.rpc('plataforma_oficinas'),
       servico.rpc('plataforma_indicadores'),
+      servico.rpc('plataforma_painel'),
     ])
     if (lista.error) return responder({ erro: lista.error.message }, 500)
     if (indicadores.error) return responder({ erro: indicadores.error.message }, 500)
+    if (painel.error) return responder({ erro: painel.error.message }, 500)
 
-    return responder({ oficinas: lista.data ?? [], indicadores: indicadores.data ?? {} })
+    return responder({
+      oficinas: lista.data ?? [],
+      indicadores: indicadores.data ?? {},
+      painel: painel.data ?? {},
+    })
   }
 
   // Reprocessar um pagamento que o sistema não soube ------------------------------

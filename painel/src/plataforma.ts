@@ -57,6 +57,33 @@ export interface OficinaNaLista {
   criado_em: string
 }
 
+export interface PainelDoNegocio {
+  dinheiro: {
+    receita_recorrente: number
+    em_risco: number
+    recebido_no_mes: number
+    ticket_medio: number
+    por_plano: { plano: string; oficinas: number; receita: number }[]
+  }
+  clientes: {
+    total: number
+    por_situacao: Partial<Record<SituacaoCalculada, number>>
+    novas_no_mes: number
+    com_contrato: number
+    ja_assinaram_alguma_vez: number
+    cancelamentos_no_mes: number
+  }
+  cancelamentos: {
+    oficina: string
+    plano: string
+    quando: string
+    motivo: string
+    durou_dias: number
+  }[]
+  geografia: { cidade: string; oficinas: number; pagantes: number }[]
+  atencao: { oficina: string; oficina_id: string; urgencia: number; motivo: string }[]
+}
+
 export interface Indicadores {
   total: number
   por_situacao: Partial<Record<SituacaoCalculada, number>>
@@ -89,7 +116,9 @@ async function chamar<T>(corpo: Record<string, unknown>): Promise<T> {
 }
 
 export const listarOficinas = () =>
-  chamar<{ oficinas: OficinaNaLista[]; indicadores: Indicadores }>({ acao: 'listar' })
+  chamar<{ oficinas: OficinaNaLista[]; indicadores: Indicadores; painel: PainelDoNegocio }>({
+    acao: 'listar',
+  })
 
 /**
  * Estender teste, liberar bloqueio e dar cortesia são a mesma operação: mudar

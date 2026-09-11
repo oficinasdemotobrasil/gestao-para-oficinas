@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import { Negocio } from './Negocio'
 import {
   supabase,
   listarOficinas,
@@ -13,6 +14,7 @@ import {
   ROTULO_CALCULADO,
   TOM_DA_SITUACAO,
   type Indicadores,
+  type PainelDoNegocio,
   type OficinaNaLista,
   type Plano,
   type Situacao,
@@ -291,6 +293,8 @@ function emDias(dias: number | null): string | null {
 function Lista({ sessao }: { sessao: Session }) {
   const [oficinas, setOficinas] = useState<OficinaNaLista[] | null>(null)
   const [indicadores, setIndicadores] = useState<Indicadores | null>(null)
+  const [negocio, setNegocio] = useState<PainelDoNegocio | null>(null)
+  const [aba, setAba] = useState<'negocio' | 'oficinas'>('negocio')
   const [erro, setErro] = useState('')
   const [mexendo, setMexendo] = useState<string | null>(null)
   const [filtroSituacao, setFiltroSituacao] = useState<string>('')
@@ -303,6 +307,7 @@ function Lista({ sessao }: { sessao: Session }) {
       const r = await listarOficinas()
       setOficinas(r.oficinas)
       setIndicadores(r.indicadores)
+      setNegocio(r.painel)
     } catch (e) {
       setErro((e as Error).message)
     }
@@ -362,8 +367,34 @@ function Lista({ sessao }: { sessao: Session }) {
         </p>
       )}
 
+      {/* Duas visões, e a ordem diz o que importa: primeiro o negócio, depois
+          a lista de quem mexer. */}
+      <div className="flex gap-2 pb-6">
+        {([
+          ['negocio', 'O negócio'],
+          ['oficinas', 'As oficinas'],
+        ] as const).map(([valor, rotulo]) => (
+          <button
+            key={valor}
+            type="button"
+            onClick={() => setAba(valor)}
+            aria-pressed={aba === valor}
+            className={[
+              'h-11 rounded-controle px-5 text-sm font-semibold',
+              aba === valor
+                ? 'bg-acento text-claro'
+                : 'border border-borda-escura text-escuro',
+            ].join(' ')}
+          >
+            {rotulo}
+          </button>
+        ))}
+      </div>
+
+      {aba === 'negocio' && negocio && <Negocio painel={negocio} />}
+
       {/* Os números do negócio ------------------------------------------------ */}
-      {indicadores && (
+      {aba === 'oficinas' && indicadores && (
         <div className="grid grid-cols-2 gap-3 pb-6 tablet:grid-cols-3 desktop:grid-cols-6">
           <Indicador
             rotulo="Receita mensal"
@@ -387,6 +418,7 @@ function Lista({ sessao }: { sessao: Session }) {
       )}
 
       {/* Filtros --------------------------------------------------------------- */}
+      {aba === 'oficinas' && (
       <div className="flex flex-wrap items-center gap-3 pb-4">
         <input
           type="search"
@@ -423,8 +455,9 @@ function Lista({ sessao }: { sessao: Session }) {
           ))}
         </select>
       </div>
+      )}
 
-      {oficinas === null ? (
+      {aba === 'oficinas' && (oficinas === null ? (
         <p className="text-escuro-secundario">Carregando…</p>
       ) : visiveis.length === 0 ? (
         <p className="text-escuro-secundario">
@@ -535,14 +568,16 @@ function Lista({ sessao }: { sessao: Session }) {
             </tbody>
           </table>
         </div>
-      )}
+      ))}
 
+      {aba === 'oficinas' && (
       <p className="pt-6 text-xs text-escuro-secundario">
         A situação em destaque é a que vale hoje, calculada das datas — pode ser
         diferente do que está no seletor, que guarda o que foi decidido à mão.
         Suspender deixa a oficina em modo consulta: ela continua vendo o histórico
         e para de registrar. Rebaixar o plano não desativa ninguém que já tem acesso.
       </p>
+      )}
     </div>
   )
 }

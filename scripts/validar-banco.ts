@@ -2328,6 +2328,73 @@ async function testarAceiteDosTermos() {
   `)
 }
 
+async function testarPainelDoNegocio() {
+  console.log('\n\x1b[1mO painel do negócio\x1b[0m')
+
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set status='ativa', acesso_ate=null, teste_ate=null where id in ('${ID.oficinaA}','${ID.oficinaB}')`)
+  await db.query(`delete from public.assinaturas`)
+  await db.query(`delete from public.eventos_asaas`)
+
+  // Uma que paga, uma que cancelou dizendo por quê, e uma cobrança recebida.
+  await db.exec(`
+    insert into public.assinaturas (oficina_id, plano, situacao, inicio, proxima_cobranca)
+      values ('${ID.oficinaA}', 'completo', 'ativa', current_date - 40, current_date + 20);
+    insert into public.assinaturas (oficina_id, plano, situacao, inicio, cancelada_em, motivo_cancelamento)
+      values ('${ID.oficinaB}', 'essencial', 'encerrada', current_date - 60, now(), 'preco: ficou caro');
+    update public.oficinas set acesso_ate = current_date + 20 where id = '${ID.oficinaA}';
+    insert into public.eventos_asaas (evento_id, tipo, conteudo, oficina_id, aplicado)
+      values ('e1', 'PAYMENT_CONFIRMED', '{"payment":{"id":"pay_x","value":49.99}}'::jsonb, '${ID.oficinaA}', true);
+    insert into public.eventos_asaas (evento_id, tipo, conteudo, oficina_id, aplicado)
+      values ('e2', 'PAYMENT_RECEIVED', '{"payment":{"id":"pay_x","value":49.99}}'::jsonb, '${ID.oficinaA}', true);
+  `)
+
+  const painel = (await db.query<{ j: Record<string, any> }>('select public.plataforma_painel() as j')).rows[0].j
+
+  // O dobro do faturamento é o erro clássico: dois eventos, uma cobrança.
+  Number(painel.dinheiro.recebido_no_mes) === 49.99
+    ? ok('a mesma cobrança em dois eventos conta uma vez só', 'R$ 49,99, e não 99,98')
+    : erro('faturamento dobrado', String(painel.dinheiro.recebido_no_mes))
+
+  // A oficina B está com acesso aberto e SEM contrato — é a cortesia, o
+  // piloto. Se ela entrasse na conta, a receita seria inventada.
+  Number(painel.dinheiro.receita_recorrente) === 49.99
+    ? ok('a receita conta quem tem contrato, não quem tem acesso', 'a cortesia não vira receita')
+    : erro('receita recorrente', String(painel.dinheiro.receita_recorrente))
+
+  const cancel = painel.cancelamentos?.[0]
+  cancel?.motivo === 'preco: ficou caro' && cancel.durou_dias === 60
+    ? ok('o cancelamento guarda o motivo e quanto tempo durou', `${cancel.durou_dias} dias`)
+    : erro('cancelamentos', JSON.stringify(painel.cancelamentos))
+
+  Array.isArray(painel.geografia) && painel.geografia.length > 0
+    ? ok('a geografia agrupa por cidade', painel.geografia.map((g: any) => `${g.cidade}: ${g.oficinas}`).join(', '))
+    : erro('geografia', JSON.stringify(painel.geografia))
+
+  // Quem precisa de atenção, e por quê. Atrasamos quem TEM contrato: sem
+  // contrato não há receita em risco, só acesso a expirar.
+  await db.query(`update public.oficinas set acesso_ate = current_date - 2 where id = '${ID.oficinaA}'`)
+  const comAtraso = (await db.query<{ j: Record<string, any> }>('select public.plataforma_painel() as j')).rows[0].j
+  const alerta = (comAtraso.atencao ?? []).find((a: any) => a.motivo.includes('atraso'))
+  alerta
+    ? ok('a oficina atrasada entra na lista de atenção', alerta.motivo)
+    : erro('lista de atenção', JSON.stringify(comAtraso.atencao))
+
+  Number(comAtraso.dinheiro.em_risco) === 49.99 && Number(comAtraso.dinheiro.receita_recorrente) === 0
+    ? ok('o dinheiro sai da receita e entra no "em risco"', 'R$ 49,99 deixaram de ser receita')
+    : erro('em risco', JSON.stringify(comAtraso.dinheiro))
+
+  await logarComo(ID.adminA)
+  await esperaErro('o admin de uma oficina não abre o painel do negócio', 'select public.plataforma_painel()')
+
+  await comoAdministradorDoBanco()
+  await db.exec(`
+    delete from public.eventos_asaas;
+    delete from public.assinaturas;
+    update public.oficinas set acesso_ate = null, teste_ate = null;
+  `)
+}
+
 async function testarPerfisNaFase2() {
   console.log('\n\x1b[1mQuem alcança o que na Fase 2\x1b[0m')
 
@@ -2439,6 +2506,7 @@ async function main() {
     await testarAvisoDeTeste()
     await testarPrimeirosPassos()
     await testarAceiteDosTermos()
+    await testarPainelDoNegocio()
     await testarPerfisNaFase2()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
