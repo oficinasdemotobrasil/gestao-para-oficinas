@@ -1861,23 +1861,46 @@ async function testarSituacaoDerivada() {
     ? ok('sem prazo de acesso, a oficina está ativa — é o estado de hoje, de propósito')
     : erro('acesso sem prazo', await situacao())
 
-  // Dentro do prazo e sem assinatura: está em teste.
+  // Dentro do prazo de TESTE: está em teste.
   await comoAdministradorDoBanco()
-  await db.query(`update public.oficinas set acesso_ate = current_date + 5 where id = '${ID.oficinaA}'`)
+  await db.query(`update public.oficinas set acesso_ate = current_date + 5, teste_ate = current_date + 5 where id = '${ID.oficinaA}'`)
   await logarComo(ID.adminA)
   ;(await situacao()) === 'teste'
-    ? ok('dentro do prazo e sem assinatura, está em teste')
+    ? ok('enquanto o acesso vem do teste, está em teste')
     : erro('teste', await situacao())
 
-  // Com assinatura ativa, dentro do prazo: ativa.
+  // Pagou: a data foi além do teste. Daí em diante não é mais teste, e cancelar
+  // depois não desfaz o que foi pago — foi este o defeito que a 0053 corrigiu.
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set acesso_ate = current_date + 30 where id = '${ID.oficinaA}'`)
+  await logarComo(ID.adminA)
+  ;(await situacao()) === 'ativa'
+    ? ok('quando o pagamento empurra a data além do teste, deixa de ser teste')
+    : erro('pagou e continuou teste', await situacao())
+
+  await comoAdministradorDoBanco()
+  await db.query(`delete from public.assinaturas where oficina_id = '${ID.oficinaA}'`)
+  await logarComo(ID.adminA)
+  ;(await situacao()) === 'ativa'
+    ? ok('e cancelar a renovação não o devolve para "teste"', 'o acesso pago continua valendo')
+    : erro('cancelou e virou teste', await situacao())
+
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set acesso_ate = current_date + 5, teste_ate = current_date + 5 where id = '${ID.oficinaA}'`)
+  await logarComo(ID.adminA)
+
+  // Com assinatura paga em dia: ativa. Repare que o que decide é a DATA ter
+  // passado do teste, e não a existência do contrato — foi essa troca que a
+  // 0053 fez.
   await comoAdministradorDoBanco()
   await db.query(`
     insert into public.assinaturas (oficina_id, plano, situacao, proxima_cobranca)
-    values ('${ID.oficinaA}', 'completo', 'ativa', current_date + 5)
+    values ('${ID.oficinaA}', 'completo', 'ativa', current_date + 30)
   `)
+  await db.query(`update public.oficinas set acesso_ate = current_date + 30 where id = '${ID.oficinaA}'`)
   await logarComo(ID.adminA)
   ;(await situacao()) === 'ativa'
-    ? ok('com assinatura em dia, está ativa')
+    ? ok('com assinatura paga em dia, está ativa')
     : erro('ativa', await situacao())
 
   // Venceu ontem: carência, e continua registrando.
