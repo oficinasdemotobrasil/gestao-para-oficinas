@@ -32,7 +32,7 @@ type Plano = (typeof PLANOS)[number]
 type Situacao = (typeof SITUACOES)[number]
 
 interface Corpo {
-  acao?: 'listar' | 'criar' | 'plano' | 'situacao' | 'prazo'
+  acao?: 'listar' | 'criar' | 'plano' | 'situacao' | 'prazo' | 'reprocessar'
   oficina_id?: string
   plano?: Plano
   situacao?: Situacao
@@ -115,6 +115,91 @@ Deno.serve(async (req: Request) => {
     if (indicadores.error) return responder({ erro: indicadores.error.message }, 500)
 
     return responder({ oficinas: lista.data ?? [], indicadores: indicadores.data ?? {} })
+  }
+
+  // Reprocessar um pagamento que o sistema não soube ------------------------------
+  //
+  // O provedor avisa por webhook, e webhook se perde: ele estava fora do ar, a
+  // rede falhou, ou — como aconteceu aqui — ele foi cadastrado depois de o
+  // cliente pagar, e o provedor não reenvia o que passou.
+  //
+  // Sem esta porta, o único conserto seria editar o banco na mão. Com ela, a
+  // plataforma relê a cobrança no provedor e aplica o que deveria ter sido
+  // aplicado — conferindo lá, como o webhook faz, e nunca acreditando em quem
+  // pediu.
+  if (corpo.acao === 'reprocessar') {
+    if (!corpo.oficina_id) return responder({ erro: 'Falta a oficina.' }, 400)
+
+    const chaveAsaas = Deno.env.get('ASAAS_API_KEY')
+    if (!chaveAsaas) return responder({ erro: 'A cobrança não está configurada.' }, 503)
+    const ambiente = (Deno.env.get('ASAAS_AMBIENTE') ?? 'sandbox').toLowerCase()
+    const base =
+      ambiente === 'producao' || ambiente === 'produção'
+        ? 'https://api.asaas.com/v3'
+        : 'https://api-sandbox.asaas.com/v3'
+
+    const { data: assinatura } = await servico
+      .from('assinaturas').select('id_externo_assinatura, plano')
+      .eq('oficina_id', corpo.oficina_id).eq('situacao', 'ativa')
+      .order('criado_em', { ascending: false }).limit(1).maybeSingle()
+
+    if (!assinatura?.id_externo_assinatura) {
+      return responder({ erro: 'Esta oficina não tem assinatura ativa no provedor.' }, 404)
+    }
+
+    let cobrancas: { data?: Record<string, unknown>[] }
+    try {
+      const r = await fetch(
+        `${base}/subscriptions/${assinatura.id_externo_assinatura}/payments`,
+        { headers: { access_token: chaveAsaas } },
+      )
+      if (!r.ok) return responder({ erro: `O provedor respondeu ${r.status}.` }, 502)
+      cobrancas = await r.json()
+    } catch (e) {
+      return responder({ erro: (e as Error).message }, 502)
+    }
+
+    const pagas = ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH']
+    const paga = (cobrancas.data ?? [])
+      .filter((c) => pagas.includes(String(c.status)))
+      .sort((a, b) => String(b.dueDate).localeCompare(String(a.dueDate)))[0]
+
+    if (!paga) {
+      return responder({ erro: 'Nenhuma cobrança paga encontrada nesta assinatura.' }, 404)
+    }
+
+    // Mesma conta do webhook: a próxima data que o provedor informa, ou trinta
+    // dias a partir do vencimento PAGO — nunca a partir de hoje, senão quem
+    // paga atrasado perde os dias de atraso.
+    const proxima = paga.nextDueDate ?? paga.dueDate
+    const ate = new Date(`${String(proxima)}T12:00:00Z`)
+    if (!paga.nextDueDate) ate.setDate(ate.getDate() + 30)
+    const acessoAte = ate.toISOString().slice(0, 10)
+
+    const { error: erroAplicar } = await servico.rpc('registrar_pagamento', {
+      p_oficina: corpo.oficina_id,
+      p_acesso_ate: acessoAte,
+      p_plano: assinatura.plano,
+    })
+    if (erroAplicar) return responder({ erro: erroAplicar.message }, 500)
+
+    // Fica registrado como reprocessamento, e não como evento do provedor: no
+    // dia em que alguém for reconstruir o que houve, a diferença importa.
+    await servico.from('eventos_asaas').insert({
+      evento_id: `reprocessado_${paga.id}_${Date.now()}`,
+      tipo: 'REPROCESSADO_PELA_PLATAFORMA',
+      conteudo: paga,
+      oficina_id: corpo.oficina_id,
+      aplicado: true,
+      observacao: `relido no provedor por ${sessao.user.email}; plano ${assinatura.plano}; acesso até ${acessoAte}`,
+    })
+
+    return responder({
+      ok: true,
+      cobranca: paga.id,
+      plano: assinatura.plano,
+      acesso_ate: acessoAte,
+    })
   }
 
   // Prazo de acesso -------------------------------------------------------------
