@@ -25,6 +25,7 @@ import { Financeiro } from '@/funcionalidades/financeiro/paginas/Financeiro'
 import { ListaOrcamentos } from '@/funcionalidades/orcamentos/paginas/ListaOrcamentos'
 import { EditorOrcamento } from '@/funcionalidades/orcamentos/paginas/EditorOrcamento'
 import { DetalheOrcamento } from '@/funcionalidades/orcamentos/paginas/DetalheOrcamento'
+import { CriarConta } from '@/auth/paginas/CriarConta'
 import { Privacidade, Termos } from '@/funcionalidades/legal/PaginaLegal'
 import { ListaOrdens } from '@/funcionalidades/ordens/paginas/ListaOrdens'
 import { OrdemDeServico } from '@/funcionalidades/ordens/paginas/OrdemDeServico'
@@ -35,6 +36,7 @@ export const rotas = createBrowserRouter([
     children: [
       { path: '/entrar', element: <Entrar /> },
       { path: '/esqueci-a-senha', element: <EsqueciSenha /> },
+      { path: '/criar-conta', element: <CriarConta /> },
     ],
   },
 

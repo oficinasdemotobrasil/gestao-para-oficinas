@@ -118,7 +118,14 @@ export function Entrar() {
         login, peça a ele para cadastrar você.
       </p>
 
-      <nav className="flex flex-wrap justify-center gap-4 pt-8 text-apoio text-em-fundo-2">
+      <p className="pt-6 text-center text-corpo text-em-fundo-2">
+        Ainda não tem conta?{' '}
+        <Link to="/criar-conta" className="text-acento-forte">
+          Criar a conta da minha oficina
+        </Link>
+      </p>
+
+      <nav className="flex flex-wrap justify-center gap-4 pt-6 text-apoio text-em-fundo-2">
         <Link to="/termos" className="min-h-toque-fino">
           Termos de Uso
         </Link>
