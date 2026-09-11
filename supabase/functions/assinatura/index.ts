@@ -305,15 +305,34 @@ Deno.serve(async (req: Request) => {
       id_externo_assinatura: assinatura.id,
     })
 
-    // O link da primeira fatura, para a oficina pagar agora. Note que NADA de
-    // acesso muda aqui: quem libera é o webhook, quando o dinheiro entra.
+    // A primeira cobrança. Note que NADA de acesso muda aqui: quem libera é o
+    // webhook, quando o dinheiro entra.
     let linkDaFatura: string | null = null
+    let idDaCobranca: string | null = null
+    let pix: { imagem: string; copia_e_cola: string; expira_em: string | null } | null = null
+
     try {
       const cobrancas = await noAsaas(`/subscriptions/${assinatura.id}/payments`)
-      linkDaFatura = cobrancas?.data?.[0]?.invoiceUrl ?? null
+      const primeira = cobrancas?.data?.[0]
+      linkDaFatura = primeira?.invoiceUrl ?? null
+      idDaCobranca = primeira?.id ?? null
+
+      // No PIX, trazemos o QR para cá em vez de mandar a oficina para a página
+      // do provedor. Sair do aplicativo para pagar é onde se perde gente: a
+      // pessoa muda de contexto, não entende de quem é a tela, e desiste.
+      if (forma === 'PIX' && idDaCobranca) {
+        const qr = await noAsaas(`/payments/${idDaCobranca}/pixQrCode`)
+        if (qr?.payload) {
+          pix = {
+            imagem: qr.encodedImage ?? '',
+            copia_e_cola: qr.payload,
+            expira_em: qr.expirationDate ?? null,
+          }
+        }
+      }
     } catch {
-      // Sem o link a assinatura existe do mesmo jeito; o provedor manda por
-      // e-mail. Não é motivo para desfazer nada.
+      // Sem o QR ou sem o link a assinatura existe do mesmo jeito, e o provedor
+      // manda a cobrança por e-mail. Não é motivo para desfazer nada.
     }
 
     return responder({
@@ -321,7 +340,10 @@ Deno.serve(async (req: Request) => {
       plano,
       valor: Number(dadosDoPlano.preco_mensal),
       vencimento: primeiroVencimento.toISOString().slice(0, 10),
+      forma,
       link_da_fatura: linkDaFatura,
+      cobranca_id: idDaCobranca,
+      pix,
     })
   } catch (e) {
     return responder({ erro: (e as Error).message }, 400)

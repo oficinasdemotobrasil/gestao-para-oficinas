@@ -14,8 +14,8 @@
  * sem ter culpa. Débito não entra porque o provedor não oferece débito em
  * assinatura recorrente — conferido na documentação dele, não suposto.
  */
-import { useState } from 'react'
-import { Check, QrCode, CreditCard } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Check, Copy, CreditCard, Loader2, QrCode } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Botao } from '@/componentes/ui/Botao'
 import { Modal } from '@/componentes/ui/Modal'
@@ -27,6 +27,12 @@ import { moeda, data as formatarData } from '@/lib/formato'
 import type { Plano, PlanoOficina } from '@/tipos/banco'
 
 type Forma = 'PIX' | 'CREDIT_CARD'
+
+interface Pix {
+  imagem: string
+  copia_e_cola: string
+  expira_em: string | null
+}
 
 const FORMAS: { valor: Forma; rotulo: string; detalhe: string; Icone: typeof QrCode }[] = [
   {
@@ -52,6 +58,9 @@ export function Assinatura() {
   const [forma, setForma] = useState<Forma>('PIX')
   const [enviando, setEnviando] = useState(false)
   const [fatura, setFatura] = useState<string | null>(null)
+  const [pix, setPix] = useState<Pix | null>(null)
+  const [copiado, setCopiado] = useState(false)
+  const [confirmado, setConfirmado] = useState(false)
 
   const planos = useQuery({
     queryKey: ['planos'],
@@ -85,6 +94,31 @@ export function Assinatura() {
       return data
     },
   })
+
+  /**
+   * Enquanto o código está na tela, perguntamos de tempos em tempos se o
+   * pagamento caiu.
+   *
+   * Quem paga PIX paga pelo aplicativo do banco, no mesmo celular, e volta
+   * para cá esperando ver alguma coisa mudar. Mandar recarregar a página seria
+   * transferir para a pessoa um trabalho que é nosso.
+   */
+  useEffect(() => {
+    if (!pix || confirmado) return
+    const relogio = setInterval(() => {
+      void (async () => {
+        await recarregarUsuario()
+        const { data } = await supabase
+          .from('assinaturas').select('proxima_cobranca')
+          .eq('situacao', 'ativa').limit(1).maybeSingle()
+        // O acesso passou a valer além do teste: o dinheiro entrou.
+        if (data && oficina?.acesso_ate && data.proxima_cobranca === oficina.acesso_ate) {
+          setConfirmado(true)
+        }
+      })()
+    }, 6000)
+    return () => clearInterval(relogio)
+  }, [pix, confirmado, oficina?.acesso_ate, recarregarUsuario])
 
   if (!oficina) return null
   const temAssinatura = Boolean(assinatura.data)
@@ -133,16 +167,23 @@ export function Assinatura() {
       ])
       setEscolhido(null)
 
-      // "Você vai direto para o pagamento seguro" é promessa do topo da tela,
-      // então cumprimos: a própria aba vai para a cobrança. Trocar a página é
-      // permitido depois de uma chamada assíncrona; abrir aba nova seria
-      // bloqueado pelo navegador, e a pessoa ficaria olhando para nada.
+      // No PIX a pessoa NÃO sai do aplicativo: o código aparece aqui mesmo.
+      // Sair para pagar é onde se perde gente — muda de contexto, não entende
+      // de quem é a tela, desiste.
+      if (data.pix) {
+        setPix(data.pix as Pix)
+        return
+      }
+
+      // No cartão, o provedor precisa receber os dados dele, e isso não passa
+      // por nós de propósito: dado de cartão que não toca no nosso sistema é
+      // dado de cartão que não temos como vazar.
       if (data.link_da_fatura) {
         window.location.href = data.link_da_fatura as string
         return
       }
-      // Sem link, a cobrança existe e chega por e-mail. É o único caminho em
-      // que ainda vale mostrar uma janela.
+
+      // Sem QR e sem link, a cobrança existe e chega por e-mail.
       setFatura('sem-link')
     } catch (e) {
       toast.erro(traduzirErro(e))
@@ -358,6 +399,85 @@ export function Assinatura() {
             </Botao>
           </div>
         </div>
+      </Modal>
+
+      {/* O PIX, sem sair do aplicativo ------------------------------------------ */}
+      <Modal
+        aberto={pix !== null}
+        aoFechar={() => {
+          setPix(null)
+          setConfirmado(false)
+        }}
+        titulo={confirmado ? 'Pagamento confirmado' : 'Pague com PIX'}
+      >
+        {confirmado ? (
+          <div className="space-y-3 text-center">
+            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-sucesso-fundo">
+              <Check aria-hidden size={32} className="text-sucesso-forte" strokeWidth={3} />
+            </span>
+            <p className="text-secao text-em-superficie">Tudo certo!</p>
+            <p className="text-corpo text-em-superficie-2">
+              Seu plano está ativo e o acesso vale até{' '}
+              <strong>
+                {oficina.acesso_ate ? formatarData(oficina.acesso_ate) : 'a próxima cobrança'}
+              </strong>
+              . Não precisa fazer mais nada.
+            </p>
+            <div className="pt-2">
+              <Botao
+                type="button"
+                onClick={() => {
+                  setPix(null)
+                  setConfirmado(false)
+                }}
+              >
+                Voltar para a oficina
+              </Botao>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {pix?.imagem && (
+              <img
+                src={`data:image/png;base64,${pix.imagem}`}
+                alt="Código QR do PIX"
+                className="mx-auto h-56 w-56 rounded-controle bg-superficie"
+              />
+            )}
+
+            <div>
+              <p className="pb-1 text-rotulo text-em-superficie-2">PIX copia e cola</p>
+              <p className="max-h-24 overflow-y-auto break-all rounded-controle bg-borda-em-superficie/40 p-3 text-apoio text-em-superficie">
+                {pix?.copia_e_cola}
+              </p>
+            </div>
+
+            <Botao
+              type="button"
+              largo
+              variante="contorno-no-card"
+              icone={<Copy aria-hidden size={18} />}
+              onClick={() => {
+                void navigator.clipboard.writeText(pix?.copia_e_cola ?? '')
+                setCopiado(true)
+                setTimeout(() => setCopiado(false), 2500)
+              }}
+            >
+              {copiado ? 'Copiado!' : 'Copiar o código'}
+            </Botao>
+
+            {/* A espera é nossa, não da pessoa: ela paga pelo banco e volta
+                para cá; a tela é que tem de perceber. */}
+            <p className="flex items-center justify-center gap-2 text-apoio text-em-superficie-2">
+              <Loader2 aria-hidden size={16} className="animate-spin" />
+              Esperando o pagamento. Pode pagar pelo seu banco e voltar aqui.
+            </p>
+            <p className="text-apoio text-em-superficie-2">
+              Assim que o pagamento for identificado, esta tela muda sozinha e o
+              seu plano passa a valer.
+            </p>
+          </div>
+        )}
       </Modal>
 
       {/* Só quando o provedor não devolveu o link ------------------------------ */}
