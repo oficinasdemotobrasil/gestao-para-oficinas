@@ -134,24 +134,22 @@ function Linha({
 }) {
   const [recusando, setRecusando] = useState(false)
   const [porque, setPorque] = useState('')
-  const [copiado, setCopiado] = useState(false)
   const resolvido = e.situacao !== 'pendente'
 
   /*
-   * O Asaas não publica endereço direto para a tela de estorno, e inventar um
-   * levaria a plataforma para uma página de erro. Então o botão faz as duas
-   * coisas que resolvem de verdade: abre a cobrança certa — o endereço veio do
-   * próprio provedor, junto com o aviso de pagamento — e deixa o código na
-   * área de transferência, pronto para colar na busca do painel.
+   * Abre a lista de cobranças recebidas no painel do Asaas, que é onde o botão
+   * Estornar existe.
+   *
+   * Não copia nada sozinho. A busca de lá procura por CLIENTE — nome, e-mail,
+   * telefone — e qual deles funciona melhor depende do caso: o nome resolve
+   * quando é único, o e-mail nunca repete, o telefone salva quando o nome foi
+   * digitado diferente. Escolher por conta própria erraria na maioria das
+   * vezes, então a escolha fica nos botões de copiar logo abaixo.
+   *
+   * A fatura do cliente (`endereco_no_provedor`) mostra a cobrança certa mas
+   * não deixa estornar; fica como link secundário, para conferir o valor.
    */
-  const abrirNoAsaas = async () => {
-    try {
-      await navigator.clipboard.writeText(e.cobranca_id)
-      setCopiado(true)
-      setTimeout(() => setCopiado(false), 4000)
-    } catch {
-      // Sem área de transferência o código continua na tela, para copiar à mão.
-    }
+  const abrirNoAsaas = () => {
     window.open(LISTA_NO_ASAAS, '_blank', 'noopener')
   }
 
@@ -185,14 +183,17 @@ function Linha({
       <p className="pt-1.5 text-sm text-claro-secundario">{e.motivo}</p>
 
       {/*
-        Os dados que a busca do Asaas aceita. Ficam no cartão porque é aqui que
-        a pessoa está olhando quando precisa deles — mandá-la procurar o
-        telefone na aba "As oficinas" é o tipo de ida e volta que faz alguém
-        desistir e deixar o estorno para depois.
+        Os dados que a busca do Asaas aceita. Ela procura por CLIENTE, não por
+        cobrança: o identificador `pay_...` não encontra nada lá, por mais que
+        seja ele que identifica a cobrança aqui dentro.
+
+        Ficam no cartão porque é aqui que a pessoa está olhando quando precisa
+        deles — mandá-la procurar o telefone na aba "As oficinas" é o tipo de
+        ida e volta que faz alguém desistir e deixar o estorno para depois.
       */}
       {!resolvido && (
         <div className="flex flex-wrap items-center gap-1.5 pt-2">
-          <Copiavel rotulo="cobrança" valor={e.cobranca_id} paraCopiar={e.cobranca_id} />
+          <Copiavel rotulo="nome" valor={e.oficina} paraCopiar={e.oficina} />
           {e.telefone && (
             <Copiavel
               rotulo="telefone"
@@ -215,10 +216,10 @@ function Linha({
         <div className="flex flex-wrap items-center gap-2 pt-3">
           {!resolvido && (
             <button
-              onClick={() => void abrirNoAsaas()}
+              onClick={abrirNoAsaas}
               className="h-10 rounded-controle bg-acento px-4 text-sm font-semibold text-claro"
             >
-              {copiado ? 'Código copiado — cole no Asaas' : 'Fazer estorno no Asaas'}
+              Fazer estorno no Asaas
             </button>
           )}
 
@@ -371,10 +372,11 @@ export function Estornos() {
       {pendentes.length > 0 && (
         <>
           <p className="pb-3 text-xs text-escuro-secundario">
-            O botão abre a lista de cobranças recebidas no Asaas e copia o código.
-            Lá: <strong className="text-escuro">cole na busca → menu (⋮) na linha →
-            Estornar</strong>. Se o código não achar, tente o telefone, o e-mail ou
-            o CPF.
+            O botão abre a lista de cobranças recebidas no Asaas. Lá:{' '}
+            <strong className="text-escuro">
+              cole um dos dados na busca → menu (⋮) na linha → Estornar
+            </strong>
+            . A busca é por cliente — se o nome não achar, tente o e-mail ou o telefone.
           </p>
           <ul className="grid gap-2">
             {pendentes.map((e) => (
