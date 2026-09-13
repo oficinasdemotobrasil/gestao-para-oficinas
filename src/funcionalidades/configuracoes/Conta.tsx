@@ -97,6 +97,27 @@ export function Conta() {
     setEncerrando(true)
     try {
       const razao = [motivo, detalhe.trim()].filter(Boolean).join(': ')
+
+      // Quem pede para sair não pode continuar sendo cobrado nos 30 dias de
+      // arrependimento. A assinatura é cancelada primeiro, no provedor; se
+      // falhar, o pedido nem é registrado — senão sobraria uma cobrança viva de
+      // uma conta encerrada. Sem assinatura ativa, a chamada não faz nada.
+      // Quem desistir do encerramento assina de novo pela tela de planos.
+      // Só chama o provedor quem tem o que cancelar: uma oficina que nunca
+      // assinou não pode ficar sem conseguir sair porque a cobrança está fora.
+      const { data: viva } = await supabase
+        .from('assinaturas').select('id').eq('situacao', 'ativa').limit(1).maybeSingle()
+      if (viva) {
+        const cancelamento = await supabase.functions.invoke('assinatura', {
+          body: {
+            acao: 'cancelar',
+            motivo: razao ? `encerramento da conta: ${razao}` : 'encerramento da conta',
+          },
+        })
+        if (cancelamento.error) throw cancelamento.error
+        if (cancelamento.data?.erro) throw new Error(cancelamento.data.erro)
+      }
+
       const { error } = await supabase.rpc('pedir_encerramento_da_conta', {
         p_motivo: razao || null,
       })

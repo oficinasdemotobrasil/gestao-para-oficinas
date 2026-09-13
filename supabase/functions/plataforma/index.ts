@@ -64,6 +64,18 @@ function responder(corpo: unknown, status = 200): Response {
   })
 }
 
+/** Onde e com que chave falar com o provedor. Nulo quando a cobrança não está configurada. */
+function configuracaoDoAsaas(): { chave: string; base: string } | null {
+  const chave = Deno.env.get('ASAAS_API_KEY')
+  if (!chave) return null
+  const ambiente = (Deno.env.get('ASAAS_AMBIENTE') ?? 'sandbox').toLowerCase()
+  const base =
+    ambiente === 'producao' || ambiente === 'produção'
+      ? 'https://api.asaas.com/v3'
+      : 'https://api-sandbox.asaas.com/v3'
+  return { chave, base }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cabecalhosCors })
   if (req.method !== 'POST') return responder({ erro: 'Método não permitido.' }, 405)
@@ -143,13 +155,9 @@ Deno.serve(async (req: Request) => {
   if (corpo.acao === 'reprocessar') {
     if (!corpo.oficina_id) return responder({ erro: 'Falta a oficina.' }, 400)
 
-    const chaveAsaas = Deno.env.get('ASAAS_API_KEY')
-    if (!chaveAsaas) return responder({ erro: 'A cobrança não está configurada.' }, 503)
-    const ambiente = (Deno.env.get('ASAAS_AMBIENTE') ?? 'sandbox').toLowerCase()
-    const base =
-      ambiente === 'producao' || ambiente === 'produção'
-        ? 'https://api.asaas.com/v3'
-        : 'https://api-sandbox.asaas.com/v3'
+    const provedor = configuracaoDoAsaas()
+    if (!provedor) return responder({ erro: 'A cobrança não está configurada.' }, 503)
+    const { chave: chaveAsaas, base } = provedor
 
     const { data: assinatura } = await servico
       .from('assinaturas').select('id_externo_assinatura, plano')
@@ -320,6 +328,55 @@ Deno.serve(async (req: Request) => {
     if (!corpo.situacao || !SITUACOES.includes(corpo.situacao)) {
       return responder({ erro: 'Situação desconhecida.' }, 400)
     }
+    /*
+     * Encerrar tem que parar a cobrança. A primeira versão só trocava a
+     * situação aqui dentro, e a assinatura continuava viva no provedor: a
+     * oficina saía do sistema e seguia recebendo cobrança todo mês. Foi assim
+     * com a oficina de teste em 13/09/2026.
+     *
+     * A ordem importa. Primeiro cancela no provedor; só depois encerra aqui. Se
+     * o provedor recusar, a oficina NÃO é encerrada — melhor um encerramento
+     * que falha na tela do que uma cobrança órfã que ninguém vê.
+     *
+     * Suspender não passa por aqui de propósito: suspensão é temporária, e
+     * cancelar a assinatura obrigaria o cliente a assinar de novo ao voltar.
+     */
+    if (corpo.situacao === 'cancelada') {
+      const { data: viva } = await servico
+        .from('assinaturas').select('id_externo_assinatura')
+        .eq('oficina_id', corpo.oficina_id).eq('situacao', 'ativa')
+        .order('criado_em', { ascending: false }).limit(1).maybeSingle()
+
+      if (viva?.id_externo_assinatura) {
+        const provedor = configuracaoDoAsaas()
+        if (!provedor) {
+          return responder(
+            { erro: 'Esta oficina tem assinatura ativa, mas a cobrança não está configurada para cancelá-la. Nada foi encerrado.' },
+            503,
+          )
+        }
+        const r = await fetch(`${provedor.base}/subscriptions/${viva.id_externo_assinatura}`, {
+          method: 'DELETE',
+          headers: { access_token: provedor.chave },
+        })
+        // 404 é "já não existe lá": o objetivo — não cobrar mais — está cumprido.
+        if (!r.ok && r.status !== 404) {
+          const dados = await r.json().catch(() => ({}))
+          const motivo = dados?.errors?.[0]?.description ?? `o provedor respondeu ${r.status}`
+          return responder(
+            { erro: `Não consegui cancelar a assinatura no provedor (${motivo}). A oficina não foi encerrada.` },
+            502,
+          )
+        }
+      }
+
+      const { error: erroAssinatura } = await servico.rpc('encerrar_assinatura', {
+        p_oficina: corpo.oficina_id,
+        p_motivo: corpo.motivo?.trim() || `encerrada pela plataforma (${sessao.user.email})`,
+      })
+      if (erroAssinatura) return responder({ erro: erroAssinatura.message }, 500)
+    }
+
     const { error } = await servico
       .from('oficinas')
       .update({ status: corpo.situacao })
