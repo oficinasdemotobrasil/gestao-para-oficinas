@@ -69,6 +69,15 @@ type Oficina = {
   acesso_ate: string | null
   /** Fim dos dias de teste, para a tela dizer quantos faltam. */
   teste_ate: string | null
+  /**
+   * Certificado digital A1 (migration 0059). O ARQUIVO nunca é guardado —
+   * ele assina documento legal em nome da empresa. Só fica o que a tela
+   * precisa: de quem é, e até quando vale.
+   */
+  certificado_cnpj: string | null
+  certificado_titular: string | null
+  certificado_valido_ate: string | null
+  certificado_configurado_em: string | null
   /** Quando a exclusão pode ser efetivada. Nulo é sem pedido (migration 0045). */
   excluir_em: string | null
   exclusao_pedida_em: string | null

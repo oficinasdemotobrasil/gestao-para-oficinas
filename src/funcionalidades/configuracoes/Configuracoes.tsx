@@ -17,6 +17,7 @@ import { chavePixValida } from '@/lib/pix'
 import type { TipoChavePix } from '@/tipos/banco'
 import { Marca } from './Marca'
 import { Conta } from './Conta'
+import { CertificadoDigital } from './CertificadoDigital'
 import { Exemplos } from './Exemplos'
 import { Aparencia } from './Aparencia'
 
@@ -262,6 +263,9 @@ export function Configuracoes() {
 
       <TituloSecao>Exemplos para começar</TituloSecao>
       <Exemplos />
+
+      <TituloSecao>Certificado digital</TituloSecao>
+      <CertificadoDigital />
 
       <TituloSecao>Sua conta</TituloSecao>
       <Conta />
