@@ -632,6 +632,90 @@ async function testarNotaFiscal() {
     : erro('rastro do estorno', `esperava 2 movimentações, veio ${movimentacoes}`)
 
   await esperaErro('cancelar a mesma nota duas vezes é recusado', `select public.cancelar_nota('${notaId}')`)
+
+  // Campos fiscais, parcelamento, e a ponte com Contas a Pagar (0058) ---------
+  const notaFiscal = await db.query<{ id: string }>(
+    `select public.salvar_nota_com_itens('9001', 'Peças Rio', current_date, 300, null, $1::jsonb,
+       'Compra para comercialização', '1102', 250, 45, null, 3, current_date, 'Peças', 'prazo', false) as id`,
+    [JSON.stringify([{ produto_id: ID.produtoA, quantidade: 5, custo_unitario: 60 }])],
+  )
+  const notaFiscalId = notaFiscal.rows[0].id
+
+  const camposFiscais = await contar(
+    `select (cfop = '1102' and valor_icms = 45 and base_calculo_icms = 250)::int as n
+     from public.notas_fiscais_entrada where id = '${notaFiscalId}'`,
+  )
+  camposFiscais === 1
+    ? ok('os campos fiscais (CFOP, ICMS, base de cálculo) ficam gravados na nota')
+    : erro('campos fiscais da entrada', 'não bateram com o que foi enviado')
+
+  await esperaLinhas(
+    'a nota parcelada em 3 gera 3 contas a pagar',
+    `select count(*) as n from public.contas_pagar where nota_fiscal_entrada_id = '${notaFiscalId}'`,
+    3,
+  )
+  const somaPagar = await contar(
+    `select (sum(valor) * 100)::int as n from public.contas_pagar where nota_fiscal_entrada_id = '${notaFiscalId}'`,
+  )
+  somaPagar === 30000
+    ? ok('e as parcelas somam o valor total da nota (R$ 300,00)')
+    : erro('soma das parcelas a pagar', `veio ${somaPagar} centavos`)
+
+  await esperaErro(
+    'lançar de novo o mesmo número deste fornecedor é recusado',
+    `select public.salvar_nota_com_itens('9001', 'Peças Rio', current_date, 100, null, $1::jsonb)`,
+    [JSON.stringify([{ produto_id: ID.produtoA, quantidade: 1, custo_unitario: 10 }])],
+  )
+
+  const outroFornecedor = await db.query<{ id: string }>(
+    `select public.salvar_nota_com_itens('9001', 'Outro Fornecedor', current_date, 50, null, $1::jsonb) as id`,
+    [JSON.stringify([{ produto_id: ID.produtoA, quantidade: 1, custo_unitario: 10 }])],
+  )
+  outroFornecedor.rows.length === 1
+    ? ok('o mesmo número serve para outro fornecedor, sem colidir')
+    : erro('número repetido entre fornecedores', 'deveria ter sido aceito')
+
+  // Cancelar a nota: a parcela paga fica paga, as em aberto são canceladas.
+  const primeiraParcela = await db.query<{ id: string }>(
+    `select id from public.contas_pagar where nota_fiscal_entrada_id = '${notaFiscalId}' and parcela = 1`,
+  )
+  await db.query(`select public.pagar_conta('${primeiraParcela.rows[0].id}', current_date, 'pix')`)
+  await db.query(`select public.cancelar_nota('${notaFiscalId}')`)
+
+  const situacaoDasParcelas = await db.query<{ parcela: number; status: string }>(
+    `select parcela, status from public.contas_pagar
+     where nota_fiscal_entrada_id = '${notaFiscalId}' order by parcela`,
+  )
+  const linhas = situacaoDasParcelas.rows
+  linhas[0].status === 'paga' && linhas[1].status === 'cancelada' && linhas[2].status === 'cancelada'
+    ? ok('cancelar a nota cancela só as parcelas em aberto — a paga não se mexe')
+    : erro('cancelamento em cascata', JSON.stringify(linhas))
+
+  // Idempotência de verdade: a MESMA chamada duas vezes — o duplo clique de
+  // alguém achando que o primeiro não registrou. A primeira tem que passar;
+  // só a segunda esbarra no índice único.
+  const itensDuploClique = JSON.stringify([
+    { produto_id: ID.produtoA, quantidade: 1, custo_unitario: 80 },
+  ])
+  const primeiroClique = await db.query<{ id: string }>(
+    `select public.salvar_nota_com_itens('7777', 'Fornecedor Único', current_date, 80, null, $1::jsonb) as id`,
+    [itensDuploClique],
+  )
+  primeiroClique.rows.length === 1
+    ? ok('o primeiro clique lança a nota normalmente')
+    : erro('duplo clique — primeira tentativa', 'não retornou id')
+
+  await esperaErro(
+    'o segundo clique na mesma nota esbarra no índice único, não duplica a dívida',
+    `select public.salvar_nota_com_itens('7777', 'Fornecedor Único', current_date, 80, null, $1::jsonb)`,
+    [itensDuploClique],
+  )
+
+  await esperaLinhas(
+    'só existe UMA conta a pagar deste fornecedor, não duas',
+    `select count(*) as n from public.contas_pagar where fornecedor = 'Fornecedor Único'`,
+    1,
+  )
 }
 
 async function testarOrcamento() {
@@ -1381,6 +1465,104 @@ async function testarFinanceiro() {
   await esperaLinhas('mecânico NÃO lê contas a receber', 'select count(*) as n from public.contas_receber', 0)
 
   await logarComo(ID.adminA)
+}
+
+async function testarNotaFiscalSaida() {
+  console.log('\n\x1b[1mNota fiscal de saída: avulsa e vinda de OS\x1b[0m')
+  await logarComo(ID.adminA)
+
+  // NCM cadastrado uma vez no produto, pra provar que a nota herda sem
+  // precisar redigitar.
+  await db.query(`update public.produtos set ncm = '2710.19.32' where id = '${ID.produtoA}'`)
+
+  // Venda avulsa: sem ordem de serviço, o estoque tem que baixar agora. ------
+  const antesDaVenda = await saldo(ID.produtoA)
+  const vendaAvulsa = await db.query<{ id: string }>(
+    `select public.salvar_nota_saida_com_itens('5001', '${ID.clienteA}', null,
+       'Venda de mercadoria', '5102', null, null, null, null, $1::jsonb, 1, current_date, 'pix') as id`,
+    [JSON.stringify([{ tipo: 'produto', produto_id: ID.produtoA, servico_id: null, descricao: 'Óleo 10W30', quantidade: 2, valor_unitario: 45, ncm: null, cfop_item: null }])],
+  )
+  const notaSaidaId = vendaAvulsa.rows[0].id
+  const aposVenda = await saldo(ID.produtoA)
+  aposVenda === antesDaVenda - 2
+    ? ok(`a venda avulsa baixa o estoque na hora (${antesDaVenda} → ${aposVenda})`)
+    : erro('baixa de estoque na venda avulsa', `esperava ${antesDaVenda - 2}, veio ${aposVenda}`)
+
+  const ncmHerdado = await contar(
+    `select (ncm = '2710.19.32')::int as n from public.itens_nf_saida where nota_fiscal_saida_id = '${notaSaidaId}'`,
+  )
+  ncmHerdado === 1
+    ? ok('o item da nota herda o NCM do cadastro do produto, sem precisar redigitar')
+    : erro('herança de NCM', 'não veio do cadastro do produto')
+
+  await esperaLinhas(
+    'a venda gera a conta a receber (R$ 90,00)',
+    `select count(*) as n from public.contas_receber
+     where nota_fiscal_saida_id = '${notaSaidaId}' and valor = 90`,
+    1,
+  )
+
+  // Falta de estoque na venda avulsa é recusada, não vira saldo negativo. ---
+  await esperaErro(
+    'vender mais do que existe em estoque é recusado',
+    `select public.salvar_nota_saida_com_itens('5002', '${ID.clienteA}', null,
+       null, null, null, null, null, null, $1::jsonb)`,
+    [JSON.stringify([{ tipo: 'produto', produto_id: ID.produtoA, servico_id: null, descricao: 'Óleo 10W30', quantidade: 9999, valor_unitario: 45, ncm: null, cfop_item: null }])],
+  )
+
+  // Cancelar a venda avulsa devolve o estoque e cancela a cobrança. ----------
+  await db.query(`select public.cancelar_nota_saida('${notaSaidaId}')`)
+  const aposCancelar = await saldo(ID.produtoA)
+  aposCancelar === antesDaVenda
+    ? ok(`cancelar a venda devolve o estoque ao que era (${aposCancelar})`)
+    : erro('estorno da venda avulsa', `esperava ${antesDaVenda}, veio ${aposCancelar}`)
+  await esperaLinhas(
+    'e cancela a conta a receber que ainda estava em aberto',
+    `select count(*) as n from public.contas_receber where nota_fiscal_saida_id = '${notaSaidaId}' and status = 'cancelada'`,
+    1,
+  )
+
+  // Venda vinda de OS: o estoque JÁ baixou na finalização — a nota não pode
+  // baixar de novo, ou a mesma peça sai do estoque duas vezes. ---------------
+  const itensOs = JSON.stringify([
+    { tipo: 'produto', produto_id: ID.produtoA, servico_id: null, descricao: 'Óleo 10W30', quantidade: 1, valor_unitario: 45 },
+    { tipo: 'servico', produto_id: null, servico_id: ID.servicoA, descricao: 'Troca de óleo', quantidade: 1, valor_unitario: 60 },
+  ])
+  const orcamentoOs = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', 28500,
+       7, 90, null, 0, null, $1::jsonb) as id`,
+    [itensOs],
+  )
+  const os = await db.query<{ id: string }>(
+    `select public.aprovar_orcamento('${orcamentoOs.rows[0].id}', '${ID.adminA}') as id`,
+  )
+  const osId = os.rows[0].id
+  await db.query(`select public.mudar_status_da_os('${osId}', 'em_andamento')`)
+  await db.query(`select public.finalizar_os('${osId}')`)
+
+  const antesDaNotaDaOs = await saldo(ID.produtoA)
+  await db.query<{ id: string }>(
+    `select public.salvar_nota_saida_com_itens('5003', '${ID.clienteA}', '${osId}',
+       'Venda referente a OS', '5933', null, null, null, null, $1::jsonb) as id`,
+    [itensOs],
+  )
+  const aposNotaDaOs = await saldo(ID.produtoA)
+  aposNotaDaOs === antesDaNotaDaOs
+    ? ok('formalizar a nota fiscal de uma OS não baixa o estoque de novo (já baixou na finalização)')
+    : erro('duplo desconto de estoque', `saldo mudou de ${antesDaNotaDaOs} para ${aposNotaDaOs}`)
+
+  // A tranca de sempre: vendedor não vê nada disto. --------------------------
+  await logarComo(ID.vendedorA)
+  await esperaLinhas(
+    'vendedor NÃO lê notas fiscais de saída',
+    'select count(*) as n from public.notas_fiscais_saida',
+    0,
+  )
+  await esperaErro(
+    'vendedor NÃO lança nota fiscal de saída',
+    `select public.salvar_nota_saida_com_itens('9999', '${ID.clienteA}', null, null, null, null, null, null, null, $1::jsonb)`,
+    [JSON.stringify([{ tipo: 'produto', produto_id: ID.produtoA, servico_id: null, descricao: 'x', quantidade: 1, valor_unitario: 1, ncm: null, cfop_item: null }])],
+  )
 }
 
 async function testarPainelEHistorico() {
@@ -2495,6 +2677,7 @@ async function main() {
     await testarMecanicoSemDinheiro()
     await testarFechamentoDaOs()
     await testarFinanceiro()
+    await testarNotaFiscalSaida()
     await testarPainelEHistorico()
     await testarAdminDaPlataforma()
     await testarLimitesDePlano()

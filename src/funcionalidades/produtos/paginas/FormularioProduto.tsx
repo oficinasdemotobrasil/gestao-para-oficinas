@@ -46,6 +46,7 @@ export function FormularioProduto() {
     defaultValues: {
       nome: '',
       codigo: '',
+      ncm: '',
       descricao: '',
       unidade: 'un',
       preco_custo: '',
@@ -61,6 +62,7 @@ export function FormularioProduto() {
       reset({
         nome: produto.nome,
         codigo: produto.codigo ?? '',
+        ncm: produto.ncm ?? '',
         descricao: produto.descricao ?? '',
         unidade: produto.unidade,
         preco_custo: String(produto.preco_custo ?? 0).replace('.', ','),
@@ -125,6 +127,15 @@ export function FormularioProduto() {
             {...register('unidade')}
           />
         </div>
+
+        <Campo
+          rotulo="NCM"
+          inputMode="numeric"
+          placeholder="2710.19.32"
+          dica="Opcional. Preenchido aqui, entra sozinho em toda nota fiscal deste produto."
+          erro={errors.ncm?.message}
+          {...register('ncm')}
+        />
 
         <div className="grid grid-cols-2 gap-3">
           <Campo

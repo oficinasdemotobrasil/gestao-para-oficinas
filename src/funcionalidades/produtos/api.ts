@@ -57,6 +57,8 @@ export async function obterProduto(
 export interface DadosProduto {
   codigo: string | null
   nome: string
+  /** Classificação fiscal, reaproveitada em toda nota que usar este produto. */
+  ncm: string | null
   descricao: string | null
   unidade: string
   preco_custo: number

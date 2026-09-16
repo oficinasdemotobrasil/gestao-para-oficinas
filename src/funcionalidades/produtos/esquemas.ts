@@ -7,9 +7,23 @@ const opcional = z
   .transform((v) => (v === '' ? null : v))
   .nullable()
 
+/**
+ * NCM tem 8 dígitos sempre, com ou sem os pontos de exibição (2710.19.32).
+ * Aceita os dois jeitos de digitar e guarda só os dígitos — é o que a busca
+ * fiscal e a nota precisam, não a pontuação.
+ */
+const ncm = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/\D/g, ''))
+  .refine((v) => v === '' || v.length === 8, 'NCM tem 8 dígitos (ex: 2710.19.32).')
+  .transform((v) => (v === '' ? null : v))
+  .nullable()
+
 export const esquemaProduto = z.object({
   nome: z.string().trim().min(2, 'Informe o nome do produto.').max(120, 'Nome muito longo.'),
   codigo: opcional,
+  ncm,
   descricao: opcional,
   unidade: z.string().trim().min(1, 'Informe a unidade.').default('un'),
   preco_custo: campoNumerico('Informe o preço de custo.'),

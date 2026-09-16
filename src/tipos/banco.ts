@@ -177,6 +177,8 @@ type Produto = {
   estoque_atual: number
   estoque_minimo: number
   ativo: boolean
+  /** Classificação fiscal, cadastrada uma vez e reaproveitada em toda nota (0058). */
+  ncm: string | null
   criado_em: string
   atualizado_em: string
 }
@@ -204,11 +206,63 @@ type NotaFiscalEntrada = {
   data_emissao: string | null
   valor_total: number
   arquivo_url: string | null
+  /** Campos fiscais (0058): guardados, não calculados nem validados contra a Sefaz. */
+  natureza_operacao: string | null
+  cfop: string | null
+  base_calculo_icms: number | null
+  valor_icms: number | null
+  /** Raro numa entrada de mercadoria — existe para nota de serviço tomado de terceiro. */
+  valor_iss: number | null
   status: StatusNota
   cancelada_em: string | null
   cancelada_por: string | null
   criado_em: string
   atualizado_em: string
+}
+
+/**
+ * A saída — venda de produto e/ou serviço. Formaliza uma OS já finalizada
+ * (`ordem_servico_id` presente, estoque já baixou lá) ou é venda de balcão
+ * (`ordem_servico_id` nulo, estoque baixa agora). O tipo do documento (NFe,
+ * NFSe ou misto) não é uma coluna: é derivado dos itens.
+ */
+type NotaFiscalSaida = {
+  id: string
+  oficina_id: string
+  /** Pode ficar em branco: registro interno, antes de a oficina emitir de verdade. */
+  numero: string | null
+  cliente_id: string | null
+  ordem_servico_id: string | null
+  natureza_operacao: string | null
+  cfop: string | null
+  base_calculo_icms: number | null
+  valor_icms: number | null
+  base_calculo_iss: number | null
+  valor_iss: number | null
+  valor_total: number
+  status: StatusNota
+  cancelada_em: string | null
+  cancelada_por: string | null
+  criado_em: string
+  atualizado_em: string
+}
+
+/** A linha gravada de uma nota de saída. */
+type ItemNfSaida = {
+  id: string
+  oficina_id: string
+  nota_fiscal_saida_id: string
+  tipo: 'produto' | 'servico'
+  produto_id: string | null
+  servico_id: string | null
+  descricao: string
+  quantidade: number
+  valor_unitario: number
+  valor_total: number
+  /** Nulo herda o NCM do cadastro do produto — não precisa redigitar em toda nota. */
+  ncm: string | null
+  cfop_item: string | null
+  criado_em: string
 }
 
 type MovimentacaoEstoque = {
@@ -219,6 +273,8 @@ type MovimentacaoEstoque = {
   quantidade: number
   motivo: string | null
   nota_fiscal_id: string | null
+  /** De qual nota de SAÍDA esta baixa veio, quando for venda avulsa (0058). */
+  nota_fiscal_saida_id: string | null
   ordem_servico_id: string | null
   usuario_id: string | null
   /** Preço de custo: só o admin lê a tabela. Ver vw_movimentacoes. */
@@ -334,6 +390,8 @@ type ContaReceber = {
   /** Nulos quando a cobrança é à vista. */
   parcela: number | null
   total_parcelas: number | null
+  /** De qual nota de saída esta cobrança nasceu. Nula em cobrança avulsa (0058). */
+  nota_fiscal_saida_id: string | null
   status: StatusConta
   criado_em: string
   atualizado_em: string
@@ -349,6 +407,11 @@ type ContaPagar = {
   vencimento: string
   data_pagamento: string | null
   forma_pagamento: FormaPagamento | null
+  /** De qual nota de entrada esta parcela nasceu. Nula em despesa lançada direto (0058). */
+  nota_fiscal_entrada_id: string | null
+  /** Nulos quando a compra é à vista (uma parcela só). */
+  parcela: number | null
+  total_parcelas: number | null
   status: StatusConta
   criado_em: string
   atualizado_em: string
@@ -393,6 +456,18 @@ type TabelaNumerada<Linha extends { oficina_id: string; numero: number }> = {
 
 type ItemOrcamento = { tipo: string; produto_id: string | null; servico_id: string | null; descricao: string; quantidade: number; valor_unitario: number }
 type ItemNota = { produto_id: string; quantidade: number; custo_unitario: number | null }
+/** O que a RPC de saída recebe — sem id, oficina_id, valor_total nem criado_em: o banco calcula. */
+type ItemNfSaidaPayload = {
+  tipo: 'produto' | 'servico'
+  produto_id: string | null
+  servico_id: string | null
+  descricao: string
+  quantidade: number
+  valor_unitario: number
+  /** Nulo herda o NCM do cadastro do produto. */
+  ncm: string | null
+  cfop_item: string | null
+}
 
 export type Database = {
   public: {
@@ -415,6 +490,8 @@ export type Database = {
       produtos: Tabela<Produto>
       servicos: Tabela<Servico>
       notas_fiscais_entrada: Tabela<NotaFiscalEntrada>
+      notas_fiscais_saida: Tabela<NotaFiscalSaida>
+      itens_nf_saida: Tabela<ItemNfSaida>
       movimentacoes_estoque: Tabela<MovimentacaoEstoque>
       orcamentos: TabelaNumerada<Orcamento>
       orcamento_itens: Tabela<OrcamentoItem>
@@ -464,10 +541,41 @@ export type Database = {
           p_valor_total: number
           p_arquivo_url: string | null
           p_itens: ItemNota[]
+          p_natureza_operacao?: string | null
+          p_cfop?: string | null
+          p_base_calculo_icms?: number | null
+          p_valor_icms?: number | null
+          p_valor_iss?: number | null
+          /** Financeiro: toda nota gera ao menos uma parcela em Contas a Pagar (0058). */
+          p_parcelas?: number
+          p_primeiro_vencimento?: string | null
+          p_categoria?: string | null
+          p_forma_pagamento?: string | null
+          p_pago_agora?: boolean
         }
         Returns: string
       }
       cancelar_nota: { Args: { p_nota_id: string }; Returns: undefined }
+      salvar_nota_saida_com_itens: {
+        Args: {
+          p_numero: string | null
+          p_cliente_id: string | null
+          /** Presente = a OS já baixou o estoque na finalização; aqui só formaliza. */
+          p_ordem_servico_id: string | null
+          p_natureza_operacao: string | null
+          p_cfop: string | null
+          p_base_calculo_icms: number | null
+          p_valor_icms: number | null
+          p_base_calculo_iss: number | null
+          p_valor_iss: number | null
+          p_itens: ItemNfSaidaPayload[]
+          p_parcelas?: number
+          p_primeiro_vencimento?: string
+          p_forma_pagamento?: string | null
+        }
+        Returns: string
+      }
+      cancelar_nota_saida: { Args: { p_nota_id: string }; Returns: undefined }
       salvar_orcamento_com_itens: {
         Args: {
           p_orcamento_id: string | null
@@ -718,6 +826,8 @@ export type {
   ProdutoSemCusto,
   Servico,
   NotaFiscalEntrada,
+  NotaFiscalSaida,
+  ItemNfSaida,
   MovimentacaoEstoque,
   MovimentacaoVisivel,
   Orcamento,
@@ -729,4 +839,5 @@ export type {
   OsItem,
   ItemOrcamento,
   ItemNota,
+  ItemNfSaidaPayload,
 }
