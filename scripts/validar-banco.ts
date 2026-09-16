@@ -42,9 +42,16 @@ let passou = 0
 let falhou = 0
 const falhas: string[] = []
 
-function ok(nome: string) {
+// `detalhe` opcional, para o mesmo padrão dos outros scripts de teste do
+// projeto (teste-estornos.ts etc.) — sete chamadas aqui já passavam um
+// segundo argumento havia tempo, e como este `ok` só aceitava um, isso
+// nunca foi erro de digitação: era `tsc -b` (o build de verdade, usado pela
+// Vercel) recusando o arquivo inteiro. `tsc --noEmit -p .` sozinho não pega
+// isto — não é o mesmo modo de checagem — e foi assim que ficou invisível
+// checagem após checagem, até quebrar todo deploy em silêncio.
+function ok(nome: string, detalhe = '') {
   passou++
-  console.log(`  [32m✓[0m ${nome}`)
+  console.log(`  [32m✓[0m ${nome}${detalhe ? ` (${detalhe})` : ''}`)
 }
 
 function erro(nome: string, detalhe: string) {
