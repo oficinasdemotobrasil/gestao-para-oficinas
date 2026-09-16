@@ -22,10 +22,9 @@ import { ListaColaboradores } from '@/funcionalidades/colaboradores/paginas/List
 import { FormularioColaborador } from '@/funcionalidades/colaboradores/paginas/FormularioColaborador'
 import { Configuracoes } from '@/funcionalidades/configuracoes/Configuracoes'
 import { Financeiro } from '@/funcionalidades/financeiro/paginas/Financeiro'
-import { ListaNotasEntrada } from '@/funcionalidades/notas-fiscais/paginas/ListaNotasEntrada'
+import { NotasFiscais } from '@/funcionalidades/notas-fiscais/paginas/NotasFiscais'
 import { EditorNotaEntrada } from '@/funcionalidades/notas-fiscais/paginas/EditorNotaEntrada'
 import { DetalheNotaEntrada } from '@/funcionalidades/notas-fiscais/paginas/DetalheNotaEntrada'
-import { ListaNotasSaida } from '@/funcionalidades/notas-fiscais/paginas/ListaNotasSaida'
 import { EditorNotaSaida } from '@/funcionalidades/notas-fiscais/paginas/EditorNotaSaida'
 import { DetalheNotaSaida } from '@/funcionalidades/notas-fiscais/paginas/DetalheNotaSaida'
 import { ListaOrcamentos } from '@/funcionalidades/orcamentos/paginas/ListaOrcamentos'
@@ -142,10 +141,10 @@ export const rotas = createBrowserRouter([
           {
             element: <RotaPorPerfil permitido={(p) => p.verFinanceiro} />,
             children: [
-              { path: '/notas-fiscais/entrada', element: <ListaNotasEntrada /> },
+              // Uma lista só, com entrada e saída em abas (?tipo=saida).
+              { path: '/notas-fiscais', element: <NotasFiscais /> },
               { path: '/notas-fiscais/entrada/nova', element: <EditorNotaEntrada /> },
               { path: '/notas-fiscais/entrada/:id', element: <DetalheNotaEntrada /> },
-              { path: '/notas-fiscais/saida', element: <ListaNotasSaida /> },
               { path: '/notas-fiscais/saida/nova', element: <EditorNotaSaida /> },
               { path: '/notas-fiscais/saida/:id', element: <DetalheNotaSaida /> },
             ],

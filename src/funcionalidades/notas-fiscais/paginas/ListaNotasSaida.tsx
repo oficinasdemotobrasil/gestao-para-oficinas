@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Receipt, Plus } from 'lucide-react'
-import { Tela, CabecalhoTela } from '@/componentes/layout/Tela'
 import { CampoBusca } from '@/componentes/ui/CampoBusca'
 import { Abas } from '@/componentes/ui/Abas'
 import { Filtros } from '@/componentes/ui/Filtros'
@@ -23,6 +22,7 @@ const filtros = [
   { id: 'cancelada', rotulo: 'Canceladas' },
 ] as const
 
+/** A lista de notas de saída, dentro da aba "Saída" de Notas fiscais. */
 export function ListaNotasSaida() {
   const navegar = useNavigate()
   const [busca, setBusca] = useState('')
@@ -37,12 +37,7 @@ export function ListaNotasSaida() {
   const buscando = busca.trim().length > 0
 
   return (
-    <Tela>
-      <CabecalhoTela
-        titulo="Notas de saída"
-        contexto={notas ? `${notas.length} ${notas.length === 1 ? 'nota' : 'notas'}` : 'Vendas da oficina'}
-      />
-
+    <>
       <Filtros
         busca={
           <CampoBusca rotulo="Buscar por número" valor={busca} aoMudar={setBusca} placeholder="Número da nota" />
@@ -122,6 +117,6 @@ export function ListaNotasSaida() {
           />
         )}
       </div>
-    </Tela>
+    </>
   )
 }

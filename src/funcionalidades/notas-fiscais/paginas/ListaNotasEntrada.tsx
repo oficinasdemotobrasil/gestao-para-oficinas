@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Truck, Plus } from 'lucide-react'
-import { Tela, CabecalhoTela } from '@/componentes/layout/Tela'
 import { CampoBusca } from '@/componentes/ui/CampoBusca'
 import { Abas } from '@/componentes/ui/Abas'
 import { Filtros } from '@/componentes/ui/Filtros'
@@ -23,6 +22,11 @@ const filtros = [
   { id: 'cancelada', rotulo: 'Canceladas' },
 ] as const
 
+/**
+ * A lista de notas de entrada. Não é uma tela inteira: mora dentro da aba
+ * "Entrada" de Notas fiscais, então não traz cabeçalho nem <Tela> próprios —
+ * quem cuida disso é a página que a contém.
+ */
 export function ListaNotasEntrada() {
   const navegar = useNavigate()
   const [busca, setBusca] = useState('')
@@ -37,12 +41,7 @@ export function ListaNotasEntrada() {
   const buscando = busca.trim().length > 0
 
   return (
-    <Tela>
-      <CabecalhoTela
-        titulo="Notas de entrada"
-        contexto={notas ? `${notas.length} ${notas.length === 1 ? 'nota' : 'notas'}` : 'Compras da oficina'}
-      />
-
+    <>
       <Filtros
         busca={
           <CampoBusca
@@ -127,6 +126,6 @@ export function ListaNotasEntrada() {
           />
         )}
       </div>
-    </Tela>
+    </>
   )
 }

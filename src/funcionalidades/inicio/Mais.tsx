@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Users, Users2, Settings, LogOut, Share, Info, Wallet, Truck, Receipt } from 'lucide-react'
+import { Users, Users2, Settings, LogOut, Share, Info, Wallet, Receipt } from 'lucide-react'
 import { Tela, CabecalhoTela, TituloSecao } from '@/componentes/layout/Tela'
 import { ListaCard, LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
 import { Botao } from '@/componentes/ui/Botao'
@@ -73,22 +73,12 @@ export function Mais() {
             <LinhaLista
               inicio={
                 <IconeCirculo>
-                  <Truck aria-hidden size={20} />
-                </IconeCirculo>
-              }
-              titulo="Notas de entrada"
-              descricao="Compras: alimenta estoque e Contas a Pagar juntos"
-              aoTocar={() => navegar('/notas-fiscais/entrada')}
-            />
-            <LinhaLista
-              inicio={
-                <IconeCirculo>
                   <Receipt aria-hidden size={20} />
                 </IconeCirculo>
               }
-              titulo="Notas de saída"
-              descricao="Vendas de balcão: baixa estoque e Contas a Receber juntos"
-              aoTocar={() => navegar('/notas-fiscais/saida')}
+              titulo="Notas fiscais"
+              descricao="Entrada e saída: mexem no estoque e no Financeiro juntos"
+              aoTocar={() => navegar('/notas-fiscais')}
             />
           </ListaCard>
         </>

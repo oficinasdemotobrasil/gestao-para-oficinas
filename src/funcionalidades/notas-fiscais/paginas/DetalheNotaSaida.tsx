@@ -60,7 +60,7 @@ export function DetalheNotaSaida() {
       <EstadoErro
         titulo="Nota não encontrada"
         descricao="Ela pode ter sido removida. Volte para a lista."
-        aoTentarDeNovo={() => navegar('/notas-fiscais/saida', { replace: true })}
+        aoTentarDeNovo={() => navegar('/notas-fiscais?tipo=saida', { replace: true })}
       />
     )
   }
