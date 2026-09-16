@@ -1,4 +1,4 @@
-import { Home, FileText, Wrench, Bike, Users, Package, Wallet, Users2, Settings } from 'lucide-react'
+import { Home, FileText, Wrench, Bike, Users, Package, Wallet, Truck, Receipt, Users2, Settings } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { usePermissoes } from '@/auth/usePermissoes'
 
@@ -38,6 +38,11 @@ export const ITENS: ItemDeNavegacao[] = [
   { para: '/clientes', rotulo: 'Clientes', Icone: Users, visivel: (p) => p.verClientes },
   { para: '/catalogo', rotulo: 'Catálogo', Icone: Package, visivel: (p) => p.verCatalogo },
   { para: '/financeiro', rotulo: 'Financeiro', Icone: Wallet, visivel: (p) => p.verFinanceiro },
+  // Notas fiscais seguem a mesma regra do Financeiro (perfil E plano): elas
+  // conversam direto com Contas a Pagar e a Receber. Ficam fora da barra do
+  // celular — as cinco vagas já estão tomadas — e são alcançadas pelo "Mais".
+  { para: '/notas-fiscais/entrada', rotulo: 'Notas de entrada', Icone: Truck, visivel: (p) => p.verFinanceiro },
+  { para: '/notas-fiscais/saida', rotulo: 'Notas de saída', Icone: Receipt, visivel: (p) => p.verFinanceiro },
   { para: '/colaboradores', rotulo: 'Colaboradores', Icone: Users2, visivel: (p) => p.verColaboradores },
   { para: '/configuracoes', rotulo: 'Configurações', Icone: Settings, visivel: (p) => p.verConfiguracoes },
 ]
