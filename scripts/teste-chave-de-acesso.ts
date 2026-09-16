@@ -5,7 +5,7 @@
  *
  *   npm run teste:chave-de-acesso
  */
-import { chaveValida, lerChave, chaveDoConteudoDoQr } from '../src/funcionalidades/notas-fiscais/chaveDeAcesso'
+import { chaveValida, lerChave, chaveDoConteudoDoQr, nomeDoFornecedorPeloCnpj } from '../src/funcionalidades/notas-fiscais/chaveDeAcesso'
 
 let passou = 0
 let falhou = 0
@@ -80,6 +80,10 @@ lerChave(chaveNumeroUm)?.numero === '1'
   ? ok('número 1 não vira "000000001" nem some', lerChave(chaveNumeroUm)?.numero)
   : erro('número pequeno', `veio "${lerChave(chaveNumeroUm)?.numero}"`)
 
+lerChave(chaveNFe)?.cnpjEmitente === '12345678000199'
+  ? ok('o CNPJ de quem emitiu sai da chave', lerChave(chaveNFe)?.cnpjEmitente)
+  : erro('CNPJ do emitente', `veio "${lerChave(chaveNFe)?.cnpjEmitente}"`)
+
 console.log('\n\x1b[1mO QR code do DANFE\x1b[0m')
 
 // Cada estado monta a URL de um jeito — o teste usa duas formas bem
@@ -97,6 +101,29 @@ chaveDoConteudoDoQr(urlSP) === chaveNFe
 chaveDoConteudoDoQr('qualquer coisa sem número de 44 dígitos aqui')
   ? erro('achou chave onde não tem', 'deveria retornar null')
   : ok('conteúdo sem chave nenhuma retorna null')
+
+// Consulta de CNPJ: bate numa API pública de verdade. Se a rede estiver
+// fora, o teste avisa e não reprova — a busca é conveniência, e o código já
+// devolve null quando ela falha.
+console.log('\n\x1b[1mNome do fornecedor pelo CNPJ (rede de verdade)\x1b[0m')
+const nome = await nomeDoFornecedorPeloCnpj('55831184000638')
+if (nome === null) {
+  console.log('  \x1b[33m•\x1b[0m consulta indisponível agora — o código devolveu null, que é o esperado nesse caso')
+} else if (nome.toUpperCase().includes('TONINHO') || nome.toUpperCase().includes('BRUDOVAN')) {
+  ok('achou a empresa pelo CNPJ', nome)
+} else {
+  erro('nome do fornecedor', `veio "${nome}"`)
+}
+
+const inventado = await nomeDoFornecedorPeloCnpj('00000000000000')
+inventado === null
+  ? ok('CNPJ inexistente devolve null, não quebra')
+  : erro('CNPJ inexistente', `veio "${inventado}"`)
+
+const curto = await nomeDoFornecedorPeloCnpj('123')
+curto === null
+  ? ok('CNPJ curto nem chega a consultar')
+  : erro('CNPJ curto', String(curto))
 
 console.log(`\n\x1b[1mResultado:\x1b[0m ${passou} passaram, ${falhou} falharam`)
 process.exit(falhou > 0 ? 1 : 0)

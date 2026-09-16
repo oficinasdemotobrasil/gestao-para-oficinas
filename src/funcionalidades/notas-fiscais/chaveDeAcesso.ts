@@ -26,6 +26,8 @@ export function chaveValida(chave: string): boolean {
 export interface DadosDaChave {
   numero: string
   modelo: 'NFe' | 'NFCe' | 'outro'
+  /** O CNPJ de quem emitiu — dá para descobrir o nome do fornecedor com ele. */
+  cnpjEmitente: string
 }
 
 /** Retorna null se a chave não tem 44 dígitos — chame chaveValida antes, se quiser distinguir o motivo. */
@@ -34,7 +36,7 @@ export function lerChave(chave: string): DadosDaChave | null {
   const numero = String(Number(chave.slice(25, 34))) // tira os zeros à esquerda
   const modeloCodigo = chave.slice(20, 22)
   const modelo = modeloCodigo === '55' ? 'NFe' : modeloCodigo === '65' ? 'NFCe' : 'outro'
-  return { numero, modelo }
+  return { numero, modelo, cnpjEmitente: chave.slice(6, 20) }
 }
 
 /**
@@ -47,4 +49,29 @@ export function lerChave(chave: string): DadosDaChave | null {
 export function chaveDoConteudoDoQr(conteudo: string): string | null {
   const achado = conteudo.match(/\d{44}/)
   return achado ? achado[0] : null
+}
+
+/**
+ * Descobre o nome do fornecedor a partir do CNPJ que vem dentro da chave.
+ *
+ * Usa a BrasilAPI, que é pública, gratuita e não exige cadastro. É
+ * conveniência, não requisito: se a consulta falhar, estiver fora do ar ou o
+ * CNPJ não existir, devolve null e a pessoa digita o nome — nada quebra.
+ *
+ * Só o nome da empresa é lido. A resposta da API traz também sócios e CPFs,
+ * que são dados pessoais de terceiros e não têm nada que fazer aqui.
+ */
+export async function nomeDoFornecedorPeloCnpj(cnpj: string): Promise<string | null> {
+  const limpo = cnpj.replace(/\D/g, '')
+  if (limpo.length !== 14) return null
+
+  try {
+    const resposta = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${limpo}`)
+    if (!resposta.ok) return null
+    const dados = (await resposta.json()) as { razao_social?: string; nome_fantasia?: string }
+    const nome = dados.nome_fantasia?.trim() || dados.razao_social?.trim()
+    return nome || null
+  } catch {
+    return null
+  }
 }

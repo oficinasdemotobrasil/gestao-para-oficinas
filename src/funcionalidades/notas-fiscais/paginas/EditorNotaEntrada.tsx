@@ -17,7 +17,7 @@ import { CamposFiscais, fiscalVazio, type DadosFiscais } from '../CamposFiscais'
 import { LeitorQrCode } from '../LeitorQrCode'
 import { ImportarXml } from '../ImportarXml'
 import type { NotaDoXml } from '../lerXmlDaNota'
-import { chaveValida, lerChave, chaveDoConteudoDoQr } from '../chaveDeAcesso'
+import { chaveValida, lerChave, chaveDoConteudoDoQr, nomeDoFornecedorPeloCnpj } from '../chaveDeAcesso'
 import { salvarNotaEntrada, type ItemEntradaEmEdicao } from '../api'
 
 const hoje = () => new Date().toISOString().slice(0, 10)
@@ -35,6 +35,7 @@ export function EditorNotaEntrada() {
   const [erroChave, setErroChave] = useState<string | null>(null)
   const [escaneando, setEscaneando] = useState(false)
   const [mostrarCampoDaChave, setMostrarCampoDaChave] = useState(false)
+  const [buscandoFornecedor, setBuscandoFornecedor] = useState(false)
   const [itens, setItens] = useState<ItemEntradaEmEdicao[]>([])
   const [fiscal, setFiscal] = useState<DadosFiscais>(fiscalVazio)
   const [categoria, setCategoria] = useState('Fornecedor')
@@ -65,7 +66,21 @@ export function EditorNotaEntrada() {
     }
     if (chaveValida(digitos)) {
       const lida = lerChave(digitos)
-      if (lida && !numero.trim()) setNumero(lida.numero)
+      if (!lida) return
+      if (!numero.trim()) setNumero(lida.numero)
+
+      // A chave carrega o CNPJ de quem emitiu. Com ele dá para descobrir o
+      // nome da empresa numa consulta pública e gratuita — é o máximo que a
+      // chave sozinha permite. As peças continuam só vindo pelo XML.
+      if (!fornecedor.trim()) {
+        setBuscandoFornecedor(true)
+        void nomeDoFornecedorPeloCnpj(lida.cnpjEmitente)
+          .then((nome) => {
+            // Só preenche se ninguém digitou nada nesse meio tempo.
+            if (nome) setFornecedor((atual) => (atual.trim() ? atual : nome))
+          })
+          .finally(() => setBuscandoFornecedor(false))
+      }
     }
   }
 
@@ -172,7 +187,7 @@ export function EditorNotaEntrada() {
           className="flex min-h-toque items-center justify-center gap-2 rounded-card bg-acento-suave px-4 text-em-superficie active:opacity-80"
         >
           <QrCode aria-hidden size={20} />
-          <span className="text-corpo font-semibold">Ou ler o QR code (só a identificação)</span>
+          <span className="text-corpo font-semibold">Ou ler o QR code (número e fornecedor)</span>
         </button>
       </div>
 
@@ -181,7 +196,7 @@ export function EditorNotaEntrada() {
           <div>
             <Campo
               rotulo="Chave de acesso"
-              dica="Os 44 números da nota. Preenche sozinho ao ler o QR, ou cole aqui."
+              dica="Traz o número e o nome do fornecedor. As peças só vêm pelo XML."
               erro={erroChave ?? undefined}
               value={chaveAcesso}
               onChange={(e) => digitarChave(e.target.value)}
@@ -218,6 +233,7 @@ export function EditorNotaEntrada() {
         <Campo
           rotulo="Fornecedor"
           placeholder="Distribuidora de Peças Rio"
+          dica={buscandoFornecedor ? 'Procurando pelo CNPJ da chave…' : undefined}
           value={fornecedor}
           onChange={(e) => setFornecedor(e.target.value)}
         />
