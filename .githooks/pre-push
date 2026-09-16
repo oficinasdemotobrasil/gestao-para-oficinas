@@ -1,0 +1,30 @@
+#!/bin/bash
+# Trava o push se o build de produção não passar — o comando exato que a
+# Vercel roda, não um atalho.
+#
+# Existe porque `tsc --noEmit -p .` (checagem rápida, rodada a cada mudança)
+# e `npm run build` (que faz `tsc -b`, mais rígido, e é o que a Vercel roda de
+# verdade) não são a mesma checagem. Um arquivo pode passar limpo no primeiro
+# e quebrar o segundo — foi exatamente o que aconteceu: 7 erros em
+# scripts/validar-banco.ts ficaram invisíveis por dias, e cada deploy na
+# Vercel falhava em silêncio enquanto o site continuava servindo a versão
+# antiga. Ninguém percebeu até abrir o painel da Vercel na mão.
+#
+# Este gancho fecha essa brecha: se o build de verdade não passa aqui, o
+# push nem sai — em vez de sair, ir para o GitHub, "funcionar" (a checagem
+# rápida não vê o problema), e falhar caladinho na Vercel.
+
+echo "Conferindo o build de produção antes do push (o mesmo comando da Vercel)..."
+
+if ! npm run build > /tmp/pre-push-build.log 2>&1; then
+  echo ""
+  echo "✗ O build quebrou. O push foi BLOQUEADO — isto teria falhado na Vercel, em silêncio."
+  echo ""
+  tail -30 /tmp/pre-push-build.log
+  echo ""
+  echo "Corrija o erro acima e tente de novo. Para pular esta checagem uma vez"
+  echo "(não recomendado): git push --no-verify"
+  exit 1
+fi
+
+echo "✓ Build de produção passou. Push liberado."
