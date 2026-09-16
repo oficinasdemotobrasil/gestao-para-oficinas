@@ -290,3 +290,35 @@ export async function contasDaNotaEntrada(notaId: string): Promise<ContaPagar[]>
   if (error) throw error
   return data ?? []
 }
+
+// Importação por XML ------------------------------------------------------------
+
+/**
+ * Procura, no catálogo da oficina, os produtos cujos códigos batem com os do
+ * XML. O código do XML é o código do produto no catálogo do FORNECEDOR — ele
+ * só casa se a oficina tiver cadastrado esse mesmo código no produto dela.
+ *
+ * Quando casa, a peça entra na nota sozinha. Quando não casa, quem decide é
+ * quem está lançando: ligar a uma peça que já existe, ou cadastrar a peça
+ * nova com o que o XML já informou. Adivinhar pelo nome seria pior do que
+ * perguntar — "PASTILHA DE FREIO DIANT." e "Pastilha dianteira" são a mesma
+ * coisa para gente e coisas diferentes para qualquer comparação automática.
+ */
+export async function produtosPorCodigo(
+  codigos: string[],
+): Promise<Map<string, { id: string; nome: string; preco_custo: number | null }>> {
+  const limpos = codigos.map((c) => c.trim()).filter(Boolean)
+  if (limpos.length === 0) return new Map()
+
+  const { data, error } = await supabase
+    .from('produtos')
+    .select('id, nome, codigo, preco_custo')
+    .in('codigo', limpos)
+  if (error) throw error
+
+  const mapa = new Map<string, { id: string; nome: string; preco_custo: number | null }>()
+  for (const p of data ?? []) {
+    if (p.codigo) mapa.set(p.codigo.trim(), { id: p.id, nome: p.nome, preco_custo: p.preco_custo })
+  }
+  return mapa
+}

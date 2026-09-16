@@ -15,6 +15,8 @@ import { FORMAS } from '@/funcionalidades/financeiro/api'
 import { ItensDaNotaEntrada } from '../ItensDaNotaEntrada'
 import { CamposFiscais, fiscalVazio, type DadosFiscais } from '../CamposFiscais'
 import { LeitorQrCode } from '../LeitorQrCode'
+import { ImportarXml } from '../ImportarXml'
+import type { NotaDoXml } from '../lerXmlDaNota'
 import { chaveValida, lerChave, chaveDoConteudoDoQr } from '../chaveDeAcesso'
 import { salvarNotaEntrada, type ItemEntradaEmEdicao } from '../api'
 
@@ -77,6 +79,30 @@ export function EditorNotaEntrada() {
     setErroChave(null)
   }
 
+  /**
+   * O XML preenche tudo o que ele sabe — e só o que ele sabe. A parte
+   * financeira (parcelas, vencimento, forma) fica como está: essa informação
+   * não existe na nota, é combinado entre a oficina e o fornecedor.
+   */
+  function aoImportarXml(nota: NotaDoXml, itensProntos: ItemEntradaEmEdicao[]) {
+    if (nota.chaveAcesso) aplicarChave(nota.chaveAcesso)
+    if (nota.numero) setNumero(nota.numero)
+    if (nota.dataEmissao) setDataEmissao(nota.dataEmissao)
+    if (nota.fornecedorNome) setFornecedor(nota.fornecedorNome)
+    setFiscal((atual) => ({
+      ...atual,
+      natureza_operacao: nota.naturezaOperacao ?? atual.natureza_operacao,
+      // O CFOP do cabeçalho é o do primeiro item: na compra de mercadoria a
+      // nota inteira costuma ter um só, e quando não tem, o que vale para o
+      // lançamento é o predominante.
+      cfop: nota.itens[0]?.cfop ?? atual.cfop,
+      base_calculo_icms: nota.baseCalculoIcms != null ? String(nota.baseCalculoIcms).replace('.', ',') : atual.base_calculo_icms,
+      valor_icms: nota.valorIcms != null ? String(nota.valorIcms).replace('.', ',') : atual.valor_icms,
+    }))
+    setItens(itensProntos)
+    setErroGeral(null)
+  }
+
   function aoLerQr(conteudo: string) {
     setEscaneando(false)
     const chave = chaveDoConteudoDoQr(conteudo) ?? (chaveValida(conteudo) ? conteudo : null)
@@ -132,14 +158,23 @@ export function EditorNotaEntrada() {
     <Tela comRodapeFixo>
       <CabecalhoInterno titulo="Nova nota de entrada" contexto="Compra de fornecedor" />
 
-      <button
-        type="button"
-        onClick={() => setEscaneando(true)}
-        className="flex min-h-toque items-center justify-center gap-2 rounded-card bg-acento-suave px-4 text-em-superficie active:opacity-80"
-      >
-        <QrCode aria-hidden size={20} />
-        <span className="text-corpo font-semibold">Ler QR code da nota</span>
-      </button>
+      {/* O XML vem primeiro de propósito: é o único caminho que traz a nota
+          inteira. O QR e a digitação trazem só a identificação. */}
+      <div className="flex flex-col gap-2">
+        <ImportarXml
+          aoImportar={aoImportarXml}
+          aoResolverItem={(item) => setItens((atuais) => [...atuais, item])}
+        />
+
+        <button
+          type="button"
+          onClick={() => setEscaneando(true)}
+          className="flex min-h-toque items-center justify-center gap-2 rounded-card bg-acento-suave px-4 text-em-superficie active:opacity-80"
+        >
+          <QrCode aria-hidden size={20} />
+          <span className="text-corpo font-semibold">Ou ler o QR code (só a identificação)</span>
+        </button>
+      </div>
 
       <div className="mt-4 flex flex-col gap-4 rounded-card bg-superficie p-5 shadow-card">
         {(chaveAcesso || erroChave || mostrarCampoDaChave) && (
