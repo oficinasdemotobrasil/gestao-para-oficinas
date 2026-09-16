@@ -102,6 +102,49 @@ export async function cancelarNotaEntrada(id: string): Promise<void> {
   if (error) throw error
 }
 
+export interface NotaEntradaCompleta extends NotaFiscalEntrada {
+  itens: Array<{ id: string; produto_id: string; produto_nome: string; quantidade: number; custo_unitario: number | null }>
+  parcelas: ContaPagar[]
+}
+
+export async function obterNotaEntrada(id: string): Promise<NotaEntradaCompleta | null> {
+  const { data: nota, error } = await supabase
+    .from('notas_fiscais_entrada')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw error
+  if (!nota) return null
+
+  const [{ data: movimentos, error: e2 }, parcelas] = await Promise.all([
+    supabase
+      .from('movimentacoes_estoque')
+      .select('id, produto_id, quantidade, custo_unitario, produto:produtos(nome)')
+      .eq('nota_fiscal_id', id)
+      .eq('tipo', 'entrada'),
+    contasDaNotaEntrada(id),
+  ])
+  if (e2) throw e2
+
+  return {
+    ...(nota as NotaFiscalEntrada),
+    itens: ((movimentos ?? []) as unknown as Array<{
+      id: string
+      produto_id: string
+      quantidade: number
+      custo_unitario: number | null
+      produto: { nome: string } | null
+    }>).map((m) => ({
+      id: m.id,
+      produto_id: m.produto_id,
+      produto_nome: m.produto?.nome ?? 'Produto removido',
+      quantidade: Number(m.quantidade),
+      custo_unitario: m.custo_unitario != null ? Number(m.custo_unitario) : null,
+    })),
+    parcelas,
+  }
+}
+
 // Saída --------------------------------------------------------------------------
 
 export interface NotaSaidaNaLista extends NotaFiscalSaida {
@@ -193,6 +236,34 @@ export async function salvarNotaSaida(dados: DadosNotaSaida): Promise<string> {
 export async function cancelarNotaSaida(id: string): Promise<void> {
   const { error } = await supabase.rpc('cancelar_nota_saida', { p_nota_id: id })
   if (error) throw error
+}
+
+export interface ItemNfSaidaGravado {
+  id: string
+  tipo: 'produto' | 'servico'
+  descricao: string
+  quantidade: number
+  valor_unitario: number
+}
+
+export interface NotaSaidaCompleta extends NotaFiscalSaida {
+  cliente: Pick<Cliente, 'id' | 'nome' | 'telefone'> | null
+  itens: ItemNfSaidaGravado[]
+  parcelas: ContaReceber[]
+}
+
+export async function obterNotaSaida(id: string): Promise<NotaSaidaCompleta | null> {
+  const { data: nota, error } = await supabase
+    .from('notas_fiscais_saida')
+    .select('*, cliente:clientes(id, nome, telefone), itens:itens_nf_saida(*)')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw error
+  if (!nota) return null
+
+  const parcelas = await contasDaNotaSaida(id)
+  const completa = nota as unknown as NotaSaidaCompleta
+  return { ...completa, parcelas }
 }
 
 /** As cobranças que uma nota de saída gerou — para mostrar na tela da nota. */
