@@ -53,6 +53,8 @@ export interface DadosNotaEntrada extends CamposFiscais {
   data_emissao: string
   valor_total: number
   arquivo_url: string | null
+  /** Os 44 dígitos, quando a nota veio digitada, colada ou lida por QR code. */
+  chave_acesso: string | null
   itens: ItemEntradaEmEdicao[]
   parcelas: number
   primeiro_vencimento: string | null
@@ -87,6 +89,7 @@ export async function salvarNotaEntrada(dados: DadosNotaEntrada): Promise<string
     p_base_calculo_icms: dados.base_calculo_icms ?? null,
     p_valor_icms: dados.valor_icms ?? null,
     p_valor_iss: dados.valor_iss ?? null,
+    p_chave_acesso: dados.chave_acesso,
     p_parcelas: dados.parcelas,
     p_primeiro_vencimento: dados.primeiro_vencimento,
     p_categoria: dados.categoria,

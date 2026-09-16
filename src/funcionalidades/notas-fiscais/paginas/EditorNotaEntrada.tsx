@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { QrCode, CircleCheck } from 'lucide-react'
 import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
 import { Campo, Selecao, Interruptor } from '@/componentes/ui/Campo'
 import { Botao } from '@/componentes/ui/Botao'
@@ -13,6 +14,8 @@ import type { FormaPagamento } from '@/tipos/banco'
 import { FORMAS } from '@/funcionalidades/financeiro/api'
 import { ItensDaNotaEntrada } from '../ItensDaNotaEntrada'
 import { CamposFiscais, fiscalVazio, type DadosFiscais } from '../CamposFiscais'
+import { LeitorQrCode } from '../LeitorQrCode'
+import { chaveValida, lerChave, chaveDoConteudoDoQr } from '../chaveDeAcesso'
 import { salvarNotaEntrada, type ItemEntradaEmEdicao } from '../api'
 
 const hoje = () => new Date().toISOString().slice(0, 10)
@@ -26,6 +29,10 @@ export function EditorNotaEntrada() {
   const [numero, setNumero] = useState('')
   const [fornecedor, setFornecedor] = useState('')
   const [dataEmissao, setDataEmissao] = useState(hoje())
+  const [chaveAcesso, setChaveAcesso] = useState('')
+  const [erroChave, setErroChave] = useState<string | null>(null)
+  const [escaneando, setEscaneando] = useState(false)
+  const [mostrarCampoDaChave, setMostrarCampoDaChave] = useState(false)
   const [itens, setItens] = useState<ItemEntradaEmEdicao[]>([])
   const [fiscal, setFiscal] = useState<DadosFiscais>(fiscalVazio)
   const [categoria, setCategoria] = useState('Fornecedor')
@@ -37,6 +44,49 @@ export function EditorNotaEntrada() {
 
   const total = itens.reduce((acc, i) => acc + i.quantidade * (i.custo_unitario ?? 0), 0)
 
+  /**
+   * A chave de acesso já carrega o número da nota dentro dela — se o campo
+   * de número ainda está vazio, preenche sozinho. Se a pessoa já digitou um
+   * número diferente (a nota impressa às vezes diverge do sistema do
+   * fornecedor), o que ela digitou vale mais que o que foi lido.
+   *
+   * Não valida a cada tecla: um campo de 44 dígitos passa 43 teclas inteiras
+   * "errado" no meio do caminho. O erro só aparece quando já tem alguma coisa
+   * escrita e ainda assim não fechou em 44 — ou seja, quando parece que a
+   * pessoa parou de digitar sem terminar.
+   */
+  function digitarChave(digitado: string) {
+    const digitos = digitado.replace(/\D/g, '').slice(0, 44)
+    setChaveAcesso(digitos)
+    if (digitos.length === 0 || digitos.length === 44) {
+      setErroChave(null)
+    }
+    if (chaveValida(digitos)) {
+      const lida = lerChave(digitos)
+      if (lida && !numero.trim()) setNumero(lida.numero)
+    }
+  }
+
+  /** Usado pelo QR: a leitura chega pronta, de uma vez — aí sim, erra ou acerta na hora. */
+  function aplicarChave(digitos: string) {
+    if (!chaveValida(digitos)) {
+      setErroChave('Isso não parece uma chave de acesso — ela tem 44 números.')
+      return
+    }
+    digitarChave(digitos)
+    setErroChave(null)
+  }
+
+  function aoLerQr(conteudo: string) {
+    setEscaneando(false)
+    const chave = chaveDoConteudoDoQr(conteudo) ?? (chaveValida(conteudo) ? conteudo : null)
+    if (!chave) {
+      setErroChave('O QR code lido não tinha uma chave de acesso reconhecível. Tente digitar manualmente.')
+      return
+    }
+    aplicarChave(chave)
+  }
+
   const salvar = useMutation({
     mutationFn: () =>
       salvarNotaEntrada({
@@ -45,6 +95,7 @@ export function EditorNotaEntrada() {
         data_emissao: dataEmissao,
         valor_total: total,
         arquivo_url: null,
+        chave_acesso: chaveValida(chaveAcesso) ? chaveAcesso : null,
         itens,
         natureza_operacao: fiscal.natureza_operacao || null,
         cfop: fiscal.cfop || null,
@@ -69,6 +120,9 @@ export function EditorNotaEntrada() {
 
   function enviar() {
     setErroGeral(null)
+    if (chaveAcesso.length > 0 && !chaveValida(chaveAcesso)) {
+      return setErroGeral('A chave de acesso ficou incompleta. Termine de digitar ou apague o que foi colado.')
+    }
     if (!numero.trim()) return setErroGeral('Informe o número da nota.')
     if (itens.length === 0) return setErroGeral('Adicione pelo menos uma peça.')
     salvar.mutate()
@@ -78,7 +132,39 @@ export function EditorNotaEntrada() {
     <Tela comRodapeFixo>
       <CabecalhoInterno titulo="Nova nota de entrada" contexto="Compra de fornecedor" />
 
-      <div className="flex flex-col gap-4 rounded-card bg-superficie p-5 shadow-card">
+      <button
+        type="button"
+        onClick={() => setEscaneando(true)}
+        className="flex min-h-toque items-center justify-center gap-2 rounded-card bg-acento-suave px-4 text-em-superficie active:opacity-80"
+      >
+        <QrCode aria-hidden size={20} />
+        <span className="text-corpo font-semibold">Ler QR code da nota</span>
+      </button>
+
+      <div className="mt-4 flex flex-col gap-4 rounded-card bg-superficie p-5 shadow-card">
+        {(chaveAcesso || erroChave || mostrarCampoDaChave) && (
+          <div>
+            <Campo
+              rotulo="Chave de acesso"
+              dica="Os 44 números da nota. Preenche sozinho ao ler o QR, ou cole aqui."
+              erro={erroChave ?? undefined}
+              value={chaveAcesso}
+              onChange={(e) => digitarChave(e.target.value)}
+              onBlur={() => {
+                if (chaveAcesso.length > 0 && chaveAcesso.length < 44) {
+                  setErroChave(`Faltam ${44 - chaveAcesso.length} números.`)
+                }
+              }}
+            />
+            {chaveValida(chaveAcesso) && (
+              <p className="flex items-center gap-1.5 pt-1.5 text-apoio text-sucesso-forte">
+                <CircleCheck aria-hidden size={14} />
+                Chave reconhecida
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <Campo
             rotulo="Número da nota"
@@ -100,6 +186,15 @@ export function EditorNotaEntrada() {
           value={fornecedor}
           onChange={(e) => setFornecedor(e.target.value)}
         />
+        {!chaveAcesso && !erroChave && !mostrarCampoDaChave && (
+          <button
+            type="button"
+            onClick={() => setMostrarCampoDaChave(true)}
+            className="self-start text-apoio font-medium text-em-superficie-2 underline"
+          >
+            Tenho a chave de acesso, mas não vou escanear
+          </button>
+        )}
       </div>
 
       <TituloSecao>Peças</TituloSecao>
@@ -176,6 +271,8 @@ export function EditorNotaEntrada() {
           </Botao>
         </div>
       </div>
+
+      <LeitorQrCode aberto={escaneando} aoFechar={() => setEscaneando(false)} aoLer={aoLerQr} />
     </Tela>
   )
 }

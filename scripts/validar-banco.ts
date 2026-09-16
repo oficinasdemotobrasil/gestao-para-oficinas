@@ -634,9 +634,13 @@ async function testarNotaFiscal() {
   await esperaErro('cancelar a mesma nota duas vezes é recusado', `select public.cancelar_nota('${notaId}')`)
 
   // Campos fiscais, parcelamento, e a ponte com Contas a Pagar (0058) ---------
+  // A chave usa repeat() em vez de 44 dígitos escritos à mão: contar caractere
+  // por caractere é exatamente o tipo de erro bobo que travou este arquivo
+  // umas boas vezes antes.
   const notaFiscal = await db.query<{ id: string }>(
     `select public.salvar_nota_com_itens('9001', 'Peças Rio', current_date, 300, null, $1::jsonb,
-       'Compra para comercialização', '1102', 250, 45, null, 3, current_date, 'Peças', 'prazo', false) as id`,
+       'Compra para comercialização', '1102', 250, 45, null, repeat('9', 44),
+       3, current_date, 'Peças', 'prazo', false) as id`,
     [JSON.stringify([{ produto_id: ID.produtoA, quantidade: 5, custo_unitario: 60 }])],
   )
   const notaFiscalId = notaFiscal.rows[0].id
@@ -649,6 +653,13 @@ async function testarNotaFiscal() {
     ? ok('os campos fiscais (CFOP, ICMS, base de cálculo) ficam gravados na nota')
     : erro('campos fiscais da entrada', 'não bateram com o que foi enviado')
 
+  const chaveGravada = await contar(
+    `select (chave_acesso = repeat('9', 44))::int as n from public.notas_fiscais_entrada where id = '${notaFiscalId}'`,
+  )
+  chaveGravada === 1
+    ? ok('a chave de acesso (44 dígitos) fica gravada na nota')
+    : erro('chave de acesso', 'não bateu com o que foi enviado')
+
   await esperaLinhas(
     'a nota parcelada em 3 gera 3 contas a pagar',
     `select count(*) as n from public.contas_pagar where nota_fiscal_entrada_id = '${notaFiscalId}'`,
@@ -660,6 +671,13 @@ async function testarNotaFiscal() {
   somaPagar === 30000
     ? ok('e as parcelas somam o valor total da nota (R$ 300,00)')
     : erro('soma das parcelas a pagar', `veio ${somaPagar} centavos`)
+
+  await esperaErro(
+    'chave de acesso com menos de 44 dígitos é recusada pelo banco',
+    `select public.salvar_nota_com_itens('9002', 'Peças Rio', current_date, 10, null, $1::jsonb,
+       null, null, null, null, null, repeat('9', 43))`,
+    [JSON.stringify([{ produto_id: ID.produtoA, quantidade: 1, custo_unitario: 10 }])],
+  )
 
   await esperaErro(
     'lançar de novo o mesmo número deste fornecedor é recusado',

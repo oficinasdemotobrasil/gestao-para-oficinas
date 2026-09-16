@@ -213,6 +213,8 @@ type NotaFiscalEntrada = {
   valor_icms: number | null
   /** Raro numa entrada de mercadoria — existe para nota de serviço tomado de terceiro. */
   valor_iss: number | null
+  /** Os 44 dígitos da nota — digitados, colados ou lidos de um QR code do DANFE. */
+  chave_acesso: string | null
   status: StatusNota
   cancelada_em: string | null
   cancelada_por: string | null
@@ -546,6 +548,7 @@ export type Database = {
           p_base_calculo_icms?: number | null
           p_valor_icms?: number | null
           p_valor_iss?: number | null
+          p_chave_acesso?: string | null
           /** Financeiro: toda nota gera ao menos uma parcela em Contas a Pagar (0058). */
           p_parcelas?: number
           p_primeiro_vencimento?: string | null

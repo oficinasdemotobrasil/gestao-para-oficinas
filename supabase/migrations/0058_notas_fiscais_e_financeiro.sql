@@ -73,7 +73,12 @@ alter table public.notas_fiscais_entrada
   add column if not exists valor_icms numeric(12, 2)
     check (valor_icms is null or valor_icms >= 0),
   add column if not exists valor_iss numeric(12, 2)
-    check (valor_iss is null or valor_iss >= 0);
+    check (valor_iss is null or valor_iss >= 0),
+  -- Os 44 dígitos que identificam a nota no país inteiro — o que vem digitado,
+  -- colado, ou lido de um QR code do DANFE. Guardada, não conferida: validar
+  -- de verdade é consultar a Sefaz, que é trabalho futuro do contador.
+  add column if not exists chave_acesso text
+    check (chave_acesso is null or chave_acesso ~ '^\d{44}$');
 
 comment on column public.notas_fiscais_entrada.valor_iss is
   'Raro numa entrada de mercadoria (é ICMS que se aplica), mas existe para o caso de nota de serviço tomado de terceiro.';
@@ -275,6 +280,7 @@ create or replace function public.salvar_nota_com_itens(
   p_base_calculo_icms numeric default null,
   p_valor_icms numeric default null,
   p_valor_iss numeric default null,
+  p_chave_acesso text default null,
   -- Financeiro: toda nota gera ao menos uma parcela em Contas a Pagar. Uma
   -- compra à vista também — só nasce já paga, em vez de nascer em aberto.
   p_parcelas integer default 1,
@@ -313,10 +319,10 @@ begin
   begin
     insert into public.notas_fiscais_entrada
       (oficina_id, numero, fornecedor, data_emissao, valor_total, arquivo_url,
-       natureza_operacao, cfop, base_calculo_icms, valor_icms, valor_iss)
+       natureza_operacao, cfop, base_calculo_icms, valor_icms, valor_iss, chave_acesso)
     values
       (v_oficina_id, p_numero, p_fornecedor, p_data_emissao, coalesce(p_valor_total, 0), p_arquivo_url,
-       p_natureza_operacao, p_cfop, p_base_calculo_icms, p_valor_icms, p_valor_iss)
+       p_natureza_operacao, p_cfop, p_base_calculo_icms, p_valor_icms, p_valor_iss, p_chave_acesso)
     returning id into v_nota_id;
   exception when unique_violation then
     raise exception 'Já existe uma nota número % lançada para este fornecedor.', p_numero
@@ -598,7 +604,7 @@ declare
   f text;
 begin
   foreach f in array array[
-    'salvar_nota_com_itens(text, text, date, numeric, text, jsonb, text, text, numeric, numeric, numeric, integer, date, text, text, boolean)',
+    'salvar_nota_com_itens(text, text, date, numeric, text, jsonb, text, text, numeric, numeric, numeric, text, integer, date, text, text, boolean)',
     'cancelar_nota(uuid)',
     'salvar_nota_saida_com_itens(text, uuid, uuid, text, text, numeric, numeric, numeric, numeric, jsonb, integer, date, text)',
     'cancelar_nota_saida(uuid)'

@@ -25,7 +25,9 @@
     "teste:assinatura": "tsx scripts/teste-assinatura.ts",
     "teste:cadastro": "tsx scripts/teste-cadastro.ts",
     "teste:estornos": "tsx scripts/teste-estornos.ts",
-    "teste:validacao-fiscal": "tsx scripts/teste-validacao-fiscal.ts"
+    "teste:validacao-fiscal": "tsx scripts/teste-validacao-fiscal.ts",
+    "teste:chave-de-acesso": "tsx scripts/teste-chave-de-acesso.ts",
+    "teste:leitor-qr": "tsx scripts/teste-leitor-qr.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -35,6 +37,7 @@
     "date-fns": "^4.1.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
+    "jsqr": "^1.4.0",
     "lucide-react": "^0.468.0",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",

@@ -65,7 +65,7 @@ export function DetalheNotaEntrada() {
     )
   }
 
-  const temFiscal = nota.cfop || nota.natureza_operacao || nota.valor_icms
+  const temFiscal = nota.cfop || nota.natureza_operacao || nota.valor_icms || nota.chave_acesso
 
   return (
     <Tela>
@@ -140,6 +140,9 @@ export function DetalheNotaEntrada() {
           <>
             <TituloSecao>Dados fiscais</TituloSecao>
             <Card>
+              {nota.chave_acesso && (
+                <Linha rotulo="Chave de acesso" valor={nota.chave_acesso.replace(/(\d{4})(?=\d)/g, '$1 ')} />
+              )}
               {nota.natureza_operacao && <Linha rotulo="Natureza da operação" valor={nota.natureza_operacao} />}
               {nota.cfop && <Linha rotulo="CFOP" valor={nota.cfop} />}
               {nota.valor_icms != null && <Linha rotulo="ICMS" valor={moeda(nota.valor_icms)} />}
