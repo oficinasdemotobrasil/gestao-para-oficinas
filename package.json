@@ -29,7 +29,8 @@
     "teste:chave-de-acesso": "tsx scripts/teste-chave-de-acesso.ts",
     "teste:leitor-qr": "tsx scripts/teste-leitor-qr.ts",
     "teste:xml-da-nota": "tsx scripts/teste-xml-da-nota.ts",
-    "teste:certificado": "tsx scripts/teste-certificado.ts"
+    "teste:certificado": "tsx scripts/teste-certificado.ts",
+    "teste:servico-antigo": "tsx scripts/teste-servico-antigo.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
