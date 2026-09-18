@@ -3,20 +3,37 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
 import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
-import { Campo, AreaTexto } from '@/componentes/ui/Campo'
+import { Campo, AreaTexto, Interruptor, Selecao } from '@/componentes/ui/Campo'
 import { Abas } from '@/componentes/ui/Abas'
 import { Botao } from '@/componentes/ui/Botao'
 import { Carregando } from '@/componentes/ui/Carregando'
 import { EstadoErro } from '@/componentes/ui/EstadoVazio'
 import { useToast } from '@/componentes/ui/Toast'
 import { traduzirErro } from '@/lib/erros'
-import { moeda } from '@/lib/formato'
+import { moeda, data as formatarData } from '@/lib/formato'
 import { paraNumero } from '@/lib/numero'
 import { SeletorClienteMoto, type EscolhaClienteMoto } from '../SeletorClienteMoto'
 import { ItensDoOrcamento } from '../ItensDoOrcamento'
-import { obterOrcamento, salvarOrcamento, gerarTextoComercial, type ItemEmEdicao } from '../api'
+import { useAuth } from '@/auth/ProvedorAuth'
+import { usePermissoes } from '@/auth/usePermissoes'
+import { FORMAS } from '@/funcionalidades/financeiro/api'
+import type { FormaPagamento } from '@/tipos/banco'
+import {
+  obterOrcamento,
+  salvarOrcamento,
+  lancarServicoAntigo,
+  gerarTextoComercial,
+  type ItemEmEdicao,
+} from '../api'
 
 type TipoDesconto = 'valor' | 'percentual'
+
+/** aaaa-mm-dd no fuso de quem está usando — toISOString daria o dia seguinte depois das 21h. */
+function diaLocal(d: Date): string {
+  const mes = String(d.getMonth() + 1).padStart(2, '0')
+  const dia = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mes}-${dia}`
+}
 
 const tiposDeDesconto = [
   { id: 'valor', rotulo: 'Em reais' },
@@ -42,7 +59,27 @@ export function EditorOrcamento() {
   const [erroGeral, setErroGeral] = useState<string | null>(null)
   const [gerandoTexto, setGerandoTexto] = useState(false)
 
-  const { data: orcamento, isPending, isError, refetch } = useQuery({
+  // Serviço antigo: o que a oficina fez antes de entrar no sistema. Só o admin,
+  // só ao criar — editar a data de algo que já existe não tem caminho nenhum.
+  const { oficina } = useAuth()
+  const p = usePermissoes()
+  const podeLancarAntigo = !editando && p.ehAdmin
+  const [servicoAntigo, setServicoAntigo] = useState(false)
+  const [dataServico, setDataServico] = useState('')
+  const [dataPagamento, setDataPagamento] = useState('')
+  const [forma, setForma] = useState<FormaPagamento>('dinheiro')
+  const hoje = diaLocal(new Date())
+  // O último dia aceito é o de entrada no sistema: dali em diante, tudo já
+  // foi registrado com a data real. O banco confere o mesmo.
+  const entrouEm = oficina?.criado_em ? diaLocal(new Date(oficina.criado_em)) : hoje
+  const ultimoDiaAntigo = entrouEm < hoje ? entrouEm : hoje
+
+  const {
+    data: orcamento,
+    isPending,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['orcamento', id],
     queryFn: () => obterOrcamento(id!),
     enabled: editando,
@@ -84,20 +121,48 @@ export function EditorOrcamento() {
 
   // A moto traz o km que já estava registrado, para não digitar de novo.
   useEffect(() => {
-    if (!editando && escolha.motoKm != null && km === '') setKm(String(escolha.motoKm))
-  }, [escolha.motoKm, editando, km])
+    // No serviço antigo o km de hoje seria mentira: o da época é outro.
+    if (!editando && !servicoAntigo && escolha.motoKm != null && km === '') {
+      setKm(String(escolha.motoKm))
+    }
+  }, [escolha.motoKm, editando, km, servicoAntigo])
 
   const { soma, valorDoDesconto, total } = useMemo(() => {
     const s = itens.reduce((acc, i) => acc + i.quantidade * i.valor_unitario, 0)
     const d = paraNumero(desconto) || 0
-    const abatimento =
-      tipoDesconto === 'percentual' ? (s * Math.min(Math.max(d, 0), 100)) / 100 : d
+    const abatimento = tipoDesconto === 'percentual' ? (s * Math.min(Math.max(d, 0), 100)) / 100 : d
     return {
       soma: s,
       valorDoDesconto: Math.min(abatimento, s),
       total: Math.max(s - abatimento, 0),
     }
   }, [itens, desconto, tipoDesconto])
+
+  const lancarAntigo = useMutation({
+    mutationFn: () =>
+      lancarServicoAntigo({
+        cliente_id: escolha.clienteId!,
+        moto_id: escolha.motoId!,
+        km_registrado: km ? Number(km.replace(/\D/g, '')) : null,
+        garantia_dias: Number(garantia) || 90,
+        observacoes: observacoes.trim() || null,
+        desconto: valorDoDesconto,
+        desconto_percentual: tipoDesconto === 'percentual' ? paraNumero(desconto) || null : null,
+        itens,
+        data_servico: dataServico,
+        data_pagamento: p.verFinanceiro ? dataPagamento : null,
+        forma_pagamento: p.verFinanceiro ? forma : null,
+      }),
+    onSuccess: (novoId) => {
+      void cache.invalidateQueries({ queryKey: ['orcamentos'] })
+      void cache.invalidateQueries({ queryKey: ['ordens'] })
+      void cache.invalidateQueries({ queryKey: ['contas-receber'] })
+      void cache.invalidateQueries({ queryKey: ['painel'] })
+      toast.sucesso('Serviço antigo lançado.')
+      navegar(`/orcamentos/${novoId}`, { replace: true })
+    },
+    onError: (e) => setErroGeral(traduzirErro(e)),
+  })
 
   const salvar = useMutation({
     mutationFn: () =>
@@ -160,6 +225,22 @@ export function EditorOrcamento() {
     if (!escolha.clienteId) return setErroGeral('Escolha o cliente.')
     if (!escolha.motoId) return setErroGeral('Escolha a moto.')
     if (itens.length === 0) return setErroGeral('Adicione pelo menos um item ao orçamento.')
+    if (servicoAntigo) {
+      if (!dataServico) return setErroGeral('Informe a data em que o serviço foi feito.')
+      if (dataServico > ultimoDiaAntigo) {
+        return setErroGeral(
+          `Serviço antigo é para o que foi feito até ${formatarData(ultimoDiaAntigo)}, ` +
+            'quando a oficina entrou no sistema. Depois disso, use o orçamento normal.',
+        )
+      }
+      if (p.verFinanceiro) {
+        if (!dataPagamento) return setErroGeral('Informe quando o cliente pagou.')
+        if (dataPagamento < dataServico || dataPagamento > hoje) {
+          return setErroGeral('A data do pagamento tem que ser entre a data do serviço e hoje.')
+        }
+      }
+      return lancarAntigo.mutate()
+    }
     salvar.mutate()
   }
 
@@ -172,21 +253,94 @@ export function EditorOrcamento() {
         titulo={
           editando && orcamento
             ? `Orçamento ${String(orcamento.numero).padStart(3, '0')}`
-            : 'Novo orçamento'
+            : servicoAntigo
+              ? 'Serviço antigo'
+              : 'Novo orçamento'
         }
         contexto={editando ? 'Editando' : 'Cliente, moto e itens'}
       />
 
-      <SeletorClienteMoto escolha={escolha} aoEscolher={(m) => setEscolha((a) => ({ ...a, ...m }))} />
+      {podeLancarAntigo && (
+        <div className="mb-4 flex flex-col gap-4 rounded-card bg-superficie p-5 shadow-card">
+          <Interruptor
+            rotulo="Serviço antigo, já feito e pago"
+            descricao="Para registrar o que a oficina fez antes de usar o sistema."
+            marcado={servicoAntigo}
+            aoMudar={(ligado) => {
+              setServicoAntigo(ligado)
+              setErroGeral(null)
+              // O km que veio do cadastro é o de hoje, não o da época.
+              if (ligado && km === String(escolha.motoKm ?? '')) setKm('')
+            }}
+          />
+          {servicoAntigo && (
+            <>
+              <Campo
+                rotulo="Data do serviço"
+                obrigatorio
+                type="date"
+                max={ultimoDiaAntigo}
+                value={dataServico}
+                onChange={(e) => {
+                  setDataServico(e.target.value)
+                  // O caso comum é pagar no dia: já sugere, sem impedir de mudar.
+                  if (!dataPagamento || dataPagamento < e.target.value) {
+                    setDataPagamento(e.target.value)
+                  }
+                }}
+              />
+              {p.verFinanceiro && (
+                <div className="grid grid-cols-2 gap-3">
+                  <Campo
+                    rotulo="Pago em"
+                    obrigatorio
+                    type="date"
+                    min={dataServico || undefined}
+                    max={hoje}
+                    value={dataPagamento}
+                    onChange={(e) => setDataPagamento(e.target.value)}
+                  />
+                  <Selecao
+                    rotulo="Forma"
+                    value={forma}
+                    onChange={(e) => setForma(e.target.value as FormaPagamento)}
+                  >
+                    {FORMAS.filter((f) => f.id !== 'prazo').map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.rotulo}
+                      </option>
+                    ))}
+                  </Selecao>
+                </div>
+              )}
+              <p className="text-apoio text-em-superficie-2">
+                Entra direto como aprovado, entregue
+                {p.verFinanceiro ? ' e pago' : ''}, com a data de quando aconteceu.{' '}
+                <strong>Não mexe no estoque</strong> — as peças saíram na época. Vale para serviços
+                até {formatarData(ultimoDiaAntigo)}.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
+      <SeletorClienteMoto
+        escolha={escolha}
+        aoEscolher={(m) => setEscolha((a) => ({ ...a, ...m }))}
+      />
 
       {escolha.motoId && (
         <div className="pt-4">
           <div className="rounded-card bg-superficie p-5 shadow-card">
             <Campo
-              rotulo="Quilometragem hoje"
+              rotulo={servicoAntigo ? 'Quilometragem na época' : 'Quilometragem hoje'}
               inputMode="numeric"
               placeholder="12000"
-              dica="Como está no painel agora. Atualiza o cadastro da moto."
+              dica={
+                servicoAntigo
+                  ? 'Opcional. Se não souber, deixe em branco.'
+                  : 'Como está no painel agora. Atualiza o cadastro da moto.'
+              }
               value={km}
               onChange={(e) => setKm(e.target.value.replace(/\D/g, ''))}
             />
@@ -230,24 +384,25 @@ export function EditorOrcamento() {
         onClick={() => setMaisOpcoes((v) => !v)}
         className="mt-6 flex min-h-toque w-full items-center justify-between gap-3 rounded-controle border border-borda-em-fundo px-4 text-em-fundo"
       >
-        <span className="text-corpo font-medium">Validade, garantia e observações</span>
-        {maisOpcoes ? (
-          <ChevronUp aria-hidden size={20} />
-        ) : (
-          <ChevronDown aria-hidden size={20} />
-        )}
+        <span className="text-corpo font-medium">
+          {servicoAntigo ? 'Garantia e observações' : 'Validade, garantia e observações'}
+        </span>
+        {maisOpcoes ? <ChevronUp aria-hidden size={20} /> : <ChevronDown aria-hidden size={20} />}
       </button>
 
       {maisOpcoes && (
         <div className="mt-3 flex flex-col gap-4 rounded-card bg-superficie p-5 shadow-card">
           <div className="grid grid-cols-2 gap-3">
-            <Campo
-              rotulo="Validade"
-              inputMode="numeric"
-              dica="Dias"
-              value={validade}
-              onChange={(e) => setValidade(e.target.value.replace(/\D/g, ''))}
-            />
+            {/* Validade não significa nada para o que já foi aprovado e feito. */}
+            {!servicoAntigo && (
+              <Campo
+                rotulo="Validade"
+                inputMode="numeric"
+                dica="Dias"
+                value={validade}
+                onChange={(e) => setValidade(e.target.value.replace(/\D/g, ''))}
+              />
+            )}
             <Campo
               rotulo="Garantia"
               inputMode="numeric"
@@ -263,7 +418,11 @@ export function EditorOrcamento() {
               disabled={gerandoTexto || itens.length === 0}
               className="flex min-h-toque w-fit items-center gap-1.5 self-end rounded-badge bg-acento-suave px-3 text-apoio font-medium text-em-superficie disabled:opacity-50"
             >
-              <Sparkles aria-hidden size={14} className={gerandoTexto ? 'animate-pulse' : undefined} />
+              <Sparkles
+                aria-hidden
+                size={14}
+                className={gerandoTexto ? 'animate-pulse' : undefined}
+              />
               {gerandoTexto ? 'Gerando…' : 'Gerar com IA'}
             </button>
             <AreaTexto
@@ -301,8 +460,12 @@ export function EditorOrcamento() {
             </span>
             <span className="text-titulo text-acento-forte">{moeda(total)}</span>
           </div>
-          <Botao largo carregando={salvar.isPending} onClick={enviar}>
-            {editando ? 'Salvar alterações' : 'Criar orçamento'}
+          <Botao largo carregando={salvar.isPending || lancarAntigo.isPending} onClick={enviar}>
+            {editando
+              ? 'Salvar alterações'
+              : servicoAntigo
+                ? 'Lançar serviço antigo'
+                : 'Criar orçamento'}
           </Botao>
         </div>
       </div>

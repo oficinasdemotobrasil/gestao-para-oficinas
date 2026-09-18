@@ -3,6 +3,7 @@ import { limparBusca } from '@/lib/erros'
 import { normalizarPlaca } from '@/lib/formato'
 import type {
   Cliente,
+  FormaPagamento,
   Moto,
   Orcamento,
   // A linha gravada do item, não o formato que a função do banco recebe.
@@ -160,6 +161,43 @@ export async function salvarOrcamento(dados: DadosOrcamento): Promise<string> {
       quantidade: i.quantidade,
       valor_unitario: i.valor_unitario,
     })),
+  })
+  if (error) throw error
+  return data as string
+}
+
+/**
+ * Serviço antigo: o que a oficina fez antes de entrar no sistema, lançado de
+ * uma vez — orçamento aprovado, OS entregue e recebimento pago, tudo com a
+ * data em que aconteceu. Não mexe no estoque. As travas (só admin, só datas
+ * até a entrada no sistema) moram no banco (0060).
+ */
+export async function lancarServicoAntigo(
+  dados: Omit<DadosOrcamento, 'id' | 'validade_dias'> & {
+    data_servico: string
+    data_pagamento: string | null
+    forma_pagamento: FormaPagamento | null
+  },
+): Promise<string> {
+  const { data, error } = await supabase.rpc('lancar_servico_antigo', {
+    p_cliente_id: dados.cliente_id,
+    p_moto_id: dados.moto_id,
+    p_km_registrado: dados.km_registrado,
+    p_garantia_dias: dados.garantia_dias,
+    p_observacoes: dados.observacoes,
+    p_desconto: dados.desconto,
+    p_desconto_percentual: dados.desconto_percentual,
+    p_itens: dados.itens.map((i) => ({
+      tipo: i.tipo,
+      produto_id: i.produto_id,
+      servico_id: i.servico_id,
+      descricao: i.descricao,
+      quantidade: i.quantidade,
+      valor_unitario: i.valor_unitario,
+    })),
+    p_data_servico: dados.data_servico,
+    p_data_pagamento: dados.data_pagamento,
+    p_forma_pagamento: dados.forma_pagamento,
   })
   if (error) throw error
   return data as string

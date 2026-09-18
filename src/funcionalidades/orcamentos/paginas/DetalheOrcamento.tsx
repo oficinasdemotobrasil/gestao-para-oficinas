@@ -109,7 +109,13 @@ export function DetalheOrcamento() {
     <Tela>
       <CabecalhoInterno
         titulo={`Orçamento ${String(orcamento.numero).padStart(3, '0')}`}
-        contexto={`Criado em ${data(orcamento.criado_em)}`}
+        contexto={
+          // Serviço antigo: a data é a de quando aconteceu, e o nome diz que
+          // foi lançado depois — para ninguém achar que é movimento de hoje.
+          orcamento.historico_lancado_em
+            ? `Serviço antigo · feito em ${data(orcamento.criado_em)}`
+            : `Criado em ${data(orcamento.criado_em)}`
+        }
         acao={<StatusOrcamentoBadge status={efetivo} />}
       />
 

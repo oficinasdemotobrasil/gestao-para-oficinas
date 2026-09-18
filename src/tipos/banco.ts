@@ -327,8 +327,11 @@ type Orcamento = {
   motivo_recusa: string | null
   valor_total: number
   criado_por: string | null
+  /** No serviço antigo (0060), é a data em que o serviço aconteceu. */
   criado_em: string
   atualizado_em: string
+  /** Preenchida só no serviço antigo: o momento real em que foi lançado. */
+  historico_lancado_em: string | null
 }
 
 type ItemDeDocumento = {
@@ -375,6 +378,8 @@ type OrdemServico = {
   observacoes_tecnicas: string | null
   criado_em: string
   atualizado_em: string
+  /** Preenchida só no serviço antigo (0060): o momento real em que foi lançado. */
+  historico_lancado_em: string | null
 }
 
 /** Formas de pagamento aceitas nas duas pontas do financeiro. */
@@ -601,6 +606,24 @@ export type Database = {
           p_desconto_percentual: number | null
           p_itens: ItemOrcamento[]
         }
+        Returns: string
+      }
+      lancar_servico_antigo: {
+        Args: {
+          p_cliente_id: string
+          p_moto_id: string
+          p_km_registrado: number | null
+          p_garantia_dias: number
+          p_observacoes: string | null
+          p_desconto: number
+          p_desconto_percentual: number | null
+          p_itens: ItemOrcamento[]
+          /** aaaa-mm-dd */
+          p_data_servico: string
+          p_data_pagamento: string | null
+          p_forma_pagamento: FormaPagamento | null
+        }
+        /** O id do orçamento criado. */
         Returns: string
       }
       duplicar_orcamento: { Args: { p_orcamento_id: string }; Returns: string }

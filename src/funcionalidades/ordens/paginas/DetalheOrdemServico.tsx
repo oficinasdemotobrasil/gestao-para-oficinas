@@ -230,7 +230,11 @@ export function DetalheOrdemServico() {
     <Tela>
       <CabecalhoInterno
         titulo={`OS ${String(ordem.numero).padStart(3, '0')}`}
-        contexto={`Aberta em ${data(ordem.data_abertura)}`}
+        contexto={
+          ordem.historico_lancado_em
+            ? `Serviço antigo · feito em ${data(ordem.data_abertura)}`
+            : `Aberta em ${data(ordem.data_abertura)}`
+        }
         acao={<StatusOsBadge status={ordem.status} />}
       />
 

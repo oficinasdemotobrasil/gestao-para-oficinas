@@ -2684,6 +2684,187 @@ async function testarPerfisNaFase2() {
   )
 }
 
+/**
+ * Serviço antigo (0060): o passado da oficina lançado de uma vez, com a data
+ * real — e as travas que impedem isso de virar um jeito de reescrever o
+ * histórico ou de bagunçar o estoque de hoje.
+ */
+async function testarServicoAntigo() {
+  console.log('\n\x1b[1mServiço antigo: lançado com a data do passado\x1b[0m')
+
+  // A oficina entrou no sistema há 60 dias. Guardamos a data verdadeira para
+  // devolver no fim: outros blocos dependem dela (período de teste).
+  await comoAdministradorDoBanco()
+  const original = await db.query<{ criado_em: string }>(
+    `select criado_em::text as criado_em from public.oficinas where id = '${ID.oficinaA}'`,
+  )
+  await db.query(
+    `update public.oficinas set criado_em = now() - interval '60 days' where id = '${ID.oficinaA}'`,
+  )
+  const kmAntes = await contar(`select km_atual as n from public.motos where id = '${ID.motoA}'`)
+
+  await logarComo(ID.adminA)
+  const estoqueAntes = await saldo(ID.produtoA)
+
+  const itens = JSON.stringify([
+    { tipo: 'servico', produto_id: null, servico_id: ID.servicoA, descricao: 'Troca de óleo', quantidade: 1, valor_unitario: 60 },
+    { tipo: 'produto', produto_id: ID.produtoA, servico_id: null, descricao: 'Óleo 10W30', quantidade: 2, valor_unitario: 45 },
+  ])
+  // 60 + 90 = 150, menos 10 de desconto = 140. Serviço há 90 dias, pago dois dias depois.
+  const lancar = (dataServico: string, dataPagamento: string | null, forma = `'pix'`) =>
+    `select public.lancar_servico_antigo('${ID.clienteA}', '${ID.motoA}', 1500, 90, 'Caderno',
+       10, null, $1::jsonb, ${dataServico}, ${dataPagamento ?? 'null'}, ${forma}) as id`
+
+  let orcId = ''
+  try {
+    const r = await db.query<{ id: string }>(
+      lancar(`current_date - 90`, `current_date - 88`),
+      [itens],
+    )
+    orcId = r.rows[0].id
+    ok('o admin lança um serviço de 90 dias atrás')
+  } catch (e) {
+    erro('lançamento do serviço antigo', (e as Error).message)
+    await comoAdministradorDoBanco()
+    await db.query(`update public.oficinas set criado_em = $1 where id = '${ID.oficinaA}'`, [original.rows[0].criado_em])
+    return
+  }
+
+  const orc = await db.query<{ status: string; dia: string; marcado: boolean; valor: string }>(
+    `select status, (criado_em at time zone 'America/Sao_Paulo')::date::text as dia,
+            historico_lancado_em is not null as marcado, valor_total::text as valor
+     from public.orcamentos where id = '${orcId}'`,
+  )
+  const hoje90 = await db.query<{ d: string; d88: string }>(
+    `select (current_date - 90)::text as d, (current_date - 88)::text as d88`,
+  )
+  const dia = hoje90.rows[0].d
+  const o = orc.rows[0]
+  o.status === 'aprovado' ? ok('o orçamento nasce aprovado') : erro('status do orçamento', o.status)
+  o.dia === dia ? ok('com a data do serviço, não a de hoje', dia) : erro('data do orçamento', `veio ${o.dia}, esperava ${dia}`)
+  o.marcado ? ok('e marcado como lançamento de histórico') : erro('marca de histórico', 'não veio')
+  Number(o.valor) === 140 ? ok('com o desconto abatido', 'R$ 140,00') : erro('valor do orçamento', o.valor)
+
+  const os = await db.query<{
+    id: string; status: string; abertura: string; conclusao: string; garantia: string; valor: string; itens_feitos: number
+  }>(
+    `select os.id, os.status,
+            (os.data_abertura at time zone 'America/Sao_Paulo')::date::text as abertura,
+            (os.data_conclusao at time zone 'America/Sao_Paulo')::date::text as conclusao,
+            os.garantia_ate::text as garantia, os.valor_total::text as valor,
+            (select count(*) from public.os_itens i where i.ordem_servico_id = os.id and i.executado_em is not null)::int as itens_feitos
+     from public.ordens_servico os where os.orcamento_id = '${orcId}'`,
+  )
+  const ordem = os.rows[0]
+  ordem.status === 'entregue' ? ok('a OS nasce entregue') : erro('status da OS', ordem.status)
+  ordem.abertura === dia && ordem.conclusao === dia
+    ? ok('aberta e concluída na data do serviço')
+    : erro('datas da OS', `abertura ${ordem.abertura}, conclusão ${ordem.conclusao}`)
+  Number(ordem.valor) === 140 ? ok('com o mesmo valor do orçamento') : erro('valor da OS', ordem.valor)
+  ordem.itens_feitos === 2 ? ok('e os itens já marcados como feitos') : erro('itens feitos', String(ordem.itens_feitos))
+  const garantiaEsperada = await db.query<{ d: string }>(`select (current_date - 90 + 90)::text as d`)
+  ordem.garantia === garantiaEsperada.rows[0].d
+    ? ok('a garantia conta da data do serviço')
+    : erro('garantia', `veio ${ordem.garantia}`)
+
+  // O estoque de hoje não sabe desse serviço: as peças saíram há meses.
+  const estoqueDepois = await saldo(ID.produtoA)
+  estoqueDepois === estoqueAntes
+    ? ok('o estoque não mexe', `${estoqueAntes} antes e depois`)
+    : erro('estoque mudou', `${estoqueAntes} → ${estoqueDepois}`)
+  await esperaLinhas(
+    'e nenhuma movimentação de estoque é criada',
+    `select count(*) as n from public.movimentacoes_estoque where ordem_servico_id = '${ordem.id}'`,
+    0,
+  )
+
+  const conta = await db.query<{ status: string; recebido: string; pago: string; forma: string }>(
+    `select status::text, valor_recebido::text as recebido, data_pagamento::text as pago, forma_pagamento as forma
+     from public.contas_receber where ordem_servico_id = '${ordem.id}'`,
+  )
+  const c = conta.rows[0]
+  c && c.status === 'paga' && Number(c.recebido) === 140 && c.pago === hoje90.rows[0].d88 && c.forma === 'pix'
+    ? ok('o recebimento entra pago, na data informada', `${c.pago}, Pix`)
+    : erro('recebimento', JSON.stringify(c))
+
+  // A trilha: o andamento da OS mostra QUEM lançou, com a hora real.
+  await esperaLinhas(
+    'o andamento da OS registra quem lançou, com a hora de verdade',
+    `select count(*) as n from public.os_status_historico
+     where ordem_servico_id = '${ordem.id}' and usuario_id = '${ID.adminA}'
+       and criado_em::date = current_date`,
+    2,
+  )
+
+  const kmDepois = await contar(`select km_atual as n from public.motos where id = '${ID.motoA}'`)
+  kmDepois === kmAntes
+    ? ok('o km antigo (1.500) não puxa o cadastro da moto para trás', String(kmDepois))
+    : erro('km da moto', `${kmAntes} → ${kmDepois}`)
+
+  const painel = await db.query<{ p: { servicos: { finalizadas: number; valor_finalizado: number } } }>(
+    `select public.painel(current_date - 90, current_date - 90) as p`,
+  )
+  const s = painel.rows[0].p.servicos
+  s.finalizadas === 1 && Number(s.valor_finalizado) === 140
+    ? ok('o painel conta o serviço no dia em que ele aconteceu')
+    : erro('painel do dia', JSON.stringify(s))
+
+  // Sem pagamento informado: o serviço entra, a conta não.
+  const semPagamento = await db.query<{ id: string }>(lancar(`current_date - 80`, null, 'null'), [itens])
+  await esperaLinhas(
+    'sem data de pagamento, o serviço entra e não cria recebimento',
+    `select count(*) as n from public.contas_receber cr
+     join public.ordens_servico os on os.id = cr.ordem_servico_id
+     where os.orcamento_id = '${semPagamento.rows[0].id}'`,
+    0,
+  )
+
+  console.log('  \x1b[2m— as travas —\x1b[0m')
+  await esperaErro(
+    'recusa data depois de a oficina entrar no sistema',
+    lancar(`current_date - 10`, null),
+    [itens],
+  )
+  await esperaErro('recusa data no futuro', lancar(`current_date + 1`, null), [itens])
+  await esperaErro(
+    'recusa pagamento antes do serviço',
+    lancar(`current_date - 90`, `current_date - 91`),
+    [itens],
+  )
+  await esperaErro(
+    'recusa pagamento no futuro',
+    lancar(`current_date - 90`, `current_date + 1`),
+    [itens],
+  )
+  await esperaErro('recusa lançamento sem itens', lancar(`current_date - 90`, null), ['[]'])
+
+  await logarComo(ID.vendedorA)
+  await esperaErro('o vendedor não lança serviço antigo', lancar(`current_date - 90`, null), [itens])
+  await logarComo(ID.mecanicoA)
+  await esperaErro('o mecânico também não', lancar(`current_date - 90`, null), [itens])
+
+  // A exceção do ciclo não vaza: fora do lançamento, aberta → entregue
+  // continua proibido.
+  await logarComo(ID.adminA)
+  const normal = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', null,
+       7, 90, null, 0, null, $1::jsonb) as id`,
+    [itens],
+  )
+  const osNormal = await db.query<{ id: string }>(
+    `select public.aprovar_orcamento('${normal.rows[0].id}', '${ID.adminA}') as id`,
+  )
+  await esperaErro(
+    'uma OS normal continua sem poder pular de aberta para entregue',
+    `select public.mudar_status_da_os('${osNormal.rows[0].id}', 'entregue')`,
+  )
+
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set criado_em = $1 where id = '${ID.oficinaA}'`, [
+    original.rows[0].criado_em,
+  ])
+}
+
 async function main() {
   console.log('[1m\nValidação do banco — Gestão para Oficinas[0m')
   try {
@@ -2716,6 +2897,7 @@ async function main() {
     await testarAceiteDosTermos()
     await testarPainelDoNegocio()
     await testarPerfisNaFase2()
+    await testarServicoAntigo()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
     // impressão de que correu tudo bem — foi o que aconteceu quando a coluna
