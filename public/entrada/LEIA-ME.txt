@@ -1,0 +1,11 @@
+Coloque aqui uma foto chamada oficina.jpg (ou .png, trocando o nome no
+MolduraDeEntrada.tsx) e publique: ela passa a ocupar o lado esquerdo da tela
+de entrar no computador, com um véu escuro por cima para o texto continuar
+legível.
+
+O que funciona bem:
+- foto deitada (horizontal), no mínimo 1600 pixels de largura;
+- moto na bancada, ferramenta à vista, oficina de verdade;
+- espaço vazio à esquerda e embaixo, que é onde ficam o logotipo e a frase.
+
+Sem arquivo nenhum aqui, a tela usa a composição da marca. Nada quebra.

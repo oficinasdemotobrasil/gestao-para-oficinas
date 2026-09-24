@@ -208,6 +208,50 @@ async function main() {
       ok('o painel do mês avisa do serviço antigo fora do período', `R$ ${fora.valor}`)
     else erro('aviso de histórico no painel', JSON.stringify(fora))
 
+    // Serviço avulso guardado no catálogo -------------------------------------
+    // Mesmas duas consultas de guardarServicoDoAvulso, na mesma ordem, contra o
+    // banco de verdade: procura por nome e, só não achando, cadastra.
+    const guardar = async (nome: string, preco: number) => {
+      const semCuringa = nome.trim().replace(/([%_\\])/g, '\\$1')
+      const { data: existente } = await app
+        .from('servicos').select('id').ilike('nome', semCuringa).limit(1).maybeSingle()
+      if (existente) return { id: existente.id as string, jaExistia: true }
+      const { data: criado, error } = await app
+        .from('servicos')
+        .insert({ nome: nome.trim(), descricao: null, preco, tempo_estimado_minutos: null, ativo: true })
+        .select().single()
+      if (error) throw new Error(error.message)
+      return { id: criado!.id as string, jaExistia: false }
+    }
+
+    const primeiro = await guardar('Solda no escapamento', 80)
+    primeiro.jaExistia
+      ? erro('avulso no catálogo', 'disse que já existia na primeira vez')
+      : ok('o avulso vira serviço do catálogo')
+
+    const repetido = await guardar('solda NO escapamento', 95)
+    repetido.jaExistia && repetido.id === primeiro.id
+      ? ok('e digitar de novo, em outra caixa, reaproveita o mesmo serviço')
+      : erro('duplicou o serviço', JSON.stringify(repetido))
+
+    const { data: precoMantido } = await app
+      .from('servicos').select('preco').eq('id', primeiro.id).single()
+    Number(precoMantido!.preco) === 80
+      ? ok('o preço do catálogo não é sobrescrito pelo valor combinado num orçamento')
+      : erro('preço do catálogo', String(precoMantido!.preco))
+
+    // O nome com '%': sem escapar, ele casaria com o serviço errado.
+    const comCuringa = await guardar('Revisão 100% completa', 300)
+    comCuringa.jaExistia
+      ? erro('nome com %', 'achou serviço que não existe — o curinga vazou')
+      : ok('nome com "%" não casa com serviço de outro nome')
+
+    const { count } = await app
+      .from('servicos').select('id', { count: 'exact', head: true })
+    count === 2
+      ? ok('o catálogo ficou com dois serviços, não com quatro', String(count))
+      : erro('quantidade no catálogo', String(count))
+
     // As travas ---------------------------------------------------------------
     const depois = await lancar(app, diasAtras(10), null)
     depois.error

@@ -1,15 +1,17 @@
 import { useCallback, useState } from 'react'
 import { Package, Wrench, PenLine, Plus, Trash2 } from 'lucide-react'
 import { Botao } from '@/componentes/ui/Botao'
-import { Campo } from '@/componentes/ui/Campo'
+import { Campo, Interruptor } from '@/componentes/ui/Campo'
 import { Modal } from '@/componentes/ui/Modal'
 import { FolhaDeBusca, type OpcaoDeBusca } from '@/componentes/ui/FolhaDeBusca'
 import { Contador } from '@/componentes/ui/Contador'
+import { useToast } from '@/componentes/ui/Toast'
+import { traduzirErro } from '@/lib/erros'
 import { moeda } from '@/lib/formato'
 import { paraNumero } from '@/lib/numero'
 import { usePermissoes } from '@/auth/usePermissoes'
 import { listarProdutos } from '@/funcionalidades/produtos/api'
-import { listarServicos } from '@/funcionalidades/servicos/api'
+import { listarServicos, guardarServicoDoAvulso } from '@/funcionalidades/servicos/api'
 import type { ItemEmEdicao } from './api'
 
 interface Props {
@@ -212,14 +214,19 @@ export function ItensDoOrcamento({
       <ModalAvulso
         aberto={avulso}
         aoFechar={() => setAvulso(false)}
-        aoAdicionar={(descricao, valor) => {
+        podeGuardarNoCatalogo={p.editarCatalogo}
+        aoAdicionar={(descricao, valor, servicoId) => {
           aoMudar([
             ...itens,
             {
               chave: novaChave(),
-              tipo: 'avulso',
+              // Guardado no catálogo, ele deixa de ser avulso: vira serviço de
+              // verdade, e o orçamento aponta para o cadastro. É isso que faz
+              // o relatório saber que os dois "Solda no escapamento" são o
+              // mesmo serviço.
+              tipo: servicoId ? 'servico' : 'avulso',
               produto_id: null,
-              servico_id: null,
+              servico_id: servicoId,
               descricao,
               quantidade: 1,
               valor_unitario: valor,
@@ -240,22 +247,50 @@ function ModalAvulso({
   aberto,
   aoFechar,
   aoAdicionar,
+  podeGuardarNoCatalogo,
 }: {
   aberto: boolean
   aoFechar: () => void
-  aoAdicionar: (descricao: string, valor: number) => void
+  /** O terceiro argumento vem preenchido quando o item virou serviço do catálogo. */
+  aoAdicionar: (descricao: string, valor: number, servicoId: string | null) => void
+  podeGuardarNoCatalogo: boolean
 }) {
+  const toast = useToast()
   const [descricao, setDescricao] = useState('')
   const [valor, setValor] = useState('')
+  const [guardar, setGuardar] = useState(false)
+  const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
-  function confirmar() {
+  async function confirmar() {
     if (descricao.trim().length < 2) return setErro('Escreva o que é este item.')
     const n = paraNumero(valor)
     if (!Number.isFinite(n) || n <= 0) return setErro('Informe o valor.')
-    aoAdicionar(descricao.trim(), n)
+
+    let servicoId: string | null = null
+    if (guardar) {
+      setSalvando(true)
+      try {
+        const { id, jaExistia } = await guardarServicoDoAvulso(descricao.trim(), n)
+        servicoId = id
+        toast.sucesso(
+          jaExistia
+            ? 'Este serviço já estava no catálogo — o item aponta para ele.'
+            : 'Serviço guardado no catálogo.',
+        )
+      } catch (e) {
+        setSalvando(false)
+        // O item não se perde por causa do catálogo: o erro aparece e a pessoa
+        // decide se tenta de novo ou se adiciona como avulso mesmo.
+        return setErro(traduzirErro(e))
+      }
+      setSalvando(false)
+    }
+
+    aoAdicionar(descricao.trim(), n, servicoId)
     setDescricao('')
     setValor('')
+    setGuardar(false)
     setErro(null)
   }
 
@@ -265,7 +300,7 @@ function ModalAvulso({
       aoFechar={aoFechar}
       titulo="Item avulso"
       rodape={
-        <Botao largo onClick={confirmar}>
+        <Botao largo carregando={salvando} onClick={() => void confirmar()}>
           Adicionar item
         </Botao>
       }
@@ -288,6 +323,18 @@ function ModalAvulso({
           value={valor}
           onChange={(e) => setValor(e.target.value)}
         />
+        {/* O caso comum é avulso mesmo: "peça que o cliente trouxe" não é
+            serviço da oficina. Por isso a chave nasce desligada — ligada por
+            padrão, o catálogo encheria de item de uma vez só. */}
+        {podeGuardarNoCatalogo && (
+          <Interruptor
+            rotulo="Guardar no catálogo como serviço"
+            descricao="Para não digitar de novo no próximo orçamento."
+            marcado={guardar}
+            aoMudar={setGuardar}
+          />
+        )}
+
         {erro && (
           <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
             {erro}

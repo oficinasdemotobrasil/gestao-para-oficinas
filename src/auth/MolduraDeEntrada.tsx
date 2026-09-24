@@ -13,22 +13,22 @@
  * endereço. Foi exatamente o que aconteceu: a tela do GIRO abria verde, com a
  * marca de outra oficina.
  */
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { aplicarCorDaMarca } from '@/lib/marca'
 import { Logotipo, Simbolo } from '@/componentes/marca/Logotipo'
 
 /**
  * A foto que ocupa o lado esquerdo no computador.
  *
- * Enquanto não houver foto de oficina de moto que seja nossa — feita numa
- * oficina ou comprada com licença —, o lado fica com a composição da marca.
- * Foto de banco de imagem baixada sem licença é processo, não é economia.
+ * Para colocar uma foto, basta salvar o arquivo em `public/entrada/oficina.jpg`
+ * e publicar: a tela procura por ele sozinha e, achando, usa. Não achando,
+ * fica a composição da marca — e ninguém precisa mexer em código para isso.
  *
- * Para colocar a foto: salve em `public/entrada/oficina.jpg` e troque o null
- * por '/entrada/oficina.jpg'. O resto já está pronto, inclusive o véu escuro
- * que mantém o texto legível por cima dela.
+ * Enquanto não houver foto de oficina de moto que seja nossa, feita numa
+ * oficina ou comprada com licença, o lado fica com o desenho. Foto de banco de
+ * imagem baixada sem licença é processo, não é economia.
  */
-const FOTO_DA_ENTRADA: string | null = null
+const FOTO_DA_ENTRADA = '/entrada/oficina.jpg'
 
 export function MolduraDeEntrada({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -54,13 +54,19 @@ export function MolduraDeEntrada({ children }: { children: ReactNode }) {
 }
 
 function PainelDaMarca() {
+  // Começa supondo que a foto existe e desiste no primeiro erro de carga. O
+  // contrário — perguntar ao servidor antes — atrasaria a tela em todo mundo
+  // por causa de um arquivo que quase sempre não está lá.
+  const [temFoto, setTemFoto] = useState(true)
+
   return (
     <aside className="relative hidden overflow-hidden bg-inverso desktop:flex desktop:flex-col desktop:justify-between desktop:p-12">
-      {FOTO_DA_ENTRADA ? (
+      {temFoto ? (
         <>
           <img
             src={FOTO_DA_ENTRADA}
             alt=""
+            onError={() => setTemFoto(false)}
             className="absolute inset-0 h-full w-full object-cover"
           />
           {/* Véu chapado, sem degradê: a identidade não usa gradiente, e é ele
