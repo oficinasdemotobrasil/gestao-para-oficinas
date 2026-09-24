@@ -14,3 +14,6 @@ dev-dist
 # arquivo de build incremental do TypeScript
 tsconfig.tsbuildinfo
 .DS_Store
+
+# backups de dados de cliente, gerados por scripts/zerar-oficina.ts
+backups
