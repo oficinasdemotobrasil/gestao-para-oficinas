@@ -20,6 +20,7 @@ import {
   type DadosMotoSubmetidos,
 } from '../esquemas'
 import { criarMoto, atualizarMoto, obterMoto } from '../api'
+import { MARCAS_DE_MOTO } from '../marcas'
 
 export function FormularioMoto() {
   const { id } = useParams<{ id: string }>()
@@ -153,13 +154,23 @@ export function FormularioMoto() {
         />
 
         <div className="grid grid-cols-2 gap-3">
+          {/* Lista de sugestão, não de opções: quem tem uma marca fora da
+              lista continua digitando. Evita "Hoda" e "HONDA" virarem marcas
+              diferentes na hora de procurar a moto. */}
           <Campo
             rotulo="Marca"
             autoCapitalize="words"
             placeholder="Honda"
+            list="marcas-de-moto"
+            autoComplete="off"
             erro={errors.marca?.message}
             {...register('marca')}
           />
+          <datalist id="marcas-de-moto">
+            {MARCAS_DE_MOTO.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
           <Campo
             rotulo="Modelo"
             autoCapitalize="words"

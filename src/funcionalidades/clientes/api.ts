@@ -39,6 +39,7 @@ export interface DadosCliente {
   telefone: string | null
   email: string | null
   cpf_cnpj: string | null
+  data_nascimento: string | null
   observacoes: string | null
 }
 

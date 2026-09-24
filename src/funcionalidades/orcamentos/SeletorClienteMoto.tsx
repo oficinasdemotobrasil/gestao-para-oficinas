@@ -260,6 +260,9 @@ function ModalClienteRapido({
         telefone: tel.replace(/\D/g, '') || null,
         email: null,
         cpf_cnpj: null,
+        // O cadastro rápido, no meio do orçamento, pede só nome e telefone:
+        // o resto se completa depois, na ficha do cliente.
+        data_nascimento: null,
         observacoes: null,
       }),
     onSuccess: (c) => {

@@ -56,6 +56,9 @@ export function DetalheCliente() {
           <Linha rotulo="Telefone" valor={telefone(cliente.telefone)} />
           <Linha rotulo="E-mail" valor={cliente.email ?? '—'} />
           <Linha rotulo="CPF / CNPJ" valor={cpfCnpj(cliente.cpf_cnpj)} />
+          {cliente.data_nascimento && (
+            <Linha rotulo="Aniversário" valor={data(cliente.data_nascimento)} />
+          )}
         </Card>
     </>
   )

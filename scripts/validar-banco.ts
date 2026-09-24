@@ -2865,6 +2865,94 @@ async function testarServicoAntigo() {
   ])
 }
 
+/**
+ * O que a reunião com a oficina pediu (0061): aniversário do cliente e o
+ * serviço antigo contado à parte quando fica fora do período do painel.
+ */
+async function testarNascimentoEHistoricoNoPainel() {
+  console.log('\n\x1b[1mAniversário do cliente e o passado no painel\x1b[0m')
+  await logarComo(ID.adminA)
+
+  await db.query(
+    `update public.clientes set data_nascimento = date '1985-07-14' where id = '${ID.clienteA}'`,
+  )
+  await esperaLinhas(
+    'o cliente aceita data de nascimento',
+    `select count(*) as n from public.clientes
+      where id = '${ID.clienteA}' and data_nascimento = date '1985-07-14'`,
+    1,
+  )
+  await esperaErro(
+    'e recusa data que não existe',
+    `update public.clientes set data_nascimento = date '1750-01-01' where id = '${ID.clienteA}'`,
+  )
+  await db.query(`update public.clientes set data_nascimento = null where id = '${ID.clienteA}'`)
+  await esperaLinhas(
+    'ficar sem data continua valendo',
+    `select count(*) as n from public.clientes
+      where id = '${ID.clienteA}' and data_nascimento is null`,
+    1,
+  )
+
+  // O cenário do Tiago: a oficina entrou no sistema há 60 dias e lançou um
+  // serviço de 90 dias atrás. No painel do MÊS ele não aparece — e é disso
+  // que o bloco novo tem de dar notícia.
+  await comoAdministradorDoBanco()
+  const original = await db.query<{ criado_em: string }>(
+    `select criado_em::text as criado_em from public.oficinas where id = '${ID.oficinaA}'`,
+  )
+  await db.query(
+    `update public.oficinas set criado_em = now() - interval '60 days' where id = '${ID.oficinaA}'`,
+  )
+
+  await logarComo(ID.adminA)
+
+  // O teste do serviço antigo já deixou lançamentos nesta oficina, então o que
+  // importa aqui é a DIFERENÇA: o que este serviço novo acrescenta ao aviso.
+  const mesDe = `date_trunc('month', current_date)::date`
+  const mesAte = `(date_trunc('month', current_date) + interval '1 month - 1 day')::date`
+  const foraAntes = await db.query<{ p: { historico_fora_do_periodo: { quantidade: number; valor: number } } }>(
+    `select public.painel(${mesDe}, ${mesAte}) as p`,
+  )
+  const antes = foraAntes.rows[0].p.historico_fora_do_periodo
+
+  const itens = JSON.stringify([
+    { tipo: 'servico', produto_id: null, servico_id: ID.servicoA, descricao: 'Revisão antiga', quantidade: 1, valor_unitario: 300 },
+  ])
+  await db.query(
+    `select public.lancar_servico_antigo('${ID.clienteA}', '${ID.motoA}', null, 90, null,
+       0, null, $1::jsonb, current_date - 90, current_date - 90, 'dinheiro')`,
+    [itens],
+  )
+
+  const mes = await db.query<{ p: { historico_fora_do_periodo: { quantidade: number; valor: number } } }>(
+    `select public.painel(${mesDe}, ${mesAte}) as p`,
+  )
+  const fora = mes.rows[0].p.historico_fora_do_periodo
+  fora.quantidade === antes.quantidade + 1 && Number(fora.valor) === Number(antes.valor) + 300
+    ? ok('o painel do mês avisa do serviço antigo que ficou de fora', `R$ ${fora.valor}`)
+    : erro('histórico fora do período', `antes ${JSON.stringify(antes)}, depois ${JSON.stringify(fora)}`)
+
+  // No período que abrange o serviço, ele deixa de ser "de fora" e passa a
+  // contar no faturamento — senão o mesmo dinheiro apareceria duas vezes.
+  const ano = await db.query<{
+    p: { historico_fora_do_periodo: { quantidade: number }; servicos: { valor_finalizado: number } }
+  }>(
+    `select public.painel(current_date - 120, current_date) as p`,
+  )
+  ano.rows[0].p.historico_fora_do_periodo.quantidade === 0
+    ? ok('e para de avisar quando o período alcança o serviço')
+    : erro('histórico dentro do período', JSON.stringify(ano.rows[0].p.historico_fora_do_periodo))
+  Number(ano.rows[0].p.servicos.valor_finalizado) >= 300
+    ? ok('aí ele entra no faturamento, uma vez só')
+    : erro('faturamento do período largo', JSON.stringify(ano.rows[0].p.servicos))
+
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set criado_em = $1 where id = '${ID.oficinaA}'`, [
+    original.rows[0].criado_em,
+  ])
+}
+
 async function main() {
   console.log('[1m\nValidação do banco — Gestão para Oficinas[0m')
   try {
@@ -2898,6 +2986,7 @@ async function main() {
     await testarPainelDoNegocio()
     await testarPerfisNaFase2()
     await testarServicoAntigo()
+    await testarNascimentoEHistoricoNoPainel()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
     // impressão de que correu tudo bem — foi o que aconteceu quando a coluna

@@ -29,6 +29,15 @@ export const esquemaCliente = z.object({
     },
     'CPF precisa de 11 dígitos e CNPJ de 14.',
   ),
+  /*
+   * Opcional de verdade: ninguém segura o atendimento para perguntar o
+   * aniversário de quem chegou com a moto quebrada. Serve para lembrar do
+   * cliente no dia — a única mensagem que oficina manda e o cliente agradece.
+   */
+  data_nascimento: opcional.refine(
+    (v) => v === null || v <= new Date().toISOString().slice(0, 10),
+    'A data de nascimento não pode ser no futuro.',
+  ),
   observacoes: opcional,
 })
 

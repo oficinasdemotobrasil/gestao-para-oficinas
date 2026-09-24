@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { TriangleAlert, ChevronRight } from 'lucide-react'
+import { TriangleAlert, ChevronRight, History } from 'lucide-react'
 import { TituloSecao } from '@/componentes/layout/Tela'
 import { Card } from '@/componentes/ui/Card'
 import { Abas } from '@/componentes/ui/Abas'
@@ -17,6 +17,7 @@ const periodos = [
   { id: 'hoje', rotulo: 'Hoje' },
   { id: '7dias', rotulo: '7 dias' },
   { id: 'mes', rotulo: 'Mês' },
+  { id: 'ano', rotulo: 'Ano' },
   { id: 'personalizado', rotulo: 'Escolher' },
 ] as const
 
@@ -107,6 +108,39 @@ export function Painel() {
         // na bancada, quanto falta receber —, e empilhados num monitor largo
         // eles viram uma coluna fina que obriga a rolar para comparar.
         <div className="flex flex-col gap-3 pt-4 tablet:grid tablet:grid-cols-2 desktop:grid-cols-3 tablet:items-start">
+          {/* O passado que não cabe nesta janela.
+              Serviço antigo é sempre de antes de a oficina entrar no sistema,
+              então no mês — que é o período padrão — ele nunca apareceria.
+              Somar no faturamento do mês seria mentira; calar foi pior: na
+              primeira semana, R$ 2.379,90 lançados sumiram da vista e pareceu
+              que o sistema tinha perdido o dinheiro. */}
+          {/* Com interrogação: durante um deploy, a tela nova pode chegar ao
+              celular antes de a migração rodar no banco, e sem isso a tela
+              inicial quebraria inteira por causa de um aviso. */}
+          {(data.historico_fora_do_periodo?.quantidade ?? 0) > 0 && (
+            <div className="tablet:col-span-2 desktop:col-span-3 flex items-start gap-3 rounded-card bg-fundo-2 px-4 py-3">
+              <History aria-hidden size={20} className="mt-0.5 shrink-0 text-em-fundo-2" />
+              <p className="text-corpo text-em-fundo">
+                Mais {moeda(data.historico_fora_do_periodo.valor)} em{' '}
+                {data.historico_fora_do_periodo.quantidade}{' '}
+                {data.historico_fora_do_periodo.quantidade === 1
+                  ? 'serviço antigo'
+                  : 'serviços antigos'}
+                , fora deste período.{' '}
+                <button
+                  type="button"
+                  onClick={() => setPeriodo('ano')}
+                  className="text-acento-forte underline underline-offset-2"
+                >
+                  Ver o ano inteiro
+                </button>
+                <span className="block pt-1 text-apoio text-em-fundo-2">
+                  São os serviços que a oficina fez antes de entrar no sistema. Eles não entram
+                  no faturamento deste período.
+                </span>
+              </p>
+            </div>
+          )}
           {/* Orçamento: quanto do que foi oferecido virou serviço ---------- */}
           <Card>
             <div className="flex gap-4">

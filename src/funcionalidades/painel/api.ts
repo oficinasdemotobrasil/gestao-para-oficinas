@@ -33,7 +33,7 @@ export async function historicoDaPlaca(motoId: string): Promise<ServicoNoHistori
 }
 
 /** Os períodos que o dono usa. "Personalizado" abre os dois campos de data. */
-export type Periodo = 'hoje' | '7dias' | 'mes' | 'personalizado'
+export type Periodo = 'hoje' | '7dias' | 'mes' | 'ano' | 'personalizado'
 
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -48,6 +48,10 @@ export function datasDoPeriodo(periodo: Periodo): { de: string; ate: string } {
       antes.setDate(antes.getDate() - 6)
       return { de: iso(antes), ate: iso(hoje) }
     }
+    // O ano inteiro: é o período em que o serviço antigo aparece junto do
+    // resto, porque ele é sempre de antes de a oficina entrar no sistema.
+    case 'ano':
+      return { de: iso(new Date(hoje.getFullYear(), 0, 1)), ate: iso(new Date(hoje.getFullYear(), 11, 31)) }
     default: {
       const primeiro = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
       const ultimo = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)

@@ -56,6 +56,7 @@ export function FormularioCliente() {
         telefone: cliente.telefone ?? '',
         email: cliente.email ?? '',
         cpf_cnpj: cliente.cpf_cnpj ?? '',
+        data_nascimento: cliente.data_nascimento ?? '',
         observacoes: cliente.observacoes ?? '',
       })
     }
@@ -128,6 +129,15 @@ export function FormularioCliente() {
           placeholder="Só os números"
           erro={errors.cpf_cnpj?.message}
           {...register('cpf_cnpj')}
+        />
+
+        <Campo
+          rotulo="Data de nascimento"
+          type="date"
+          dica="Opcional. Serve para lembrar do cliente no aniversário."
+          max={new Date().toISOString().slice(0, 10)}
+          erro={errors.data_nascimento?.message}
+          {...register('data_nascimento')}
         />
 
         <LinhaInteira>

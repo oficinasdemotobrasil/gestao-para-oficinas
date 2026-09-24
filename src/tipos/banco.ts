@@ -144,6 +144,8 @@ type Cliente = {
   telefone: string | null
   email: string | null
   cpf_cnpj: string | null
+  /** Opcional (0061): serve para lembrar do cliente no aniversário. */
+  data_nascimento: string | null
   observacoes: string | null
   criado_em: string
   atualizado_em: string
@@ -757,6 +759,17 @@ export type Database = {
             pago: number
           } | null
           evolucao: Array<{ dia: string; valor: number }>
+          /**
+           * Serviço antigo que ficou FORA do período escolhido (0061). Existe
+           * porque serviço antigo é sempre de antes de a oficina entrar no
+           * sistema: no período padrão, que é o mês, ele nunca apareceria.
+           */
+          historico_fora_do_periodo: {
+            quantidade: number
+            valor: number
+            primeiro_dia: string | null
+            ultimo_dia: string | null
+          }
           produtos_para_repor: number
         }
       }
