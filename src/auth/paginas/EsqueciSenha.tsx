@@ -7,6 +7,7 @@ import { Botao } from '@/componentes/ui/Botao'
 import { Campo } from '@/componentes/ui/Campo'
 import { useAuth } from '@/auth/ProvedorAuth'
 import { esquemaEsqueciSenha, type DadosEsqueciSenha } from '@/auth/esquemas'
+import { MolduraDeEntrada } from '@/auth/MolduraDeEntrada'
 
 export function EsqueciSenha() {
   const { enviarRecuperacao } = useAuth()
@@ -33,31 +34,30 @@ export function EsqueciSenha() {
 
   if (enviado) {
     return (
-      <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-5 py-10 text-center">
+      <MolduraDeEntrada>
         <span className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-acento">
           <MailCheck aria-hidden size={30} className="text-em-superficie" />
         </span>
         <h1 className="text-titulo text-em-fundo">Verifique seu e-mail</h1>
         <p className="mx-auto max-w-[38ch] pt-2 text-corpo text-em-fundo-2">
-          Se existir uma conta para {getValues('email')}, o link para criar uma
-          nova senha chega em instantes. Ele vale por uma hora.
+          Se existir uma conta para {getValues('email')}, o link para criar uma nova senha chega em
+          instantes. Ele vale por uma hora.
         </p>
         {/* Botão, e não link com botão dentro: elemento clicável dentro de outro
             elemento clicável confunde leitor de tela e navegação por teclado. */}
         <Botao variante="contorno" largo className="mt-8" onClick={() => navegar('/entrar')}>
           Voltar para o login
         </Botao>
-      </main>
+      </MolduraDeEntrada>
     )
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-5 py-10">
+    <MolduraDeEntrada>
       <div className="pb-6">
         <h1 className="text-titulo text-em-fundo">Esqueci minha senha</h1>
         <p className="pt-1 text-corpo text-em-fundo-2">
-          Informe o e-mail do seu acesso. Enviamos um link para você criar uma
-          nova senha.
+          Informe o e-mail do seu acesso. Enviamos um link para você criar uma nova senha.
         </p>
       </div>
 
@@ -79,7 +79,10 @@ export function EsqueciSenha() {
         />
 
         {erroGeral && (
-          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
+          <p
+            role="alert"
+            className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte"
+          >
             {erroGeral}
           </p>
         )}
@@ -95,6 +98,6 @@ export function EsqueciSenha() {
       >
         Voltar para o login
       </Link>
-    </main>
+    </MolduraDeEntrada>
   )
 }

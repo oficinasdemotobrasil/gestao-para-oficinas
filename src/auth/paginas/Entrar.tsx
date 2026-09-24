@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Eye, EyeOff } from 'lucide-react'
 import { marcaLembrada } from '@/lib/marca'
-import { Logotipo } from '@/componentes/marca/Logotipo'
+import { MolduraDeEntrada } from '@/auth/MolduraDeEntrada'
 import { Botao } from '@/componentes/ui/Botao'
 import { Campo } from '@/componentes/ui/Campo'
 import { useAuth } from '@/auth/ProvedorAuth'
@@ -36,28 +36,9 @@ export function Entrar() {
   const marca = marcaLembrada()
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-5 py-10">
-      {/* A oficina que entrou por último neste aparelho. O app tem um endereço
-          só e ainda não sabe quem está digitando — mas o computador do balcão é
-          sempre da mesma oficina, então da segunda vez em diante ele já abre
-          com a cara dela. Sem nada lembrado, aparece o produto. */}
-      <div className="pb-8 text-center">
-        {marca?.logoMiniatura && (
-          <img
-            src={marca.logoMiniatura}
-            alt=""
-            className="mx-auto mb-5 h-16 w-16 rounded-full object-contain"
-          />
-        )}
-        {/* Com oficina lembrada, quem se apresenta é ela — o GIRO fica no rodapé.
-            Sem ninguém lembrado, o logotipo é o próprio título da tela. */}
-        {marca?.nome ? (
-          <h1 className="text-titulo text-em-fundo">{marca.nome}</h1>
-        ) : (
-          <h1 className="flex justify-center">
-            <Logotipo tamanho={44} />
-          </h1>
-        )}
+    <MolduraDeEntrada>
+      <div className="pb-8 text-center desktop:text-left">
+        <h1 className="text-secao text-em-fundo">Entrar</h1>
         <p className="pt-1 text-corpo text-em-fundo-2">
           Entre para ver o movimento da sua oficina.
         </p>
@@ -101,7 +82,10 @@ export function Entrar() {
         </div>
 
         {erroGeral && (
-          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
+          <p
+            role="alert"
+            className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte"
+          >
             {erroGeral}
           </p>
         )}
@@ -118,19 +102,35 @@ export function Entrar() {
         </Link>
       </form>
 
-      <p className="px-4 pt-6 text-center text-apoio text-em-fundo-2">
-        O acesso é criado pelo responsável da oficina. Se você ainda não tem
-        login, peça a ele para cadastrar você.
+      {/* A oficina que usou este aparelho da última vez. Continua sendo
+              informação útil no computador do balcão — "é aqui mesmo" —, mas
+              agora é uma linha, e não a identidade da tela. */}
+      {marca?.nome && (
+        <p className="flex items-center justify-center gap-2 pt-5 text-apoio text-em-fundo-2 desktop:justify-start">
+          {marca.logoMiniatura && (
+            <img
+              src={marca.logoMiniatura}
+              alt=""
+              className="h-6 w-6 shrink-0 rounded-full object-contain"
+            />
+          )}
+          <span className="truncate">Último acesso neste aparelho: {marca.nome}</span>
+        </p>
+      )}
+
+      <p className="pt-6 text-center text-apoio text-em-fundo-2 desktop:text-left">
+        O acesso é criado pelo responsável da oficina. Se você ainda não tem login, peça a ele para
+        cadastrar você.
       </p>
 
-      <p className="pt-6 text-center text-corpo text-em-fundo-2">
+      <p className="pt-5 text-center text-corpo text-em-fundo-2 desktop:text-left">
         Ainda não tem conta?{' '}
         <Link to="/criar-conta" className="text-acento-forte">
           Criar a conta da minha oficina
         </Link>
       </p>
 
-      <nav className="flex flex-wrap justify-center gap-4 pt-6 text-apoio text-em-fundo-2">
+      <nav className="flex flex-wrap justify-center gap-4 pt-6 text-apoio text-em-fundo-2 desktop:justify-start">
         <Link to="/termos" className="min-h-toque-fino">
           Termos de Uso
         </Link>
@@ -138,15 +138,6 @@ export function Entrar() {
           Política de Privacidade
         </Link>
       </nav>
-
-      {/* Com a oficina lembrada, o produto assina embaixo, pequeno — a tela é
-          dela, não nossa. Sem oficina lembrada o logotipo já é o título, e
-          repetir aqui seria dizer a mesma coisa duas vezes. */}
-      {marca?.nome && (
-        <p className="flex justify-center pt-8">
-          <Logotipo tamanho={22} />
-        </p>
-      )}
-    </main>
+    </MolduraDeEntrada>
   )
 }

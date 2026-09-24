@@ -43,6 +43,7 @@ export default {
         /* Superfície invertida: o botão secundário, preto nos dois temas. */
         inverso: 'rgb(var(--cor-inverso) / <alpha-value>)',
         'em-inverso': 'rgb(var(--cor-em-inverso) / <alpha-value>)',
+        'em-inverso-2': 'rgb(var(--cor-em-inverso-2) / <alpha-value>)',
         /* Nomeadas pelo que ficam EM CIMA, não pela claridade que têm: no
            tema claro os dois viram escuros, e um token chamado "escuro"
            guardando cor escura para fundo claro envenena o código. */

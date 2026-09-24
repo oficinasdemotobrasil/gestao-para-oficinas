@@ -9,6 +9,7 @@ import { EstadoErro } from '@/componentes/ui/EstadoVazio'
 import { useAuth } from '@/auth/ProvedorAuth'
 import { useToast } from '@/componentes/ui/Toast'
 import { esquemaNovaSenha, type DadosNovaSenha } from '@/auth/esquemas'
+import { MolduraDeEntrada } from '@/auth/MolduraDeEntrada'
 
 /**
  * Tela aberta pelo link do e-mail. O Supabase troca o código da URL por uma
@@ -58,7 +59,7 @@ export function RedefinirSenha() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-5 py-10">
+    <MolduraDeEntrada>
       <div className="pb-6">
         <h1 className="text-titulo text-em-fundo">Criar nova senha</h1>
         <p className="pt-1 text-corpo text-em-fundo-2">
@@ -87,7 +88,10 @@ export function RedefinirSenha() {
         />
 
         {erroGeral && (
-          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
+          <p
+            role="alert"
+            className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte"
+          >
             {erroGeral}
           </p>
         )}
@@ -96,6 +100,6 @@ export function RedefinirSenha() {
           Salvar senha
         </Botao>
       </form>
-    </main>
+    </MolduraDeEntrada>
   )
 }

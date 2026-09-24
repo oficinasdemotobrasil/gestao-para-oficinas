@@ -55,6 +55,13 @@
    */
   --cor-inverso: 17 17 19;
   --cor-em-inverso: 255 255 255;
+  /*
+   * O texto de apoio sobre a superfície invertida. Vale nos dois temas, como o
+   * próprio inverso: o painel da tela de entrar é escuro mesmo quando o resto
+   * do app está claro, e um cinza vindo do tema escreveria escuro sobre escuro.
+   * 6,1:1 sobre o preto da marca.
+   */
+  --cor-em-inverso-2: 143 143 150;
 
   /*
    * O símbolo do logotipo do GIRO.

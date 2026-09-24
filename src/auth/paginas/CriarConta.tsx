@@ -22,6 +22,7 @@ import { Campo } from '@/componentes/ui/Campo'
 import { supabase } from '@/lib/supabase'
 import { mascararTelefone } from '@/lib/formato'
 import { VERSAO_DOS_DOCUMENTOS } from '@/funcionalidades/legal/documentos'
+import { MolduraDeEntrada } from '@/auth/MolduraDeEntrada'
 
 const esquema = z.object({
   oficina: z.string().trim().min(2, 'Informe o nome da oficina.'),
@@ -93,20 +94,20 @@ export function CriarConta() {
 
   if (aberto === null) {
     return (
-      <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-5">
+      <MolduraDeEntrada>
         <p className="text-center text-corpo text-em-fundo-2">Carregando…</p>
-      </main>
+      </MolduraDeEntrada>
     )
   }
 
   if (!aberto) {
     return (
-      <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-5 py-10">
+      <MolduraDeEntrada>
         <div className="rounded-card bg-superficie p-6 text-center">
           <h1 className="text-secao text-em-superficie">Ainda não abrimos o cadastro</h1>
           <p className="pt-2 text-corpo text-em-superficie-2">
-            Por enquanto as contas são abertas uma a uma, com conversa antes.
-            Chame a gente e a sua oficina entra.
+            Por enquanto as contas são abertas uma a uma, com conversa antes. Chame a gente e a sua
+            oficina entra.
           </p>
           <div className="pt-5">
             <Link
@@ -117,18 +118,18 @@ export function CriarConta() {
             </Link>
           </div>
         </div>
-      </main>
+      </MolduraDeEntrada>
     )
   }
 
   if (pronto) {
     return (
-      <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-5 py-10">
+      <MolduraDeEntrada>
         <div className="rounded-card bg-superficie p-6 text-center">
           <h1 className="text-secao text-em-superficie">Confirme o seu e-mail</h1>
           <p className="pt-2 text-corpo text-em-superficie-2">
-            Mandamos uma mensagem para <strong>{watch('email')}</strong>. Clique
-            no link dela para entrar na sua oficina.
+            Mandamos uma mensagem para <strong>{watch('email')}</strong>. Clique no link dela para
+            entrar na sua oficina.
           </p>
           <p className="pt-2 text-apoio text-em-superficie-2">
             Não chegou em alguns minutos? Olhe no spam.
@@ -139,20 +140,18 @@ export function CriarConta() {
             </Botao>
           </div>
         </div>
-      </main>
+      </MolduraDeEntrada>
     )
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-5 py-10">
+    <MolduraDeEntrada>
       <div className="pb-6 text-center">
         <span className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-acento">
           <Wrench aria-hidden size={30} className="text-em-superficie" />
         </span>
         <h1 className="text-titulo text-em-fundo">Crie a conta da sua oficina</h1>
-        <p className="pt-1 text-corpo text-em-fundo-2">
-          Sete dias para experimentar, sem cartão.
-        </p>
+        <p className="pt-1 text-corpo text-em-fundo-2">Sete dias para experimentar, sem cartão.</p>
       </div>
 
       <form
@@ -237,7 +236,10 @@ export function CriarConta() {
         </label>
 
         {erroGeral && (
-          <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
+          <p
+            role="alert"
+            className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte"
+          >
             {erroGeral}
           </p>
         )}
@@ -253,6 +255,6 @@ export function CriarConta() {
           Entrar
         </Link>
       </p>
-    </main>
+    </MolduraDeEntrada>
   )
 }
