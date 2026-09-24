@@ -1800,9 +1800,11 @@ async function testarLimitesDePlano() {
   console.log('\n\x1b[1mO que cada plano deixa fazer\x1b[0m')
   await comoAdministradorDoBanco()
 
-  // Uma oficina no plano gratuito, criada só para este bloco.
+  // Uma oficina no plano Operacional, criada só para este bloco: é ele que
+  // tem duas vagas e não tem financeiro. O plano de teste deixou de servir
+  // aqui quando o teste passou a valer como o plano maior (0066/0067).
   const of = await db.query<{ id: string }>(
-    `insert into public.oficinas (nome, plano) values ('Oficina do Plano', 'gratuito') returning id`,
+    `insert into public.oficinas (nome, plano) values ('Oficina do Plano', 'essencial') returning id`,
   )
   const oficina = of.rows[0].id
 
@@ -1824,7 +1826,7 @@ async function testarLimitesDePlano() {
     `insert into public.usuarios (id, oficina_id, nome, email, perfil)
      values ('${pessoas[1]}', '${oficina}', 'Mecânico', 'p1@teste.local', 'mecanico')`,
   )
-  ok('no plano gratuito cabem duas pessoas com acesso')
+  ok('no plano Operacional cabem duas pessoas com acesso')
 
   await esperaErro(
     'e a terceira é recusada, dizendo o plano e o número',
@@ -1858,7 +1860,7 @@ async function testarLimitesDePlano() {
 
   // Rebaixar NÃO desliga ninguém: só impede o próximo.
   await comoAdministradorDoBanco()
-  await db.query(`update public.oficinas set plano = 'gratuito' where id = '${oficina}'`)
+  await db.query(`update public.oficinas set plano = 'essencial' where id = '${oficina}'`)
   const aindaAtivos = await contar(
     `select count(*) as n from public.usuarios where oficina_id = '${oficina}' and ativo`,
   )
@@ -1870,7 +1872,7 @@ async function testarLimitesDePlano() {
   const dono = pessoas[0]
   await logarComo(dono)
   await esperaLinhas(
-    'no plano gratuito o financeiro vem vazio',
+    'no plano Operacional o financeiro vem vazio',
     'select count(*) as n from public.contas_receber',
     0,
   )
@@ -1895,7 +1897,7 @@ async function testarLimitesDePlano() {
 
   // E o painel não pode contar o que a tela não mostra.
   await comoAdministradorDoBanco()
-  await db.query(`update public.oficinas set plano = 'gratuito' where id = '${oficina}'`)
+  await db.query(`update public.oficinas set plano = 'essencial' where id = '${oficina}'`)
   await logarComo(dono)
   const semFin = await db.query<{ j: { financeiro: unknown } }>(
     `select public.painel(current_date - 30, current_date) as j`,
