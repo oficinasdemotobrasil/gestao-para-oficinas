@@ -49,6 +49,8 @@ export function FormularioMoto() {
     handleSubmit,
     reset,
     setError,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
     // O terceiro tipo é o que chega no onSubmit: os dados JÁ convertidos pelo
     // Zod. Sem ele, a tela recebia texto e convertia de novo — que é o defeito
@@ -154,23 +156,14 @@ export function FormularioMoto() {
         />
 
         <div className="grid grid-cols-2 gap-3">
-          {/* Lista de sugestão, não de opções: quem tem uma marca fora da
-              lista continua digitando. Evita "Hoda" e "HONDA" virarem marcas
-              diferentes na hora de procurar a moto. */}
           <Campo
             rotulo="Marca"
             autoCapitalize="words"
             placeholder="Honda"
-            list="marcas-de-moto"
             autoComplete="off"
             erro={errors.marca?.message}
             {...register('marca')}
           />
-          <datalist id="marcas-de-moto">
-            {MARCAS_DE_MOTO.map((m) => (
-              <option key={m} value={m} />
-            ))}
-          </datalist>
           <Campo
             rotulo="Modelo"
             autoCapitalize="words"
@@ -178,6 +171,39 @@ export function FormularioMoto() {
             erro={errors.modelo?.message}
             {...register('modelo')}
           />
+        </div>
+
+        {/* Marcas na mão, e não num menu do navegador.
+            A primeira versão usava <datalist>: no computador vira uma listinha
+            discreta e no celular, quando aparece, é um alvo minúsculo — o
+            contrário do que esta tela precisa, que é acertar com o dedo sujo.
+            Aqui cada marca é um botão, e continua valendo digitar qualquer
+            outra: a lista existe para "Hoda" e "HONDA" não virarem marcas
+            diferentes na hora de procurar a moto depois. */}
+        <div className="-mt-1 flex flex-wrap gap-2">
+          {MARCAS_DE_MOTO.map((m) => {
+            const escolhida = (watch('marca') ?? '').trim().toLowerCase() === m.toLowerCase()
+            return (
+              <button
+                key={m}
+                type="button"
+                aria-pressed={escolhida}
+                onClick={() =>
+                  setValue('marca', escolhida ? '' : m, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+                className={
+                  escolhida
+                    ? 'min-h-toque-fino rounded-badge bg-acento px-3 text-apoio font-medium text-em-superficie'
+                    : 'min-h-toque-fino rounded-badge border border-borda-em-superficie px-3 text-apoio text-em-superficie-2 active:bg-fundo-2'
+                }
+              >
+                {m}
+              </button>
+            )
+          })}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
