@@ -31,7 +31,10 @@ export function Busca() {
   const p = usePermissoes()
   const [termo, setTermo] = useState('')
   const termoAtrasado = useDebounce(termo)
-  const procurando = termoAtrasado.trim().length >= 2
+  // Duas letras para texto, e um dígito basta para número: a OS 7 é o que a
+  // oficina nova procura o tempo todo, e exigir dois caracteres a escondia.
+  const limpo = termoAtrasado.trim()
+  const procurando = limpo.length >= 2 || /^\d+$/.test(limpo)
 
   const { data: resultado, isPending, isError, refetch } = useQuery({
     queryKey: ['busca', termoAtrasado],
@@ -57,8 +60,8 @@ export function Busca() {
       {!procurando ? (
         <EstadoVazio
           icone={<Search aria-hidden size={28} />}
-          titulo="Digite pelo menos duas letras"
-          descricao="Vale a placa da moto, o nome ou o telefone do cliente, e o número da ordem de serviço."
+          titulo="Digite para buscar"
+          descricao="Vale a placa da moto, o nome ou o telefone do cliente, e o número da ordem de serviço. Duas letras bastam — ou um número, para achar a OS."
         />
       ) : isPending ? (
         <EsqueletoLista linhas={4} />

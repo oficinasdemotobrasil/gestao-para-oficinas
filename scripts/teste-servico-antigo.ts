@@ -252,6 +252,43 @@ async function main() {
       ? ok('o catálogo ficou com dois serviços, não com quatro', String(count))
       : erro('quantidade no catálogo', String(count))
 
+    // A busca do balcão (0062) -------------------------------------------------
+    const buscar = async (termo: string) => {
+      const { data, error } = await app.rpc('busca_geral', { p_termo: termo })
+      if (error) throw new Error(`busca "${termo}": ${error.message}`)
+      return data as {
+        motos: Array<{ placa: string; dono_nome: string | null; servicos_abertos: number }>
+        clientes: Array<{ nome: string; em_aberto: number; motos: unknown[] }>
+        ordens: Array<{ numero: number }>
+      }
+    }
+
+    const placa = `ANT${String(MARCA).slice(-4)}`
+    const porPlaca = await buscar(placa.toLowerCase())
+    porPlaca.motos[0]?.placa === placa && porPlaca.motos[0]?.dono_nome === 'Cliente do Caderno'
+      ? ok('a busca acha a moto pela placa e já traz o dono')
+      : erro('busca por placa', JSON.stringify(porPlaca.motos))
+
+    const porNome = await buscar('caderno')
+    porNome.clientes[0]?.motos.length === 1
+      ? ok('acha o cliente pelo nome, com a moto dele junto')
+      : erro('busca por nome', JSON.stringify(porNome.clientes))
+
+    const porTelefone = await buscar('98888')
+    porTelefone.clientes.length === 1
+      ? ok('acha pelo pedaço do telefone')
+      : erro('busca por telefone', JSON.stringify(porTelefone.clientes))
+
+    const porNumero = await buscar(String(os!.numero))
+    porNumero.ordens.some((o) => o.numero === os!.numero)
+      ? ok('e acha a OS pelo número', `OS ${os!.numero}`)
+      : erro('busca por número da OS', JSON.stringify(porNumero.ordens))
+
+    const nada = await buscar('zzzz9999')
+    nada.motos.length === 0 && nada.clientes.length === 0 && nada.ordens.length === 0
+      ? ok('e não inventa resultado quando não existe')
+      : erro('busca sem resultado', JSON.stringify(nada))
+
     // As travas ---------------------------------------------------------------
     const depois = await lancar(app, diasAtras(10), null)
     depois.error

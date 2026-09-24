@@ -3008,6 +3008,20 @@ async function testarBuscaGeral() {
     ? ok('uma letra só não devolve a oficina inteira')
     : erro('busca curta', JSON.stringify(curto))
 
+  // Mas número de um dígito é número de OS, e a oficina nova procura por ele
+  // o tempo todo. Texto continua precisando de duas letras; número, não.
+  const numeroDaOs = await db.query<{ n: number }>(
+    `select numero as n from public.ordens_servico
+      where oficina_id = '${ID.oficinaA}' order by numero limit 1`,
+  )
+  const porNumero = await buscar(String(numeroDaOs.rows[0].n))
+  ;(porNumero.ordens as Array<{ numero: number }>).some((o) => o.numero === numeroDaOs.rows[0].n)
+    ? ok('e um dígito sozinho acha a OS daquele número', `OS ${numeroDaOs.rows[0].n}`)
+    : erro('busca por número de um dígito', JSON.stringify(porNumero.ordens))
+  ;(porNumero.motos as unknown[]).length === 0
+    ? ok('sem varrer motos e clientes atrás de um dígito solto')
+    : erro('busca de um dígito varreu demais', JSON.stringify(porNumero.motos))
+
   const soPontuacao = await buscar('--')
   ;(soPontuacao.motos as unknown[]).length === 0
     ? ok('e um termo só de pontuação também não')
