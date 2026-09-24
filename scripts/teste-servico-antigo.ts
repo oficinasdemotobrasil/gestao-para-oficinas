@@ -187,6 +187,27 @@ async function main() {
       ? ok('o painel conta o serviço no dia em que aconteceu')
       : erro('painel', JSON.stringify(s))
 
+    // O aviso da tela inicial (0061): serviço antigo é de antes de a oficina
+    // entrar no sistema, então no painel do MÊS ele tem de aparecer como "fora
+    // deste período". Foi essa ausência que pareceu dinheiro perdido.
+    const agora = new Date()
+    const mesDe = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-01`
+    const mesAte = new Date(agora.getFullYear(), agora.getMonth() + 1, 0).toLocaleDateString(
+      'sv-SE',
+      { timeZone: 'America/Sao_Paulo' },
+    )
+    const { data: painelDoMes, error: ePainel } = await app.rpc('painel', {
+      p_de: mesDe,
+      p_ate: mesAte,
+    })
+    const fora = (
+      painelDoMes as { historico_fora_do_periodo?: { quantidade: number; valor: number } }
+    )?.historico_fora_do_periodo
+    if (ePainel) erro('painel do mês', ePainel.message)
+    else if (fora && fora.quantidade === 1 && Number(fora.valor) === 140)
+      ok('o painel do mês avisa do serviço antigo fora do período', `R$ ${fora.valor}`)
+    else erro('aviso de histórico no painel', JSON.stringify(fora))
+
     // As travas ---------------------------------------------------------------
     const depois = await lancar(app, diasAtras(10), null)
     depois.error
