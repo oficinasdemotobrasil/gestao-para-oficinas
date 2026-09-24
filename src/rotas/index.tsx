@@ -11,6 +11,7 @@ import { ListaClientes } from '@/funcionalidades/clientes/paginas/ListaClientes'
 import { FormularioCliente } from '@/funcionalidades/clientes/paginas/FormularioCliente'
 import { DetalheCliente } from '@/funcionalidades/clientes/paginas/DetalheCliente'
 import { ClientesInativos } from '@/funcionalidades/clientes/paginas/ClientesInativos'
+import { Ajuda } from '@/funcionalidades/ajuda/Ajuda'
 import { Busca } from '@/funcionalidades/busca/Busca'
 import { Indicadores } from '@/funcionalidades/indicadores/paginas/Indicadores'
 import { FormularioIndicador } from '@/funcionalidades/indicadores/paginas/FormularioIndicador'
@@ -50,6 +51,18 @@ export const rotas = createBrowserRouter([
 
   // Termos e privacidade ficam fora do RotaPublica: quem já está logado
   // também precisa poder reler, e lá seria expulso para a home.
+  /*
+   * Porta de conferência da ajuda, só em desenvolvimento.
+   *
+   * A ajuda mora dentro da área logada, e logar exige senha — então, sem esta
+   * porta, a única forma de conferir o texto e o layout seria publicar e pedir
+   * para alguém olhar. `import.meta.env.DEV` é falso no build de produção, e o
+   * Vite remove o trecho inteiro: no site publicado esta rota não existe.
+   */
+  ...(import.meta.env.DEV
+    ? [{ path: '/previa-da-ajuda', element: <Ajuda mostrarTudo /> }]
+    : []),
+
   { path: '/termos', element: <Termos /> },
   { path: '/privacidade', element: <Privacidade /> },
 
@@ -70,6 +83,9 @@ export const rotas = createBrowserRouter([
           // O bloqueio por perfil aqui é conveniência de navegação: tira do
           // caminho quem digitou o endereço na mão. Quem realmente recusa o
           // acesso ao dado é o RLS, no banco.
+          // A ajuda é de todo mundo, inclusive do mecânico: cada perfil vê os
+          // caminhos que a tela dele tem.
+          { path: '/ajuda', element: <Ajuda /> },
           // Indicador e comissão são dinheiro que sai: do admin, como o resto
           // do financeiro.
           {

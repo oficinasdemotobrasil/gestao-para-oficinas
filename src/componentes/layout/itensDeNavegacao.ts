@@ -1,4 +1,4 @@
-import { Home, FileText, Wrench, Bike, Users, Package, Wallet, Receipt, Users2, Settings, Search, Handshake } from 'lucide-react'
+import { Home, FileText, Wrench, Bike, Users, Package, Wallet, Receipt, Users2, Settings, Search, Handshake, BookOpen } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { usePermissoes } from '@/auth/usePermissoes'
 
@@ -49,5 +49,8 @@ export const ITENS: ItemDeNavegacao[] = [
   { para: '/notas-fiscais', rotulo: 'Notas fiscais', Icone: Receipt, visivel: (p) => p.verFinanceiro },
   { para: '/indicadores', rotulo: 'Indicadores', Icone: Handshake, visivel: (p) => p.ehAdmin },
   { para: '/colaboradores', rotulo: 'Colaboradores', Icone: Users2, visivel: (p) => p.verColaboradores },
+  // A ajuda fica por último de propósito: quem precisa dela procura, e quem
+  // não precisa não tropeça nela todo dia.
+  { para: '/ajuda', rotulo: 'Ajuda', Icone: BookOpen, visivel: () => true },
   { para: '/configuracoes', rotulo: 'Configurações', Icone: Settings, visivel: (p) => p.verConfiguracoes },
 ]
