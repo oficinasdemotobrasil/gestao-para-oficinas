@@ -156,14 +156,24 @@ export function FormularioMoto() {
         />
 
         <div className="grid grid-cols-2 gap-3">
+          {/* A lista do navegador continua: no computador, quem digita "y" já
+              vê Yamaha e Shineray filtradas, sem tirar a mão do teclado. Os
+              botões abaixo servem ao celular, onde essa lista é um alvo
+              minúsculo — e onde o dedo está sujo de graxa. */}
           <Campo
             rotulo="Marca"
             autoCapitalize="words"
             placeholder="Honda"
+            list="marcas-de-moto"
             autoComplete="off"
             erro={errors.marca?.message}
             {...register('marca')}
           />
+          <datalist id="marcas-de-moto">
+            {MARCAS_DE_MOTO.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
           <Campo
             rotulo="Modelo"
             autoCapitalize="words"
@@ -173,13 +183,12 @@ export function FormularioMoto() {
           />
         </div>
 
-        {/* Marcas na mão, e não num menu do navegador.
-            A primeira versão usava <datalist>: no computador vira uma listinha
-            discreta e no celular, quando aparece, é um alvo minúsculo — o
-            contrário do que esta tela precisa, que é acertar com o dedo sujo.
-            Aqui cada marca é um botão, e continua valendo digitar qualquer
-            outra: a lista existe para "Hoda" e "HONDA" não virarem marcas
-            diferentes na hora de procurar a moto depois. */}
+        {/* As mesmas marcas, agora do tamanho do dedo.
+            A lista do navegador só aparece depois de começar a digitar, e no
+            celular é um alvo minúsculo — foi por isso que ninguém percebeu que
+            existia. Aqui elas estão à vista, e continua valendo digitar
+            qualquer outra marca: a lista existe para "Hoda" e "HONDA" não
+            virarem marcas diferentes na hora de procurar a moto depois. */}
         <div className="-mt-1 flex flex-wrap gap-2">
           {MARCAS_DE_MOTO.map((m) => {
             const escolhida = (watch('marca') ?? '').trim().toLowerCase() === m.toLowerCase()
