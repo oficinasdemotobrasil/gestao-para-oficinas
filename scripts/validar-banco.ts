@@ -3353,6 +3353,20 @@ async function testarTesteMostraTudo() {
   console.log('\n\x1b[1mNo teste, a oficina vê tudo\x1b[0m')
   await comoAdministradorDoBanco()
 
+  // O cartão do plano tem de dizer o que o teste entrega (0067). Texto que
+  // promete menos do que o produto faz é o que leva a pessoa a escolher
+  // errado, e ninguém descobre porque nada quebra.
+  const cartao = await db.query<{ beneficios: string[]; limite: number }>(
+    `select beneficios, limite_colaboradores as limite from public.planos where id = 'gratuito'`,
+  )
+  cartao.rows[0].beneficios.some((b) => b.toLowerCase().includes('financeiro')) &&
+  !cartao.rows[0].beneficios.some((b) => b.toLowerCase().includes('sem módulo financeiro'))
+    ? ok('o cartão do teste diz que o financeiro está incluído')
+    : erro('texto do plano de teste', JSON.stringify(cartao.rows[0].beneficios))
+  Number(cartao.rows[0].limite) === 5
+    ? ok('e diz os 5 acessos que o teste realmente permite')
+    : erro('limite no cartão', String(cartao.rows[0].limite))
+
   const guardado = await db.query<{ plano: string; acesso: string | null; teste: string | null }>(
     `select plano::text, acesso_ate::text as acesso, teste_ate::text as teste
        from public.oficinas where id = '${ID.oficinaA}'`,
