@@ -1,0 +1,22 @@
+:root {
+  /* Marca */
+  --giro-preto: #0B0B0C;          /* fundo principal */
+  --giro-amarelo: #F5C518;        /* SÓ preenchimento/fundo. Texto amarelo apenas sobre preto (12,1:1) */
+  --giro-amarelo-ferro: #7A5C00;  /* texto/ícone "amarelo" sobre fundo claro (6,2:1 no branco) */
+  /* Dinheiro — uso EXCLUSIVO: botão pagar/receber, selo PAGO, valor recebido */
+  --giro-verde: #12A150;          /* borda, selo vazado no escuro, fundo atrás de texto preto */
+  --giro-verde-escuro: #0B6B35;   /* fundo de botão/selo com texto branco (6,6:1); texto verde em fundo claro */
+  --giro-verde-claro: #3DDB85;    /* texto verde sobre preto */
+  /* Neutros */
+  --giro-superficie: #131316;
+  --giro-borda: #26262B;
+  --giro-texto: #F2F2F3;
+  --giro-texto-2: #8F8F96;
+  --giro-erro: #B00020;
+  /* Forma */
+  --giro-raio: 2px;
+  /* Tipo */
+  --giro-font-marca: 'Archivo', sans-serif;      /* 800/900, títulos e logotipo */
+  --giro-font-ui: 'IBM Plex Sans', sans-serif;   /* 400–700, interface */
+  --giro-font-mono: 'IBM Plex Mono', monospace;  /* rótulos, códigos */
+}

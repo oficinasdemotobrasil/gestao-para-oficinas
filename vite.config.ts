@@ -40,9 +40,9 @@ export default defineConfig({
         'icons/apple-touch-icon.png',
       ],
       manifest: {
-        name: 'Gestão para Oficinas',
-        short_name: 'Oficinas',
-        description: 'Gestão para oficinas de moto',
+        name: 'GIRO — sistema que organiza sua oficina de moto',
+        short_name: 'GIRO',
+        description: 'GIRO — sistema que organiza sua oficina de moto',
         lang: 'pt-BR',
         start_url: '/',
         scope: '/',
@@ -78,6 +78,19 @@ export default defineConfig({
             options: {
               cacheName: 'icones',
               expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
+          {
+            // A letra do logotipo. Guardada depois da primeira visita, para a
+            // oficina sem sinal não ver a marca trocar de forma.
+            urlPattern: ({ url }) =>
+              url.origin === 'https://fonts.googleapis.com' ||
+              url.origin === 'https://fonts.gstatic.com',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'fontes',
+              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
         ],

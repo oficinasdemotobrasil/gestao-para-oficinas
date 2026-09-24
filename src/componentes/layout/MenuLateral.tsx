@@ -3,6 +3,7 @@ import { LogOut } from 'lucide-react'
 import { useAuth } from '@/auth/ProvedorAuth'
 import { usePermissoes, nomeDoPerfil } from '@/auth/usePermissoes'
 import { cn } from '@/lib/cn'
+import { Logotipo } from '@/componentes/marca/Logotipo'
 import { ITENS } from './itensDeNavegacao'
 
 /**
@@ -85,6 +86,12 @@ export function MenuLateral() {
 
       {/* Quem está logado e a saída, no pé — onde se procura por eles. */}
       <div className="border-t border-borda-em-fundo p-3">
+        {/* Só no desktop: no tablet estreito a coluna não tem largura para a
+            palavra, e o handoff proíbe o logotipo abaixo de 22px. */}
+        <div className="hidden px-1 pb-3 desktop:block">
+          <Logotipo tamanho={22} />
+        </div>
+
         <div className="hidden px-1 pb-2 desktop:block">
           <p className="truncate text-corpo text-em-fundo">{usuario?.nome}</p>
           <p className="truncate text-apoio text-em-fundo-2">

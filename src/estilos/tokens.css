@@ -56,6 +56,16 @@
   --cor-inverso: 17 17 19;
   --cor-em-inverso: 255 255 255;
 
+  /*
+   * O símbolo do logotipo do GIRO.
+   *
+   * Não é o acento: o acento é a cor DA OFICINA, e cada uma escolhe a sua — o
+   * logotipo do produto não pode virar azul porque a oficina é azul. E não é
+   * um valor fixo: sobre o cinza claro do tema claro, o amarelo da marca dá
+   * 1,63:1, e a própria identidade manda usar tudo preto nesse caso.
+   */
+  --cor-marca-simbolo: 245 197 24;
+
   --cor-em-superficie: 17 17 19;
   --cor-em-superficie-2: 107 107 112;
   --cor-em-fundo: 255 255 255;
@@ -154,6 +164,9 @@
 
     --cor-em-fundo: 17 17 19;
     --cor-em-fundo-2: 95 95 104;
+
+    /* Amarelo sobre papel não se lê: no tema claro o logotipo fica todo preto. */
+    --cor-marca-simbolo: 11 11 12;
   }
 }
 
@@ -166,4 +179,7 @@
 
   --cor-em-fundo: 17 17 19;
   --cor-em-fundo-2: 95 95 104;
+
+  /* Amarelo sobre papel não se lê: no tema claro o logotipo fica todo preto. */
+  --cor-marca-simbolo: 11 11 12;
 }

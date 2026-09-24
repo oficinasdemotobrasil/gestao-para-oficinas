@@ -1,9 +1,9 @@
 /**
  * Gera os ícones do PWA sem depender de editor de imagem.
  *
- * Desenho: fundo quase preto com uma porca sextavada amarela — a ferramenta mais
- * reconhecível de uma oficina, e uma forma que continua legível a 32px na aba do
- * navegador. Troque por um logo de verdade quando houver um.
+ * Desenho: o símbolo do GIRO — anel aberto com a seta — preto sobre o amarelo
+ * da marca, como manda o handoff da identidade. A geometria é a mesma do SVG,
+ * recalculada em pixels porque aqui não há navegador para desenhar o traço.
  *
  *   npx tsx scripts/gerar-icones.ts
  */
@@ -66,21 +66,64 @@ function png(largura: number, altura: number, rgb: Uint8Array): Buffer {
 }
 
 // --- Desenho ----------------------------------------------------------------
+//
+// O símbolo da marca, nas mesmas coordenadas do SVG do handoff (viewBox 100):
+// um anel aberto de raio 32 e traço 15, e a seta que fecha o giro.
+//
+//   <path d="M31.2 25.4 A32 32 0 1 0 72 23.6" stroke-width="15"/>
+//   <path d="M66 4 L92 20 L64 36 Z"/>
+//
+// Aqui o anel é a coroa entre os raios 24,5 e 39,5, sem a fatia que vai de um
+// ponto ao outro — é essa abertura que faz o anel virar um giro, e não um "O".
 
-const RAIZ3 = Math.sqrt(3)
+const RAIO_INTERNO = 32 - 15 / 2
+const RAIO_EXTERNO = 32 + 15 / 2
 
-/** Hexágono regular de topo plano, centrado na origem. */
-function dentroDoHexagono(x: number, y: number, r: number): boolean {
-  const ax = Math.abs(x)
-  const ay = Math.abs(y)
-  return ay <= (RAIZ3 / 2) * r && RAIZ3 * ax + ay <= RAIZ3 * r
+/** Ângulo em graus, medido como na tela: x para a direita, y para baixo. */
+function anguloEm(x: number, y: number): number {
+  const g = (Math.atan2(y - 50, x - 50) * 180) / Math.PI
+  return g < 0 ? g + 360 : g
 }
 
+const ABERTURA_DE = anguloEm(31.2, 25.4) // 232,6° — a ponta de cima à esquerda
+const ABERTURA_ATE = anguloEm(72, 23.6) //  309,8° — onde a seta encosta
+
+const SETA: Array<[number, number]> = [
+  [66, 4],
+  [92, 20],
+  [64, 36],
+]
+
+function dentroDoTriangulo(x: number, y: number, t: Array<[number, number]>): boolean {
+  const lado = (a: [number, number], b: [number, number]) =>
+    (b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0])
+  const d1 = lado(t[0], t[1])
+  const d2 = lado(t[1], t[2])
+  const d3 = lado(t[2], t[0])
+  return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0))
+}
+
+/** (x, y) em coordenadas do símbolo (0–100) está pintado? */
+function dentroDoSimbolo(x: number, y: number): boolean {
+  const dx = x - 50
+  const dy = y - 50
+  const distancia = Math.sqrt(dx * dx + dy * dy)
+  if (distancia >= RAIO_INTERNO && distancia <= RAIO_EXTERNO) {
+    const a = anguloEm(x, y)
+    if (a < ABERTURA_DE || a > ABERTURA_ATE) return true
+  }
+  return dentroDoTriangulo(x, y, SETA)
+}
+
+/**
+ * Fundo amarelo, símbolo preto — a versão do handoff para ícone de app.
+ * `proporcao` é quanto do lado o símbolo ocupa (0,62 no ícone comum; menos no
+ * maskable, que o sistema recorta).
+ */
 function desenhar(tamanho: number, proporcao: number): Uint8Array {
   const px = new Uint8Array(tamanho * tamanho * 3)
-  const centro = tamanho / 2
-  const raioHex = (tamanho * proporcao) / 2
-  const raioFuro = raioHex * 0.42
+  const lado = tamanho * proporcao
+  const margem = (tamanho - lado) / 2
   const amostras = 4 // suavização por supersampling
 
   for (let y = 0; y < tamanho; y++) {
@@ -88,17 +131,15 @@ function desenhar(tamanho: number, proporcao: number): Uint8Array {
       let cobertura = 0
       for (let sy = 0; sy < amostras; sy++) {
         for (let sx = 0; sx < amostras; sx++) {
-          const px0 = x + (sx + 0.5) / amostras - centro
-          const py0 = y + (sy + 0.5) / amostras - centro
-          const noHex = dentroDoHexagono(px0, py0, raioHex)
-          const noFuro = px0 * px0 + py0 * py0 <= raioFuro * raioFuro
-          if (noHex && !noFuro) cobertura++
+          const u = ((x + (sx + 0.5) / amostras - margem) / lado) * 100
+          const v = ((y + (sy + 0.5) / amostras - margem) / lado) * 100
+          if (u >= 0 && u <= 100 && v >= 0 && v <= 100 && dentroDoSimbolo(u, v)) cobertura++
         }
       }
       const a = cobertura / (amostras * amostras)
       const i = (y * tamanho + x) * 3
       for (let c = 0; c < 3; c++) {
-        px[i + c] = Math.round(FUNDO[c] * (1 - a) + ACENTO[c] * a)
+        px[i + c] = Math.round(ACENTO[c] * (1 - a) + FUNDO[c] * a)
       }
     }
   }
@@ -110,14 +151,14 @@ function desenhar(tamanho: number, proporcao: number): Uint8Array {
 mkdirSync(destino, { recursive: true })
 
 const arquivos: Array<[string, number, number]> = [
-  // nome, tamanho, quanto do quadro a porca ocupa
-  ['icon-192.png', 192, 0.7],
-  ['icon-512.png', 512, 0.7],
+  // nome, tamanho, quanto do quadro o símbolo ocupa
+  ['icon-192.png', 192, 0.62],
+  ['icon-512.png', 512, 0.62],
   // Maskable: o sistema recorta as bordas, então a forma fica menor, dentro da
   // zona segura de 80%.
-  ['icon-maskable-512.png', 512, 0.52],
+  ['icon-maskable-512.png', 512, 0.46],
   // O iOS já arredonda o ícone por conta própria.
-  ['apple-touch-icon.png', 180, 0.7],
+  ['apple-touch-icon.png', 180, 0.62],
 ]
 
 for (const [nome, tamanho, proporcao] of arquivos) {
@@ -126,10 +167,13 @@ for (const [nome, tamanho, proporcao] of arquivos) {
 }
 
 // Favicon em SVG: nítido em qualquer tamanho e pesa quase nada.
+// Raio de 21% do lado e símbolo a 62%, como manda o handoff.
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" fill="#0B0B0C"/>
-  <path d="M50 15 L80 32.5 L80 67.5 L50 85 L20 67.5 L20 32.5 Z" fill="#F5C518"/>
-  <circle cx="50" cy="50" r="14.7" fill="#0B0B0C"/>
+  <rect width="100" height="100" rx="21" fill="#F5C518"/>
+  <g transform="translate(19 19) scale(0.62)">
+    <path d="M31.2 25.4 A32 32 0 1 0 72 23.6" fill="none" stroke="#0B0B0C" stroke-width="15"/>
+    <path d="M66 4 L92 20 L64 36 Z" fill="#0B0B0C"/>
+  </g>
 </svg>
 `
 writeFileSync(path.join(raiz, 'public/favicon.svg'), svg)

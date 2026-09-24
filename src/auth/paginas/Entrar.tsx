@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Wrench, Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { marcaLembrada } from '@/lib/marca'
+import { Logotipo } from '@/componentes/marca/Logotipo'
 import { Botao } from '@/componentes/ui/Botao'
 import { Campo } from '@/componentes/ui/Campo'
 import { useAuth } from '@/auth/ProvedorAuth'
@@ -41,18 +42,22 @@ export function Entrar() {
           sempre da mesma oficina, então da segunda vez em diante ele já abre
           com a cara dela. Sem nada lembrado, aparece o produto. */}
       <div className="pb-8 text-center">
-        {marca?.logoMiniatura ? (
+        {marca?.logoMiniatura && (
           <img
             src={marca.logoMiniatura}
             alt=""
             className="mx-auto mb-5 h-16 w-16 rounded-full object-contain"
           />
-        ) : (
-          <span className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-acento">
-            <Wrench aria-hidden size={30} className="text-em-superficie" />
-          </span>
         )}
-        <h1 className="text-titulo text-em-fundo">{marca?.nome ?? 'Gestão para Oficinas'}</h1>
+        {/* Com oficina lembrada, quem se apresenta é ela — o GIRO fica no rodapé.
+            Sem ninguém lembrado, o logotipo é o próprio título da tela. */}
+        {marca?.nome ? (
+          <h1 className="text-titulo text-em-fundo">{marca.nome}</h1>
+        ) : (
+          <h1 className="flex justify-center">
+            <Logotipo tamanho={44} />
+          </h1>
+        )}
         <p className="pt-1 text-corpo text-em-fundo-2">
           Entre para ver o movimento da sua oficina.
         </p>
@@ -133,6 +138,15 @@ export function Entrar() {
           Política de Privacidade
         </Link>
       </nav>
+
+      {/* Com a oficina lembrada, o produto assina embaixo, pequeno — a tela é
+          dela, não nossa. Sem oficina lembrada o logotipo já é o título, e
+          repetir aqui seria dizer a mesma coisa duas vezes. */}
+      {marca?.nome && (
+        <p className="flex justify-center pt-8">
+          <Logotipo tamanho={22} />
+        </p>
+      )}
     </main>
   )
 }

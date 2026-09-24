@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { Users, Users2, Settings, LogOut, Share, Info, Wallet, Receipt } from 'lucide-react'
+import { Logotipo } from '@/componentes/marca/Logotipo'
 import { Tela, CabecalhoTela, TituloSecao } from '@/componentes/layout/Tela'
 import { ListaCard, LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
 import { Botao } from '@/componentes/ui/Botao'
@@ -137,9 +138,10 @@ export function Mais() {
         Sair
       </Botao>
 
-      <p className="flex items-start gap-2 px-1 pt-8 text-apoio text-em-fundo-2">
-        <Info aria-hidden size={16} className="mt-0.5 shrink-0" />
-        Gestão para Oficinas · Fase 3
+      <p className="flex items-center gap-2 px-1 pt-8 text-apoio text-em-fundo-2">
+        <Info aria-hidden size={16} className="shrink-0" />
+        <Logotipo tamanho={22} />
+        <span>· Fase 3</span>
       </p>
     </Tela>
   )
