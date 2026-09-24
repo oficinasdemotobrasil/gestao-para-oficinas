@@ -3342,6 +3342,89 @@ async function testarIndicadores() {
     : erro('resumo de comissões', JSON.stringify(resumo.rows[0].r.indicadores))
 }
 
+/**
+ * No teste, a oficina vê tudo (0066).
+ *
+ * A oficina que entra para conhecer o sistema precisa ver justamente a parte
+ * que faz o dono assinar. O risco do outro lado é vazar recurso pago para quem
+ * já saiu do teste — por isso o teste checa as duas pontas.
+ */
+async function testarTesteMostraTudo() {
+  console.log('\n\x1b[1mNo teste, a oficina vê tudo\x1b[0m')
+  await comoAdministradorDoBanco()
+
+  const guardado = await db.query<{ plano: string; acesso: string | null; teste: string | null }>(
+    `select plano::text, acesso_ate::text as acesso, teste_ate::text as teste
+       from public.oficinas where id = '${ID.oficinaA}'`,
+  )
+
+  // Oficina no plano mais simples, dentro do teste.
+  await db.query(
+    `update public.oficinas
+        set plano = 'gratuito',
+            teste_ate = current_date + 3,
+            acesso_ate = current_date + 3
+      where id = '${ID.oficinaA}'`,
+  )
+  await logarComo(ID.adminA)
+
+  const emTeste = await db.query<{ t: boolean; f: boolean }>(
+    `select public.oficina_em_teste('${ID.oficinaA}') as t,
+            public.minha_oficina_tem_financeiro() as f`,
+  )
+  emTeste.rows[0].t && emTeste.rows[0].f
+    ? ok('no plano de teste, o financeiro fica aberto')
+    : erro('teste sem financeiro', JSON.stringify(emTeste.rows[0]))
+
+  await esperaLinhas(
+    'e a tabela de contas responde de verdade',
+    'select count(*) as n from public.contas_receber',
+    await contar('select count(*) as n from public.contas_receber'),
+  )
+
+  const limite = await contar(`select public.limite_da_oficina('${ID.oficinaA}') as n`)
+  const maior = await contar('select max(limite_colaboradores) as n from public.planos where ativo')
+  limite === maior
+    ? ok('e o limite de pessoas é o do maior plano', `${limite} acessos`)
+    : erro('limite no teste', `veio ${limite}, esperava ${maior}`)
+
+  const painelNoTeste = await db.query<{ p: { financeiro: unknown } }>(
+    'select public.painel(current_date, current_date) as p',
+  )
+  painelNoTeste.rows[0].p.financeiro !== null
+    ? ok('o painel mostra o bloco de dinheiro durante o teste')
+    : erro('painel no teste', 'veio sem financeiro')
+
+  // Teste vencido, plano simples: tudo se fecha de novo.
+  await comoAdministradorDoBanco()
+  await db.query(
+    `update public.oficinas
+        set teste_ate = current_date - 1, acesso_ate = current_date - 1
+      where id = '${ID.oficinaA}'`,
+  )
+  await logarComo(ID.adminA)
+  const depois = await db.query<{ t: boolean; f: boolean }>(
+    `select public.oficina_em_teste('${ID.oficinaA}') as t,
+            public.minha_oficina_tem_financeiro() as f`,
+  )
+  !depois.rows[0].t && !depois.rows[0].f
+    ? ok('acabou o teste no plano simples, o financeiro fecha junto')
+    : erro('financeiro continuou aberto', JSON.stringify(depois.rows[0]))
+
+  await esperaLinhas(
+    'e a tabela de contas volta a vir vazia',
+    'select count(*) as n from public.contas_receber',
+    0,
+  )
+
+  await comoAdministradorDoBanco()
+  await db.query(
+    `update public.oficinas set plano = $1::public.plano_oficina, acesso_ate = $2, teste_ate = $3
+      where id = '${ID.oficinaA}'`,
+    [guardado.rows[0].plano, guardado.rows[0].acesso, guardado.rows[0].teste],
+  )
+}
+
 async function main() {
   console.log('[1m\nValidação do banco — Gestão para Oficinas[0m')
   try {
@@ -3379,6 +3462,7 @@ async function main() {
     await testarBuscaGeral()
     await testarFichaCompleta()
     await testarIndicadores()
+    await testarTesteMostraTudo()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
     // impressão de que correu tudo bem — foi o que aconteceu quando a coluna

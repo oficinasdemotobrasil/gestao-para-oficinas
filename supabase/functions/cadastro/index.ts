@@ -23,12 +23,14 @@ const cabecalhosCors = {
 }
 
 interface Corpo {
-  acao?: 'situacao' | 'criar'
+  acao?: 'situacao' | 'planos' | 'criar'
   oficina?: string
   responsavel?: string
   email?: string
   telefone?: string
   senha?: string
+  /** O plano escolhido no primeiro passo. Guardado para a hora de assinar. */
+  plano?: string
   /** A versão do documento que estava na tela quando a caixa foi marcada. */
   termos_versao?: string
   aceitou_os_termos?: boolean
@@ -41,7 +43,17 @@ function responder(corpo: unknown, status = 200): Response {
   })
 }
 
-const soDigitos = (v: string) => v.replace(/\D/g, '')
+/** "joao.silva@oficina.com" vira "Joao Silva": um chute que a pessoa corrige. */
+function nomeDoEmail(email: string): string {
+  const antes = email.split('@')[0] ?? ''
+  const palavras = antes.split(/[._-]+/).filter(Boolean)
+  if (palavras.length === 0) return 'Responsável'
+  return palavras
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join(' ')
+    .slice(0, 60)
+}
+
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cabecalhosCors })
@@ -62,6 +74,24 @@ Deno.serve(async (req: Request) => {
   // abriu do que deixar a pessoa preencher tudo para tomar um não no fim.
   if (corpo.acao === 'situacao') return responder({ aberto })
 
+  /*
+   * Os planos para quem ainda não tem conta.
+   *
+   * A tabela `planos` só é legível por quem está logado, e quem está
+   * escolhendo plano ainda não está. Em vez de abrir a tabela para o mundo,
+   * esta função — que já roda com a chave de serviço — devolve só o que o
+   * cartão do plano mostra.
+   */
+  if (corpo.acao === 'planos') {
+    const servicoPlanos = createClient(url, chaveServico, { auth: { persistSession: false } })
+    const { data: planos } = await servicoPlanos
+      .from('planos')
+      .select('id, nome, descricao, preco_mensal, beneficios, dias_de_teste, limite_colaboradores, tem_financeiro')
+      .eq('ativo', true)
+      .order('ordem')
+    return responder({ planos: planos ?? [] })
+  }
+
   if (!aberto) {
     return responder(
       {
@@ -73,18 +103,26 @@ Deno.serve(async (req: Request) => {
   }
 
   const nomeDaOficina = (corpo.oficina ?? '').trim()
-  const responsavel = (corpo.responsavel ?? '').trim()
   const email = (corpo.email ?? '').trim().toLowerCase()
-  const telefone = (corpo.telefone ?? '').trim()
   const senha = corpo.senha ?? ''
+  const planoEscolhido = (corpo.plano ?? '').trim()
+
+  /*
+   * O cadastro pede quatro coisas, e não sete.
+   *
+   * Telefone e nome do responsável saíram daqui: eles são pedidos em
+   * Configurações, na tela em que a pessoa cai logo depois. Sete campos antes
+   * de ver qualquer coisa é onde se perde quem estava só olhando.
+   *
+   * O nome do responsável nasce do e-mail e é o primeiro campo que ela vê
+   * depois — melhor um chute corrigível do que mais uma linha no formulário.
+   */
+  const responsavel = (corpo.responsavel ?? '').trim() || nomeDoEmail(email)
+  const telefone = (corpo.telefone ?? '').trim()
 
   if (nomeDaOficina.length < 2) return responder({ erro: 'Informe o nome da oficina.', campo: 'oficina' }, 400)
-  if (responsavel.length < 2) return responder({ erro: 'Informe o seu nome.', campo: 'responsavel' }, 400)
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return responder({ erro: 'Informe um e-mail válido.', campo: 'email' }, 400)
-  }
-  if (soDigitos(telefone).length < 10) {
-    return responder({ erro: 'Informe um telefone com DDD.', campo: 'telefone' }, 400)
   }
   if (senha.length < 8) {
     return responder({ erro: 'A senha precisa de pelo menos 8 caracteres.', campo: 'senha' }, 400)
@@ -113,12 +151,19 @@ Deno.serve(async (req: Request) => {
     acessoAte = fim.toISOString().slice(0, 10)
   }
 
-  // 1. A conta. Sem confirmar o e-mail: quem não confirma não entra, e é isso
-  //    que impede alguém de cadastrar com o endereço de outra pessoa.
+  /*
+   * 1. A conta, já válida para entrar.
+   *
+   * Antes o e-mail precisava ser confirmado antes do primeiro acesso, e isso
+   * é o que impedia alguém de se cadastrar com o endereço de outra pessoa.
+   * A escolha agora é outra, tomada com o dono do produto: quem cadastra entra
+   * na hora, porque o caminho até a primeira tela é o que decide se a oficina
+   * fica. O preço é conhecido — o endereço não é verificado.
+   */
   const { data: conta, error: erroConta } = await servico.auth.admin.createUser({
     email,
     password: senha,
-    email_confirm: false,
+    email_confirm: true,
   })
   if (erroConta || !conta.user) {
     const jaExiste = /already|registered|exists/i.test(erroConta?.message ?? '')
@@ -139,7 +184,10 @@ Deno.serve(async (req: Request) => {
     .insert({
       nome: nomeDaOficina,
       telefone,
+      // Entra no plano de teste, que durante o período vale como o maior
+      // (0066). O que ela escolheu fica guardado para a hora de assinar.
       plano: planoDeEntrada?.id ?? 'gratuito',
+      plano_escolhido: planoEscolhido || null,
       acesso_ate: acessoAte,
       teste_ate: acessoAte,
       termos_aceitos_em: new Date().toISOString(),
@@ -185,6 +233,6 @@ Deno.serve(async (req: Request) => {
     ok: true,
     oficina_id: oficina.id,
     acesso_ate: acessoAte,
-    precisa_confirmar_email: true,
+    precisa_confirmar_email: false,
   })
 })

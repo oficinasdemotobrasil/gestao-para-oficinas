@@ -60,7 +60,59 @@ export const rotas = createBrowserRouter([
    * Vite remove o trecho inteiro: no site publicado esta rota não existe.
    */
   ...(import.meta.env.DEV
-    ? [{ path: '/previa-da-ajuda', element: <Ajuda mostrarTudo /> }]
+    ? [
+        { path: '/previa-da-ajuda', element: <Ajuda mostrarTudo /> },
+        {
+          path: '/previa-do-cadastro',
+          element: (
+            <CriarConta
+              previa={[
+                {
+                  id: 'gratuito',
+                  nome: 'Teste 7 Dias',
+                  descricao: 'Para conhecer o sistema sem compromisso.',
+                  preco_mensal: 0,
+                  dias_de_teste: 7,
+                  limite_colaboradores: 2,
+                  tem_financeiro: false,
+                  beneficios: [
+                    'Liberado para até 2 pessoas testarem por 7 dias.',
+                    'Organize peças e serviços sem complicação.',
+                  ],
+                },
+                {
+                  id: 'essencial',
+                  nome: 'Operacional',
+                  descricao: 'A oficina organizada, do orçamento à entrega.',
+                  preco_mensal: 59.9,
+                  dias_de_teste: null,
+                  limite_colaboradores: 2,
+                  tem_financeiro: false,
+                  beneficios: [
+                    'Até 2 acessos para organizar a operação diária.',
+                    'Envie propostas mais rápido direto no WhatsApp.',
+                    'Acompanhe o tempo de serviço de cada mecânico.',
+                  ],
+                },
+                {
+                  id: 'completo',
+                  nome: 'Gestão Total',
+                  descricao: 'Tudo, incluindo o dinheiro.',
+                  preco_mensal: 99.9,
+                  dias_de_teste: null,
+                  limite_colaboradores: 5,
+                  tem_financeiro: true,
+                  beneficios: [
+                    'Até 5 acessos para integrar a equipe da oficina.',
+                    'Controle financeiro total (veja o fluxo de caixa real).',
+                    'Cobre por PIX e mande pelo WhatsApp num toque.',
+                  ],
+                },
+              ]}
+            />
+          ),
+        },
+      ]
     : []),
 
   { path: '/termos', element: <Termos /> },
