@@ -3053,6 +3053,105 @@ async function testarBuscaGeral() {
     : erro('mecânico viu dinheiro', JSON.stringify(doMecanico.clientes))
 }
 
+/**
+ * A ficha completa (0064): a busca acha, a ficha responde.
+ *
+ * O que os testes olham com mais cuidado é a fronteira de quem vê o quê. Estas
+ * funções rodam como donas do banco — é assim que o vendedor passa a enxergar
+ * a dívida daquele cliente sem que a tela de Financeiro se abra para ele. Uma
+ * abertura dessas, sem teste, é como o mecânico acaba vendo dinheiro.
+ */
+async function testarFichaCompleta() {
+  console.log('\n\x1b[1mFicha completa do cliente e da moto\x1b[0m')
+  await logarComo(ID.adminA)
+
+  const ficha = async (qual: 'cliente' | 'moto', id: string) => {
+    const r = await db.query<{ f: Record<string, any> }>(
+      `select public.ficha_do_${qual === 'cliente' ? 'cliente' : ''}${qual === 'moto' ? 'moto' : ''}($1) as f`.replace(
+        'ficha_do_moto',
+        'ficha_da_moto',
+      ),
+      [id],
+    )
+    return r.rows[0].f
+  }
+
+  const doCliente = await ficha('cliente', ID.clienteA)
+  Number(doCliente.resumo.servicos) > 0 && Number(doCliente.resumo.total_gasto) > 0
+    ? ok('a ficha do cliente soma os serviços e o total gasto',
+        `${doCliente.resumo.servicos} serviços, R$ ${doCliente.resumo.total_gasto}`)
+    : erro('resumo do cliente', JSON.stringify(doCliente.resumo))
+
+  Number(doCliente.ordens.total) > 0 && Array.isArray(doCliente.ordens.itens)
+    ? ok('traz as ordens com o total para a tela saber se há mais', `total ${doCliente.ordens.total}`)
+    : erro('ordens na ficha', JSON.stringify(doCliente.ordens))
+
+  Array.isArray(doCliente.orcamentos.itens) && Array.isArray(doCliente.notas.itens)
+    ? ok('e traz orçamentos e notas fiscais na mesma chamada')
+    : erro('orçamentos/notas', JSON.stringify([doCliente.orcamentos, doCliente.notas]))
+
+  doCliente.financeiro && Array.isArray(doCliente.financeiro.contas)
+    ? ok('com o financeiro do cliente junto', `R$ ${doCliente.financeiro.em_aberto} em aberto`)
+    : erro('financeiro na ficha', JSON.stringify(doCliente.financeiro))
+
+  const daMoto = await ficha('moto', ID.motoA)
+  Number(daMoto.resumo.servicos) > 0
+    ? ok('a ficha da moto soma os serviços dela')
+    : erro('resumo da moto', JSON.stringify(daMoto.resumo))
+  Array.isArray(daMoto.pecas)
+    ? ok('lista as peças já trocadas nela', `${daMoto.pecas.length} tipo(s)`)
+    : erro('peças da moto', JSON.stringify(daMoto.pecas))
+  Array.isArray(daMoto.proprietarios) && daMoto.proprietarios.length > 0
+    ? ok('e os donos, o de agora e os de antes')
+    : erro('proprietários', JSON.stringify(daMoto.proprietarios))
+
+  console.log('  \x1b[2m— quem vê o quê —\x1b[0m')
+
+  // A decisão desta migration: o vendedor passa a ver a dívida DAQUELE cliente.
+  await logarComo(ID.vendedorA)
+  const doVendedor = await ficha('cliente', ID.clienteA)
+  doVendedor.financeiro && Number(doVendedor.financeiro.em_aberto) >= 0
+    ? ok('o vendedor vê o que o cliente deve, pela ficha')
+    : erro('vendedor sem financeiro na ficha', JSON.stringify(doVendedor.financeiro))
+
+  // Mas a porta continua estreita: a tabela inteira segue fechada para ele.
+  await esperaLinhas(
+    'e continua sem enxergar a tabela de contas a receber por fora',
+    'select count(*) as n from public.contas_receber',
+    0,
+  )
+
+  // O mecânico não entra: o app dele não vê dinheiro em lugar nenhum.
+  await logarComo(ID.mecanicoA)
+  await esperaErro(
+    'o mecânico não abre a ficha do cliente',
+    `select public.ficha_do_cliente('${ID.clienteA}')`,
+  )
+  await esperaErro(
+    'nem a da moto',
+    `select public.ficha_da_moto('${ID.motoA}')`,
+  )
+
+  // Oficina de fora não alcança a ficha, mesmo com o id na mão.
+  await logarComo(ID.adminB)
+  await esperaErro(
+    'a oficina vizinha não abre a ficha do cliente da outra',
+    `select public.ficha_do_cliente('${ID.clienteA}')`,
+  )
+  await esperaErro(
+    'nem a ficha da moto',
+    `select public.ficha_da_moto('${ID.motoA}')`,
+  )
+
+  // As listas internas não são porta de entrada: quem chama é a ficha, que já
+  // conferiu oficina e perfil.
+  await logarComo(ID.adminA)
+  await esperaErro(
+    'as listas internas não podem ser chamadas direto',
+    `select public.lista_de_ordens('${ID.oficinaB}', null, null)`,
+  )
+}
+
 async function main() {
   console.log('[1m\nValidação do banco — Gestão para Oficinas[0m')
   try {
@@ -3088,6 +3187,7 @@ async function main() {
     await testarServicoAntigo()
     await testarNascimentoEHistoricoNoPainel()
     await testarBuscaGeral()
+    await testarFichaCompleta()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
     // impressão de que correu tudo bem — foi o que aconteceu quando a coluna

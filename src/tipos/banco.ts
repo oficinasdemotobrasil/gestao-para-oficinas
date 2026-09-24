@@ -336,6 +336,46 @@ type Orcamento = {
   historico_lancado_em: string | null
 }
 
+/**
+ * Uma lista dentro da ficha: até 50 itens e o total de verdade. A tela mostra
+ * os primeiros e abre o resto sem ir ao servidor de novo.
+ */
+type ListaDaFicha<T> = { total: number; itens: T[] }
+
+type OrcamentoNaFicha = {
+  id: string
+  numero: number
+  status: StatusOrcamento
+  valor: number
+  data: string
+  /** Lançado como serviço antigo (0060). */
+  historico: boolean
+  validade_ate: string | null
+}
+
+type OrdemNaFicha = {
+  id: string
+  numero: number
+  status: StatusOS
+  valor: number
+  data: string
+  conclusao: string | null
+  garantia_ate: string | null
+  historico: boolean
+  placa: string | null
+  cliente_nome: string | null
+  responsavel: string | null
+}
+
+type NotaNaFicha = {
+  id: string
+  numero: string | null
+  valor: number
+  status: StatusNota
+  data: string
+  ordem_servico_id: string | null
+}
+
 type ItemDeDocumento = {
   id: string
   oficina_id: string
@@ -627,6 +667,78 @@ export type Database = {
         }
         /** O id do orçamento criado. */
         Returns: string
+      }
+      /**
+       * A ficha completa (0064). Roda como dona do banco: é assim que o
+       * vendedor enxerga a dívida daquele cliente sem que o Financeiro se abra
+       * para ele. O mecânico não chama — a função recusa.
+       */
+      ficha_do_cliente: {
+        Args: { p_cliente: string }
+        Returns: {
+          resumo: {
+            servicos: number
+            total_gasto: number
+            ultimo_servico: string | null
+            em_andamento: number
+          }
+          motos: Array<{
+            id: string
+            placa: string
+            marca: string | null
+            modelo: string | null
+            ano: number | null
+            km_atual: number
+            ultimo_servico: string | null
+          }>
+          orcamentos: ListaDaFicha<OrcamentoNaFicha>
+          ordens: ListaDaFicha<OrdemNaFicha>
+          notas: ListaDaFicha<NotaNaFicha>
+          /** Nulo no plano sem financeiro: ausência de direito ao dado, não de dado. */
+          financeiro: {
+            em_aberto: number
+            em_atraso: number
+            recebido: number
+            contas: Array<{
+              id: string
+              descricao: string
+              valor: number
+              valor_recebido: number
+              vencimento: string
+              status: StatusConta
+            }>
+          } | null
+          cliente: { desde: string; data_nascimento: string | null }
+        }
+      }
+      ficha_da_moto: {
+        Args: { p_moto: string }
+        Returns: {
+          resumo: {
+            servicos: number
+            total_gasto: number
+            ultimo_servico: string | null
+            em_andamento: number
+            /** A garantia que ainda vale hoje, se houver. */
+            garantia_ate: string | null
+          }
+          orcamentos: ListaDaFicha<OrcamentoNaFicha>
+          ordens: ListaDaFicha<OrdemNaFicha>
+          notas: ListaDaFicha<NotaNaFicha>
+          pecas: Array<{
+            descricao: string
+            quantidade: number
+            ultima_vez: string | null
+            vezes: number
+          }>
+          proprietarios: Array<{
+            cliente_id: string
+            nome: string
+            telefone: string | null
+            desde: string
+            ate: string | null
+          }>
+        }
       }
       /** A busca do balcão (0062): placa, cliente e OS numa chamada só. */
       busca_geral: {

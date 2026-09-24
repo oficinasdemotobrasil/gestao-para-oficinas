@@ -25,6 +25,13 @@ import {
 import { useAuth } from '@/auth/ProvedorAuth'
 import { historicoDaPlaca } from '@/funcionalidades/painel/api'
 import { obterMoto, proprietariosDaMoto, atualizarKm } from '../api'
+import { fichaDaMoto } from '@/funcionalidades/ficha/api'
+import {
+  ResumoDaFicha,
+  SecaoOrcamentos,
+  SecaoNotas,
+  SecaoPecas,
+} from '@/funcionalidades/ficha/Secoes'
 
 /**
  * O gerador do PDF pesa e só serve a quem pede o histórico em papel — na venda
@@ -65,6 +72,15 @@ export function DetalheMoto() {
   const { data: moto, isPending, isError, refetch } = useQuery({
     queryKey: ['moto', id],
     queryFn: () => obterMoto(id!),
+  })
+
+  // A ficha da moto: orçamentos, notas, peças trocadas e garantia em vigor,
+  // tudo numa chamada. O histórico abaixo continua vindo por fora porque ele
+  // guarda uma coisa que só ele sabe: quem era o dono na época.
+  const ficha = useQuery({
+    queryKey: ['ficha-da-moto', id],
+    queryFn: () => fichaDaMoto(id!),
+    enabled: p.verClientes,
   })
 
   const historico = useQuery({
@@ -187,6 +203,16 @@ export function DetalheMoto() {
       {/* Quilometragem é o dado que mais muda e o que o mecânico mais pergunta:
           fica em destaque, com atualização em um toque. */}
 
+      {ficha.data && (
+        <ResumoDaFicha
+          servicos={ficha.data.resumo.servicos}
+          totalGasto={ficha.data.resumo.total_gasto}
+          ultimoServico={ficha.data.resumo.ultimo_servico}
+          emAndamento={ficha.data.resumo.em_andamento}
+          garantiaAte={ficha.data.resumo.garantia_ate}
+        />
+      )}
+
       {/* O histórico pertence à placa, não ao dono. Quem chega aqui vê tudo o
           que já foi feito na moto, mesmo o que aconteceu com o dono anterior —
           mas do dono anterior sai só o nome. Telefone, e-mail e CPF dele não são
@@ -252,6 +278,17 @@ export function DetalheMoto() {
             </button>
           ))}
         </div>
+      )}
+
+      {/* O resto do que está ligado a esta placa. O histórico acima já conta
+          os serviços concluídos; aqui entram os orçamentos que não viraram
+          serviço, as notas e o que já foi trocado nela. */}
+      {ficha.data && (
+        <>
+          <SecaoOrcamentos dados={ficha.data.orcamentos} />
+          <SecaoPecas pecas={ficha.data.pecas} />
+          <SecaoNotas dados={ficha.data.notas} />
+        </>
       )}
 
       <TituloSecao>Proprietários</TituloSecao>

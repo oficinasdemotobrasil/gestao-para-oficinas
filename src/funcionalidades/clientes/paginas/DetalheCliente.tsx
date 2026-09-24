@@ -5,11 +5,19 @@ import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
 import { Detalhe } from '@/componentes/layout/Detalhe'
 import { Card, ListaCard, LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
 import { Botao } from '@/componentes/ui/Botao'
-import { Carregando } from '@/componentes/ui/Carregando'
+import { Carregando, EsqueletoLista } from '@/componentes/ui/Carregando'
 import { EstadoErro } from '@/componentes/ui/EstadoVazio'
 import { telefone, cpfCnpj, exibirPlaca, quilometragem, data } from '@/lib/formato'
 import { usePermissoes } from '@/auth/usePermissoes'
 import { obterCliente, motosDoCliente } from '../api'
+import { fichaDoCliente } from '@/funcionalidades/ficha/api'
+import {
+  ResumoDaFicha,
+  SecaoOrcamentos,
+  SecaoOrdens,
+  SecaoNotas,
+  SecaoFinanceiro,
+} from '@/funcionalidades/ficha/Secoes'
 
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
@@ -28,6 +36,14 @@ export function DetalheCliente() {
   const { data: cliente, isPending, isError, refetch } = useQuery({
     queryKey: ['cliente', id],
     queryFn: () => obterCliente(id!),
+  })
+
+  // A ficha inteira numa chamada: serviços, orçamentos, notas e dinheiro.
+  // Sem ela, esta tela faria cinco consultas em sequência na internet da
+  // oficina, com o cliente esperando no balcão.
+  const ficha = useQuery({
+    queryKey: ['ficha-do-cliente', id],
+    queryFn: () => fichaDoCliente(id!),
   })
 
   const { data: motos } = useQuery({
@@ -83,6 +99,15 @@ export function DetalheCliente() {
       />
 
       <Detalhe apoio={colunaDeApoio}>
+      {ficha.data && (
+        <ResumoDaFicha
+          servicos={ficha.data.resumo.servicos}
+          totalGasto={ficha.data.resumo.total_gasto}
+          ultimoServico={ficha.data.resumo.ultimo_servico}
+          emAndamento={ficha.data.resumo.em_andamento}
+        />
+      )}
+
       {cliente.observacoes && (
         <>
           <TituloSecao>Observações</TituloSecao>
@@ -134,6 +159,21 @@ export function DetalheCliente() {
           ))}
         </ListaCard>
       )}
+
+      {/* Tudo o que está ligado a este cliente, cruzado numa chamada só:
+          ordens, orçamentos, notas e o que ele deve. */}
+      {ficha.isPending ? (
+        <div className="pt-6">
+          <EsqueletoLista linhas={3} />
+        </div>
+      ) : ficha.data ? (
+        <>
+          <SecaoOrdens dados={ficha.data.ordens} comPlaca />
+          <SecaoOrcamentos dados={ficha.data.orcamentos} />
+          <SecaoFinanceiro dados={ficha.data.financeiro} />
+          <SecaoNotas dados={ficha.data.notas} />
+        </>
+      ) : null}
       </Detalhe>
     </Tela>
   )
