@@ -2953,6 +2953,92 @@ async function testarNascimentoEHistoricoNoPainel() {
   ])
 }
 
+/**
+ * A busca do balcão (0062): uma chamada devolve cliente, moto e OS.
+ *
+ * O que os testes protegem aqui é menos a busca e mais o VAZAMENTO: a função
+ * roda com as permissões de quem chamou, e uma busca que devolvesse a moto da
+ * oficina vizinha seria pior do que não existir.
+ */
+async function testarBuscaGeral() {
+  console.log('\n\x1b[1mBusca única do balcão\x1b[0m')
+  await logarComo(ID.adminA)
+
+  const buscar = async (termo: string) => {
+    const r = await db.query<{ b: { clientes: unknown[]; motos: unknown[]; ordens: unknown[] } }>(
+      'select public.busca_geral($1) as b',
+      [termo],
+    )
+    return r.rows[0].b
+  }
+
+  const porPlaca = await buscar('abc1d23')
+  ;(porPlaca.motos as Array<{ placa: string; dono_nome: string }>)[0]?.placa === 'ABC1D23'
+    ? ok('acha a moto pela placa digitada em minúscula')
+    : erro('busca por placa', JSON.stringify(porPlaca.motos))
+  // O dono é o de agora, não o do cadastro: outro teste já transferiu esta
+  // moto, e a busca tem de mostrar quem está com ela hoje.
+  const donoAgora = await db.query<{ nome: string }>(
+    `select c.nome from public.moto_proprietarios mp
+       join public.clientes c on c.id = mp.cliente_id
+      where mp.moto_id = '${ID.motoA}' and mp.data_fim is null`,
+  )
+  ;(porPlaca.motos as Array<{ dono_nome: string }>)[0]?.dono_nome === donoAgora.rows[0].nome
+    ? ok('e já traz o dono de agora junto, sem segunda consulta', donoAgora.rows[0].nome)
+    : erro('dono na busca', JSON.stringify(porPlaca.motos))
+
+  const comHifen = await buscar('abc-1d23')
+  ;(comHifen.motos as unknown[]).length === 1
+    ? ok('o hífen não atrapalha')
+    : erro('placa com hífen', JSON.stringify(comHifen.motos))
+
+  const porNome = await buscar('carlos')
+  const achado = (porNome.clientes as Array<{ nome: string; motos: unknown[] }>)[0]
+  achado?.nome.toLowerCase().includes('carlos') && Array.isArray(achado.motos)
+    ? ok('acha o cliente pelo nome e traz as motos dele', `${achado.motos.length} moto(s)`)
+    : erro('busca por nome', JSON.stringify(porNome.clientes))
+
+  const porTelefone = await buscar('98888')
+  ;(porTelefone.clientes as unknown[]).length === 1
+    ? ok('acha pelo pedaço do telefone')
+    : erro('busca por telefone', JSON.stringify(porTelefone.clientes))
+
+  const curto = await buscar('a')
+  ;(curto.motos as unknown[]).length === 0 && (curto.clientes as unknown[]).length === 0
+    ? ok('uma letra só não devolve a oficina inteira')
+    : erro('busca curta', JSON.stringify(curto))
+
+  const soPontuacao = await buscar('--')
+  ;(soPontuacao.motos as unknown[]).length === 0
+    ? ok('e um termo só de pontuação também não')
+    : erro('busca de pontuação', JSON.stringify(soPontuacao.motos))
+
+  // A oficina vizinha não aparece, nem procurando pela placa dela.
+  const vizinha = await buscar('XYZ9876')
+  ;(vizinha.motos as unknown[]).length === 0
+    ? ok('a moto da outra oficina não aparece')
+    : erro('vazamento entre oficinas', JSON.stringify(vizinha.motos))
+
+  // Placa é única POR OFICINA, não no país: as duas podem ter uma ABC1D23, e o
+  // teste antigo lia isso como vazamento. O que não pode acontecer é a busca
+  // devolver a linha da outra oficina — e é isso que se confere pelo id.
+  await logarComo(ID.adminB)
+  const doVizinho = await buscar('abc1d23')
+  ;(doVizinho.motos as Array<{ id: string }>).every((m) => m.id !== ID.motoA)
+    ? ok('e a oficina B, buscando a mesma placa, vê a moto dela — nunca a da A')
+    : erro('vazamento entre oficinas', JSON.stringify(doVizinho.motos))
+
+  // O mecânico usa a mesma função, e o RLS continua decidindo por ele.
+  await logarComo(ID.mecanicoA)
+  const doMecanico = await buscar('carlos')
+  Array.isArray(doMecanico.clientes)
+    ? ok('o mecânico chama a busca sem erro, com o que o RLS deixa ele ver')
+    : erro('busca do mecânico', JSON.stringify(doMecanico))
+  ;(doMecanico.clientes as Array<{ em_aberto: number }>).every((c) => Number(c.em_aberto) === 0)
+    ? ok('e o que ele vê não traz dívida de ninguém')
+    : erro('mecânico viu dinheiro', JSON.stringify(doMecanico.clientes))
+}
+
 async function main() {
   console.log('[1m\nValidação do banco — Gestão para Oficinas[0m')
   try {
@@ -2987,6 +3073,7 @@ async function main() {
     await testarPerfisNaFase2()
     await testarServicoAntigo()
     await testarNascimentoEHistoricoNoPainel()
+    await testarBuscaGeral()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
     // impressão de que correu tudo bem — foi o que aconteceu quando a coluna

@@ -628,6 +628,41 @@ export type Database = {
         /** O id do orçamento criado. */
         Returns: string
       }
+      /** A busca do balcão (0062): placa, cliente e OS numa chamada só. */
+      busca_geral: {
+        Args: { p_termo: string }
+        Returns: {
+          clientes: Array<{
+            id: string
+            nome: string
+            telefone: string | null
+            motos: Array<{ id: string; placa: string; marca: string | null; modelo: string | null }>
+            em_aberto: number
+          }>
+          motos: Array<{
+            id: string
+            placa: string
+            marca: string | null
+            modelo: string | null
+            ano: number | null
+            km_atual: number
+            dono_id: string | null
+            dono_nome: string | null
+            dono_telefone: string | null
+            ultimo_servico: string | null
+            servicos_abertos: number
+          }>
+          ordens: Array<{
+            id: string
+            numero: number
+            status: StatusOS
+            data: string
+            valor: number
+            placa: string | null
+            cliente_nome: string | null
+          }>
+        }
+      }
       duplicar_orcamento: { Args: { p_orcamento_id: string }; Returns: string }
       aprovar_orcamento: {
         Args: { p_orcamento_id: string; p_responsavel_id: string }

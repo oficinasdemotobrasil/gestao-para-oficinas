@@ -1,4 +1,4 @@
-import { Home, FileText, Wrench, Bike, Users, Package, Wallet, Receipt, Users2, Settings } from 'lucide-react'
+import { Home, FileText, Wrench, Bike, Users, Package, Wallet, Receipt, Users2, Settings, Search } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { usePermissoes } from '@/auth/usePermissoes'
 
@@ -32,6 +32,10 @@ export const ITENS: ItemDeNavegacao[] = [
   // antes de esta lista existir.
   { para: '/motos', rotulo: 'Motos', Icone: Bike, visivel: (p) => p.verMotos, naBarra: true },
   { para: '/ordens', rotulo: 'Serviços', Icone: Wrench, visivel: (p) => p.verOrdensDaOficina, naBarra: true },
+  // A busca do balcão fica fora da barra do celular porque lá ela já é o
+  // primeiro cartão da tela inicial, com um alvo bem maior que um ícone. No
+  // menu lateral, que não disputa espaço, ela aparece.
+  { para: '/buscar', rotulo: 'Buscar', Icone: Search, visivel: (p) => p.verMotos },
   // Clientes ficou fora da barra do celular porque ninguém abre "Clientes" para
   // olhar: chega-se ao cliente pela moto que entrou ou digitando o nome dentro
   // do orçamento. No menu lateral, que não disputa espaço, ele aparece.

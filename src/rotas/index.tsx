@@ -11,6 +11,7 @@ import { ListaClientes } from '@/funcionalidades/clientes/paginas/ListaClientes'
 import { FormularioCliente } from '@/funcionalidades/clientes/paginas/FormularioCliente'
 import { DetalheCliente } from '@/funcionalidades/clientes/paginas/DetalheCliente'
 import { ClientesInativos } from '@/funcionalidades/clientes/paginas/ClientesInativos'
+import { Busca } from '@/funcionalidades/busca/Busca'
 import { ListaMotos } from '@/funcionalidades/motos/paginas/ListaMotos'
 import { FormularioMoto } from '@/funcionalidades/motos/paginas/FormularioMoto'
 import { DetalheMoto } from '@/funcionalidades/motos/paginas/DetalheMoto'
@@ -67,6 +68,12 @@ export const rotas = createBrowserRouter([
           // O bloqueio por perfil aqui é conveniência de navegação: tira do
           // caminho quem digitou o endereço na mão. Quem realmente recusa o
           // acesso ao dado é o RLS, no banco.
+          // A busca do balcão: quem enxerga moto chega nela, porque é a
+          // pergunta que o atendimento faz o dia inteiro.
+          {
+            element: <RotaPorPerfil permitido={(p) => p.verMotos} />,
+            children: [{ path: '/buscar', element: <Busca /> }],
+          },
           {
             element: <RotaPorPerfil permitido={(p) => p.verClientes} />,
             children: [

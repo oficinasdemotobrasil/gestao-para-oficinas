@@ -8,6 +8,8 @@ interface Props {
   autoCapitalize?: 'none' | 'characters'
   inputMode?: 'text' | 'search' | 'numeric'
   rotulo: string
+  /** Abre com o cursor dentro. Só na tela cuja razão de existir é digitar. */
+  autoFocus?: boolean
 }
 
 export function CampoBusca({
@@ -17,6 +19,7 @@ export function CampoBusca({
   autoCapitalize = 'none',
   inputMode = 'search',
   rotulo,
+  autoFocus = false,
 }: Props) {
   return (
     <div className="relative">
@@ -28,6 +31,7 @@ export function CampoBusca({
       <input
         type="search"
         aria-label={rotulo}
+        autoFocus={autoFocus}
         value={valor}
         onChange={(e) => aoMudar(e.target.value)}
         placeholder={placeholder}

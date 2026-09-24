@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Users, Bike, Package, Wrench, ClipboardList, UserPlus, TriangleAlert, FileText, Wallet } from 'lucide-react'
+import { Users, Bike, Package, Wrench, ClipboardList, UserPlus, TriangleAlert, FileText, Wallet, Search } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Tela, CabecalhoTela, TituloSecao } from '@/componentes/layout/Tela'
 import { EstadoVazio } from '@/componentes/ui/EstadoVazio'
@@ -140,14 +140,14 @@ export function Inicio() {
 
       <button
         type="button"
-        onClick={() => navegar('/motos')}
+        onClick={() => navegar('/buscar')}
         className="flex w-full items-center gap-4 rounded-card bg-superficie p-5 text-left shadow-card active:opacity-90"
       >
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-acento-suave">
-          <Bike aria-hidden size={26} className="text-em-superficie" />
+          <Search aria-hidden size={26} className="text-em-superficie" />
         </span>
         <span className="flex flex-col">
-          <span className="text-secao text-em-superficie">Buscar moto pela placa</span>
+          <span className="text-secao text-em-superficie">Buscar placa, cliente ou OS</span>
           <span className="text-apoio text-em-superficie-2">
             Chegou uma moto? Comece por aqui.
           </span>
