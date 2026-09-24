@@ -171,7 +171,10 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
             sua oficina entra.
           </p>
           <div className="pt-5">
-            <Botao largo variante="contorno" onClick={() => navegar('/entrar')}>
+            {/* "no-card" porque este botão está DENTRO do cartão branco: a
+                variante de fundo escuro escreveria em branco sobre branco, e o
+                botão apareceu vazio no site. */}
+            <Botao largo variante="contorno-no-card" onClick={() => navegar('/entrar')}>
               Voltar para entrar
             </Botao>
           </div>
