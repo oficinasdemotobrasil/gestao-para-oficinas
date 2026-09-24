@@ -90,7 +90,11 @@ export function Financeiro() {
     queryKey: ['plano-com-financeiro'],
     queryFn: async () => {
       const { data, error } = await supabase
+        // `dias_de_teste is null` tira o plano de teste da lista: ele tem
+        // financeiro, mas dizer "assine o Teste 7 Dias" para quem já testou
+        // seria mandar a pessoa de volta para onde ela estava.
         .from('planos').select('nome').eq('tem_financeiro', true).eq('ativo', true)
+        .is('dias_de_teste', null)
         .order('ordem').limit(1).maybeSingle()
       if (error) throw error
       return data

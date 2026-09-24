@@ -3374,7 +3374,7 @@ async function testarTesteMostraTudo() {
        from public.oficinas where id = '${ID.oficinaA}'`,
   )
 
-  // Oficina no plano mais simples, dentro do teste.
+  // Oficina no plano de teste, dentro do prazo.
   await db.query(
     `update public.oficinas
         set plano = 'gratuito',
@@ -3411,11 +3411,13 @@ async function testarTesteMostraTudo() {
     ? ok('o painel mostra o bloco de dinheiro durante o teste')
     : erro('painel no teste', 'veio sem financeiro')
 
-  // Teste vencido, plano simples: tudo se fecha de novo.
+  // Fora do teste e num plano sem financeiro, tudo se fecha de novo. O plano
+  // usado aqui é o Operacional: depois da 0067, o de teste tem financeiro
+  // pelo próprio plano, e não serviria para provar o fechamento.
   await comoAdministradorDoBanco()
   await db.query(
     `update public.oficinas
-        set teste_ate = current_date - 1, acesso_ate = current_date - 1
+        set plano = 'essencial', teste_ate = current_date - 1, acesso_ate = current_date - 1
       where id = '${ID.oficinaA}'`,
   )
   await logarComo(ID.adminA)
@@ -3424,7 +3426,7 @@ async function testarTesteMostraTudo() {
             public.minha_oficina_tem_financeiro() as f`,
   )
   !depois.rows[0].t && !depois.rows[0].f
-    ? ok('acabou o teste no plano simples, o financeiro fecha junto')
+    ? ok('fora do teste, num plano sem financeiro, ele fecha junto')
     : erro('financeiro continuou aberto', JSON.stringify(depois.rows[0]))
 
   await esperaLinhas(
