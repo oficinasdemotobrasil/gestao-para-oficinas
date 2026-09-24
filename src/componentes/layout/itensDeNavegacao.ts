@@ -1,4 +1,4 @@
-import { Home, FileText, Wrench, Bike, Users, Package, Wallet, Receipt, Users2, Settings, Search } from 'lucide-react'
+import { Home, FileText, Wrench, Bike, Users, Package, Wallet, Receipt, Users2, Settings, Search, Handshake } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { usePermissoes } from '@/auth/usePermissoes'
 
@@ -47,6 +47,7 @@ export const ITENS: ItemDeNavegacao[] = [
   // em abas dentro dela. Fora da barra do celular — as cinco vagas já estão
   // tomadas — e alcançada pelo "Mais".
   { para: '/notas-fiscais', rotulo: 'Notas fiscais', Icone: Receipt, visivel: (p) => p.verFinanceiro },
+  { para: '/indicadores', rotulo: 'Indicadores', Icone: Handshake, visivel: (p) => p.ehAdmin },
   { para: '/colaboradores', rotulo: 'Colaboradores', Icone: Users2, visivel: (p) => p.verColaboradores },
   { para: '/configuracoes', rotulo: 'Configurações', Icone: Settings, visivel: (p) => p.verConfiguracoes },
 ]

@@ -3152,6 +3152,196 @@ async function testarFichaCompleta() {
   )
 }
 
+/**
+ * Indicador, código e comissão (0065).
+ *
+ * O bloco mais cuidadoso deste arquivo, porque aqui o sistema passa a dever
+ * dinheiro a gente de fora da oficina. Comissão a mais é cobrança indevida;
+ * comissão a menos é parceiro que para de indicar.
+ */
+async function testarIndicadores() {
+  console.log('\n\x1b[1mIndicador, código e comissão\x1b[0m')
+  await logarComo(ID.adminA)
+
+  await db.query(`
+    insert into public.indicadores (id, oficina_id, nome, telefone, codigo)
+    values ('11111111-aaaa-4aaa-8aaa-111111111111', '${ID.oficinaA}',
+            'João da Esquina', '(11) 91234-5678', 'joao motos')
+  `)
+  const normalizado = await db.query<{ codigo: string; telefone: string }>(
+    `select codigo, telefone from public.indicadores
+      where id = '11111111-aaaa-4aaa-8aaa-111111111111'`,
+  )
+  normalizado.rows[0].codigo === 'JOAOMOTOS'
+    ? ok('o código vira caixa alta e sem espaço', normalizado.rows[0].codigo)
+    : erro('normalização do código', normalizado.rows[0].codigo)
+  normalizado.rows[0].telefone === '11912345678'
+    ? ok('e o telefone guarda só os números')
+    : erro('telefone do indicador', normalizado.rows[0].telefone)
+
+  await esperaErro(
+    'dois indicadores não dividem o mesmo código',
+    `insert into public.indicadores (oficina_id, nome, codigo)
+     values ('${ID.oficinaA}', 'Outro João', 'JOAOMOTOS')`,
+  )
+  // Espaço no meio não é recusado: é limpo, pela mesma regra que faz
+  // "joao motos" virar JOAOMOTOS. O que o banco recusa é código curto demais
+  // para alguém ditar no balcão sem confusão.
+  await esperaErro(
+    'código de uma letra só é recusado',
+    `insert into public.indicadores (oficina_id, nome, codigo)
+     values ('${ID.oficinaA}', 'Fulano', 'A')`,
+  )
+
+  // A oficina vizinha PODE ter o mesmo código: ele é dela, não é do país.
+  await logarComo(ID.adminB)
+  await db.query(
+    `insert into public.indicadores (oficina_id, nome, codigo)
+     values ('${ID.oficinaB}', 'João do Vizinho', 'JOAOMOTOS')`,
+  )
+  await esperaLinhas(
+    'a oficina vizinha pode ter um código igual, que é dela',
+    `select count(*) as n from public.indicadores where codigo = 'JOAOMOTOS'`,
+    1,
+  )
+
+  // O percentual: o do indicador vence o da oficina --------------------------
+  await logarComo(ID.adminA)
+  const itens = JSON.stringify([
+    { tipo: 'servico', produto_id: null, servico_id: ID.servicoA, descricao: 'Revisão', quantidade: 1, valor_unitario: 1000 },
+  ])
+  const orc = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', null,
+       7, 90, null, 0, null, $1::jsonb, '11111111-aaaa-4aaa-8aaa-111111111111') as id`,
+    [itens],
+  )
+  const osId = await db.query<{ id: string }>(
+    `select public.aprovar_orcamento('${orc.rows[0].id}', '${ID.adminA}') as id`,
+  )
+
+  const comissao = await db.query<{ valor: string; percentual: string; status: string; base: string }>(
+    `select valor::text, percentual::text, status, base::text from public.comissoes
+      where orcamento_id = '${orc.rows[0].id}'`,
+  )
+  const c = comissao.rows[0]
+  c && Number(c.percentual) === 10 && Number(c.valor) === 100 && c.status === 'a_pagar'
+    ? ok('a aprovação gera a comissão pelo percentual da oficina', `10% de R$ 1.000 = R$ ${c.valor}`)
+    : erro('comissão na aprovação', JSON.stringify(c))
+
+  // Percentual próprio do indicador
+  await db.query(
+    `update public.indicadores set percentual = 15
+      where id = '11111111-aaaa-4aaa-8aaa-111111111111'`,
+  )
+  const orc2 = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', null,
+       7, 90, null, 0, null, $1::jsonb, '11111111-aaaa-4aaa-8aaa-111111111111') as id`,
+    [itens],
+  )
+  const os2 = await db.query<{ id: string }>(
+    `select public.aprovar_orcamento('${orc2.rows[0].id}', '${ID.adminA}') as id`,
+  )
+  const comissao2 = await contar(
+    `select (valor * 100)::int as n from public.comissoes where orcamento_id = '${orc2.rows[0].id}'`,
+  )
+  comissao2 === 15000
+    ? ok('o percentual do indicador vence o da oficina', 'R$ 150,00')
+    : erro('percentual próprio', `veio ${comissao2} centavos`)
+
+  // Mudar a regra depois não mexe no que já foi combinado.
+  await db.query(`update public.oficinas set comissao_indicador_percentual = 50
+                   where id = '${ID.oficinaA}'`)
+  const congelada = await contar(
+    `select (valor * 100)::int as n from public.comissoes where orcamento_id = '${orc.rows[0].id}'`,
+  )
+  congelada === 10000
+    ? ok('e mudar o percentual hoje não mexe na comissão de ontem')
+    : erro('comissão antiga mudou', `veio ${congelada} centavos`)
+
+  // O contrapeso da decisão: cancelar a OS cancela a comissão ----------------
+  await db.query(`select public.cancelar_os('${os2.rows[0].id}', 'cliente desistiu')`)
+  const depoisDoCancelamento = await db.query<{ status: string }>(
+    `select status from public.comissoes where orcamento_id = '${orc2.rows[0].id}'`,
+  )
+  depoisDoCancelamento.rows[0].status === 'cancelada'
+    ? ok('cancelar a ordem cancela a comissão — o contrapeso de gerar na aprovação')
+    : erro('comissão após cancelamento', depoisDoCancelamento.rows[0].status)
+
+  // Comissão já paga não volta a zero: o dinheiro saiu.
+  await db.query(`select public.pagar_comissao('${c ? (await db.query<{ id: string }>(
+    `select id from public.comissoes where orcamento_id = '${orc.rows[0].id}'`,
+  )).rows[0].id : ''}')`)
+  const paga = await db.query<{ status: string; data_pagamento: string | null }>(
+    `select status, data_pagamento::text from public.comissoes
+      where orcamento_id = '${orc.rows[0].id}'`,
+  )
+  paga.rows[0].status === 'paga' && paga.rows[0].data_pagamento !== null
+    ? ok('marcar como paga grava o dia do pagamento')
+    : erro('pagamento da comissão', JSON.stringify(paga.rows[0]))
+
+  await db.query(`select public.cancelar_os('${osId.rows[0].id}', 'teste')`)
+  const continuaPaga = await db.query<{ status: string }>(
+    `select status from public.comissoes where orcamento_id = '${orc.rows[0].id}'`,
+  )
+  continuaPaga.rows[0].status === 'paga'
+    ? ok('e comissão já paga não é apagada pelo cancelamento: o dinheiro saiu')
+    : erro('comissão paga foi cancelada', continuaPaga.rows[0].status)
+
+  // A busca pelo código, que é o que a tela do orçamento usa.
+  const porCodigo = await db.query<{ nome: string; percentual: string }>(
+    `select nome, percentual::text from public.indicador_por_codigo('joao motos')`,
+  )
+  porCodigo.rows[0]?.nome === 'João da Esquina' && Number(porCodigo.rows[0].percentual) === 15
+    ? ok('o código digitado de qualquer jeito acha o indicador, com o percentual dele')
+    : erro('busca por código', JSON.stringify(porCodigo.rows))
+
+  console.log('  \x1b[2m— quem vê o quê —\x1b[0m')
+
+  await logarComo(ID.vendedorA)
+  await esperaLinhas(
+    'o vendedor lê os indicadores, para anotar quem indicou',
+    'select count(*) as n from public.indicadores',
+    1,
+  )
+  await esperaBloqueio(
+    'mas não cadastra indicador',
+    `insert into public.indicadores (oficina_id, nome, codigo)
+     values ('${ID.oficinaA}', 'Criado pelo vendedor', 'VENDEDOR1')`,
+  )
+  await esperaLinhas(
+    'e não enxerga comissão nenhuma: quanto se deve é conversa de dono',
+    'select count(*) as n from public.comissoes',
+    0,
+  )
+  await esperaErro(
+    'nem o resumo de comissões',
+    'select public.indicadores_com_comissoes()',
+  )
+
+  await logarComo(ID.mecanicoA)
+  await esperaLinhas(
+    'o mecânico não vê indicador',
+    'select count(*) as n from public.indicadores',
+    0,
+  )
+
+  await logarComo(ID.adminB)
+  await esperaLinhas(
+    'a oficina vizinha vê só o indicador dela',
+    'select count(*) as n from public.indicadores',
+    1,
+  )
+
+  await logarComo(ID.adminA)
+  const resumo = await db.query<{ r: { percentual_padrao: number; indicadores: Array<{ nome: string; a_pagar: number; pago: number }> } }>(
+    'select public.indicadores_com_comissoes() as r',
+  )
+  const joao = resumo.rows[0].r.indicadores.find((i) => i.nome === 'João da Esquina')
+  joao && Number(joao.pago) === 100 && Number(joao.a_pagar) === 0
+    ? ok('o resumo mostra o que já foi pago e o que falta pagar a cada indicador')
+    : erro('resumo de comissões', JSON.stringify(resumo.rows[0].r.indicadores))
+}
+
 async function main() {
   console.log('[1m\nValidação do banco — Gestão para Oficinas[0m')
   try {
@@ -3188,6 +3378,7 @@ async function main() {
     await testarNascimentoEHistoricoNoPainel()
     await testarBuscaGeral()
     await testarFichaCompleta()
+    await testarIndicadores()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
     // impressão de que correu tudo bem — foi o que aconteceu quando a coluna

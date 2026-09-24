@@ -10,13 +10,14 @@ import { Carregando } from '@/componentes/ui/Carregando'
 import { EstadoErro } from '@/componentes/ui/EstadoVazio'
 import { useToast } from '@/componentes/ui/Toast'
 import { traduzirErro } from '@/lib/erros'
-import { moeda, data as formatarData } from '@/lib/formato'
+import { moeda, porcentagem, data as formatarData } from '@/lib/formato'
 import { paraNumero } from '@/lib/numero'
 import { SeletorClienteMoto, type EscolhaClienteMoto } from '../SeletorClienteMoto'
 import { ItensDoOrcamento } from '../ItensDoOrcamento'
 import { useAuth } from '@/auth/ProvedorAuth'
 import { usePermissoes } from '@/auth/usePermissoes'
 import { FORMAS } from '@/funcionalidades/financeiro/api'
+import { indicadorPeloCodigo } from '@/funcionalidades/indicadores/api'
 import type { FormaPagamento } from '@/tipos/banco'
 import {
   obterOrcamento,
@@ -58,6 +59,19 @@ export function EditorOrcamento() {
   const [maisOpcoes, setMaisOpcoes] = useState(false)
   const [erroGeral, setErroGeral] = useState<string | null>(null)
   const [gerandoTexto, setGerandoTexto] = useState(false)
+
+  // Quem indicou o cliente. O balcão recebe o CÓDIGO ditado pelo cliente, não
+  // o nome do parceiro — por isso a busca é por código, e o nome aparece como
+  // confirmação de que achou o certo.
+  const [codigoIndicador, setCodigoIndicador] = useState('')
+  const [indicador, setIndicador] = useState<{
+    id: string
+    nome: string
+    percentual: number
+    ativo: boolean
+  } | null>(null)
+  const [procurandoIndicador, setProcurandoIndicador] = useState(false)
+  const [indicadorNaoAchado, setIndicadorNaoAchado] = useState(false)
 
   // Serviço antigo: o que a oficina fez antes de entrar no sistema. Só o admin,
   // só ao criar — editar a data de algo que já existe não tem caminho nenhum.
@@ -114,6 +128,15 @@ export function EditorOrcamento() {
       setTipoDesconto('valor')
       setDesconto(String(orcamento.desconto).replace('.', ','))
     }
+    if (orcamento.indicador) {
+      setCodigoIndicador(orcamento.indicador.codigo)
+      setIndicador({
+        id: orcamento.indicador.id,
+        nome: orcamento.indicador.nome,
+        percentual: 0,
+        ativo: true,
+      })
+    }
     setValidade(String(orcamento.validade_dias))
     setGarantia(String(orcamento.garantia_dias))
     setObservacoes(orcamento.observacoes ?? '')
@@ -164,6 +187,26 @@ export function EditorOrcamento() {
     onError: (e) => setErroGeral(traduzirErro(e)),
   })
 
+  async function procurarIndicador(codigo: string) {
+    const limpo = codigo.replace(/\s/g, '').toUpperCase()
+    setCodigoIndicador(limpo)
+    setIndicadorNaoAchado(false)
+    if (limpo.length < 2) return setIndicador(null)
+
+    setProcurandoIndicador(true)
+    try {
+      const achado = await indicadorPeloCodigo(limpo)
+      setIndicador(achado)
+      setIndicadorNaoAchado(achado === null)
+    } catch {
+      // Sem internet, não trava o orçamento: segue sem indicador, e o código
+      // pode ser anotado depois.
+      setIndicador(null)
+    } finally {
+      setProcurandoIndicador(false)
+    }
+  }
+
   const salvar = useMutation({
     mutationFn: () =>
       salvarOrcamento({
@@ -177,6 +220,7 @@ export function EditorOrcamento() {
         desconto: valorDoDesconto,
         desconto_percentual: tipoDesconto === 'percentual' ? paraNumero(desconto) || null : null,
         itens,
+        indicador_id: indicador?.id ?? null,
       }),
     onSuccess: (novoId) => {
       void cache.invalidateQueries({ queryKey: ['orcamentos'] })
@@ -411,6 +455,30 @@ export function EditorOrcamento() {
               onChange={(e) => setGarantia(e.target.value.replace(/\D/g, ''))}
             />
           </div>
+          {/* Quem indicou. Fica aqui dentro porque a maioria dos orçamentos não
+              tem indicação — e quando tem, o cliente diz o código logo na
+              chegada. */}
+          <Campo
+            rotulo="Indicado por (código)"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="JOAOMOTOS"
+            className="uppercase tracking-wide"
+            dica={
+              procurandoIndicador
+                ? 'Procurando…'
+                : indicador
+                  ? `${indicador.nome}${indicador.ativo ? '' : ' (inativo)'} · comissão de ${porcentagem(indicador.percentual)}`
+                  : indicadorNaoAchado
+                    ? 'Nenhum indicador com esse código. Confira, ou cadastre em Indicadores.'
+                    : 'Opcional. O código que o cliente falou.'
+            }
+            erro={indicadorNaoAchado ? ' ' : undefined}
+            value={codigoIndicador}
+            onChange={(e) => void procurarIndicador(e.target.value)}
+          />
+
           <div className="flex flex-col gap-2">
             <button
               type="button"

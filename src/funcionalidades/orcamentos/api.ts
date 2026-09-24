@@ -16,6 +16,8 @@ import type {
 export interface OrcamentoNaLista extends Orcamento {
   cliente: Pick<Cliente, 'id' | 'nome' | 'telefone'> | null
   moto: Pick<Moto, 'id' | 'placa' | 'marca' | 'modelo'> | null
+  /** Quem indicou, quando houve indicação (0065). */
+  indicador: { id: string; nome: string; codigo: string } | null
 }
 
 /**
@@ -40,7 +42,8 @@ export function statusEfetivo(orcamento: {
 const SELECAO_LISTA = `
   *,
   cliente:clientes(id, nome, telefone),
-  moto:motos(id, placa, marca, modelo)
+  moto:motos(id, placa, marca, modelo),
+  indicador:indicadores(id, nome, codigo)
 `
 
 export async function listarOrcamentos(opcoes: {
@@ -134,6 +137,8 @@ export interface DadosOrcamento {
   desconto: number
   desconto_percentual: number | null
   itens: ItemEmEdicao[]
+  /** Quem indicou o cliente. A comissão nasce quando o orçamento é aprovado. */
+  indicador_id: string | null
 }
 
 /**
@@ -161,6 +166,7 @@ export async function salvarOrcamento(dados: DadosOrcamento): Promise<string> {
       quantidade: i.quantidade,
       valor_unitario: i.valor_unitario,
     })),
+    p_indicador_id: dados.indicador_id,
   })
   if (error) throw error
   return data as string
@@ -173,7 +179,7 @@ export async function salvarOrcamento(dados: DadosOrcamento): Promise<string> {
  * até a entrada no sistema) moram no banco (0060).
  */
 export async function lancarServicoAntigo(
-  dados: Omit<DadosOrcamento, 'id' | 'validade_dias'> & {
+  dados: Omit<DadosOrcamento, 'id' | 'validade_dias' | 'indicador_id'> & {
     data_servico: string
     data_pagamento: string | null
     forma_pagamento: FormaPagamento | null

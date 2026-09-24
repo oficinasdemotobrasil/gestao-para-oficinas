@@ -139,6 +139,12 @@ export function DetalheOrcamento() {
       <TituloSecao>Resumo</TituloSecao>
       <Card>
         <Linha rotulo="Soma dos itens" valor={moeda(soma)} />
+        {orcamento.indicador && (
+          <Linha
+            rotulo="Indicado por"
+            valor={`${orcamento.indicador.nome} (${orcamento.indicador.codigo})`}
+          />
+        )}
         {Number(orcamento.desconto) > 0 && (
           <Linha
             rotulo={

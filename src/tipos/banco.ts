@@ -63,6 +63,8 @@ type Oficina = {
   cidade: string | null
   /** Categorias de despesa que a oficina usa nas contas a pagar. */
   categorias_despesa: string[]
+  /** Percentual padrão de comissão dos indicadores (0065). */
+  comissao_indicador_percentual: number
   /** Depois de quantos dias sem serviço concluído o cliente entra em "sumidos". */
   dias_para_cliente_inativo: number
   /** Até quando o acesso está garantido. Nulo é sem prazo (migration 0044). */
@@ -327,6 +329,7 @@ type Orcamento = {
   desconto: number
   desconto_percentual: number | null
   motivo_recusa: string | null
+  indicador_id: string | null
   valor_total: number
   criado_por: string | null
   /** No serviço antigo (0060), é a data em que o serviço aconteceu. */
@@ -374,6 +377,44 @@ type NotaNaFicha = {
   status: StatusNota
   data: string
   ordem_servico_id: string | null
+}
+
+/**
+ * Quem manda cliente para a oficina, e ganha por isso (0065). O código é
+ * escolhido pelo próprio indicador e é o que o cliente fala no balcão.
+ */
+type Indicador = {
+  id: string
+  oficina_id: string
+  nome: string
+  telefone: string | null
+  codigo: string
+  /** Nulo usa o percentual da oficina; preenchido, vence o dela. */
+  percentual: number | null
+  ativo: boolean
+  observacoes: string | null
+  criado_em: string
+  atualizado_em: string
+}
+
+type StatusComissao = 'a_pagar' | 'paga' | 'cancelada'
+
+/** Nasce na aprovação do orçamento e é cancelada junto com a OS (0065). */
+type Comissao = {
+  id: string
+  oficina_id: string
+  indicador_id: string
+  orcamento_id: string
+  ordem_servico_id: string | null
+  /** O valor do orçamento aprovado, congelado: a OS muda depois. */
+  base: number
+  /** O percentual daquele dia, congelado pelo mesmo motivo. */
+  percentual: number
+  valor: number
+  status: StatusComissao
+  data_pagamento: string | null
+  criado_em: string
+  atualizado_em: string
 }
 
 type ItemDeDocumento = {
@@ -551,6 +592,8 @@ export type Database = {
       notas_fiscais_saida: Tabela<NotaFiscalSaida>
       itens_nf_saida: Tabela<ItemNfSaida>
       movimentacoes_estoque: Tabela<MovimentacaoEstoque>
+      indicadores: Tabela<Indicador>
+      comissoes: Tabela<Comissao>
       orcamentos: TabelaNumerada<Orcamento>
       orcamento_itens: Tabela<OrcamentoItem>
       ordens_servico: TabelaNumerada<OrdemServico>
@@ -647,6 +690,8 @@ export type Database = {
           p_desconto: number
           p_desconto_percentual: number | null
           p_itens: ItemOrcamento[]
+          /** Quem indicou o cliente (0065). A comissão nasce na aprovação. */
+          p_indicador_id?: string | null
         }
         Returns: string
       }
@@ -737,6 +782,39 @@ export type Database = {
             telefone: string | null
             desde: string
             ate: string | null
+          }>
+        }
+      }
+      indicador_por_codigo: {
+        Args: { p_codigo: string }
+        Returns: Array<{
+          id: string
+          nome: string
+          codigo: string
+          /** Já resolvido: o do indicador, ou o da oficina. */
+          percentual: number
+          ativo: boolean
+        }>
+      }
+      pagar_comissao: { Args: { p_comissao_id: string; p_data?: string }; Returns: Comissao }
+      desfazer_pagamento_da_comissao: { Args: { p_comissao_id: string }; Returns: Comissao }
+      indicadores_com_comissoes: {
+        Args: Record<string, never>
+        Returns: {
+          percentual_padrao: number
+          indicadores: Array<{
+            id: string
+            nome: string
+            codigo: string
+            telefone: string | null
+            ativo: boolean
+            percentual: number | null
+            percentual_efetivo: number
+            indicacoes: number
+            a_pagar: number
+            pago: number
+            /** Quanto de serviço aprovado veio dele. */
+            gerado: number
           }>
         }
       }
@@ -1025,6 +1103,9 @@ export type {
   ItemNfSaida,
   MovimentacaoEstoque,
   MovimentacaoVisivel,
+  Indicador,
+  Comissao,
+  StatusComissao,
   Orcamento,
   OrcamentoItem,
   OrdemServico,
