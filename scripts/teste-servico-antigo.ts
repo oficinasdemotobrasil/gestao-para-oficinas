@@ -406,6 +406,59 @@ async function main() {
       ? ok('mas não vê comissão nenhuma')
       : erro('vendedor viu comissão', JSON.stringify(comDoVendedor))
 
+    // O teste mostra tudo (0066) ------------------------------------------------
+    // Uma oficina no plano mais simples, dentro dos 7 dias: ela tem de ver o
+    // financeiro, senão a promessa da tela de planos nao se cumpre.
+    const { data: ofTeste } = await admin
+      .from('oficinas')
+      .insert({ nome: `[antigo ${MARCA}] Oficina em teste`, plano: 'gratuito', plano_escolhido: 'completo' })
+      .select()
+      .single()
+    await admin
+      .from('oficinas')
+      .update({
+        teste_ate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+        acesso_ate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+      })
+      .eq('id', ofTeste!.id)
+
+    const emailTeste = `antigo.teste.${MARCA}@example.com`
+    const { data: uTeste } = await admin.auth.admin.createUser({
+      email: emailTeste, password: SENHA, email_confirm: true,
+    })
+    await admin.from('usuarios').insert({
+      id: uTeste!.user!.id, oficina_id: ofTeste!.id, nome: 'Dona do Teste',
+      email: emailTeste, perfil: 'admin', ativo: true,
+    })
+
+    const appTeste = createClient(URL!, ANON!, { auth: { persistSession: false } })
+    await appTeste.auth.signInWithPassword({ email: emailTeste, password: SENHA })
+
+    const { data: temFinanceiro } = await appTeste.rpc('minha_oficina_tem_financeiro')
+    temFinanceiro === true
+      ? ok('oficina em teste, no plano simples, tem o financeiro aberto')
+      : erro('financeiro no teste', String(temFinanceiro))
+
+    const { error: eConta } = await appTeste
+      .from('contas_receber')
+      .insert({ descricao: 'Teste do plano', valor: 10, vencimento: new Date().toISOString().slice(0, 10) })
+    !eConta
+      ? ok('e consegue lançar uma conta a receber de verdade')
+      : erro('conta no teste', eConta.message)
+
+    const { data: painelTeste } = await appTeste.rpc('painel', {
+      p_de: new Date().toISOString().slice(0, 10),
+      p_ate: new Date().toISOString().slice(0, 10),
+    })
+    ;(painelTeste as { financeiro: unknown } | null)?.financeiro !== null
+      ? ok('e o painel mostra o bloco de dinheiro')
+      : erro('painel no teste', 'veio sem financeiro')
+
+    const { data: limite } = await appTeste.rpc('limite_da_oficina', { p_oficina: ofTeste!.id })
+    Number(limite) === 5
+      ? ok('e o limite de pessoas é o do maior plano', `${limite} acessos`)
+      : erro('limite no teste', String(limite))
+
     // As travas ---------------------------------------------------------------
     const depois = await lancar(app, diasAtras(10), null)
     depois.error
