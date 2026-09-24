@@ -110,12 +110,15 @@ async function main() {
     }
     const emailChefe = await criar('Tiago', 'admin')
     const emailVendedor = await criar('Bruna', 'vendedor')
+    const emailMecanico = await criar('Jorge', 'mecanico')
 
     const app = createClient(URL!, ANON!, { auth: { persistSession: false } })
     const { error: eLogin } = await app.auth.signInWithPassword({ email: emailChefe, password: SENHA })
     if (eLogin) throw new Error(`login: ${eLogin.message}`)
     const appVendedor = createClient(URL!, ANON!, { auth: { persistSession: false } })
     await appVendedor.auth.signInWithPassword({ email: emailVendedor, password: SENHA })
+    const appMecanico = createClient(URL!, ANON!, { auth: { persistSession: false } })
+    await appMecanico.auth.signInWithPassword({ email: emailMecanico, password: SENHA })
     ok('oficina de teste que entrou no sistema há 60 dias, com admin e vendedor')
 
     const { data: cli } = await app
@@ -288,6 +291,54 @@ async function main() {
     nada.motos.length === 0 && nada.clientes.length === 0 && nada.ordens.length === 0
       ? ok('e não inventa resultado quando não existe')
       : erro('busca sem resultado', JSON.stringify(nada))
+
+    // A ficha completa (0064) ---------------------------------------------------
+    const { data: fichaCliente, error: eFicha } = await app.rpc('ficha_do_cliente', {
+      p_cliente: cli!.id,
+    })
+    const fc = fichaCliente as {
+      resumo: { servicos: number; total_gasto: number }
+      ordens: { total: number }
+      financeiro: { em_aberto: number; recebido: number } | null
+    } | null
+    if (eFicha) erro('ficha do cliente', eFicha.message)
+    else if (fc && Number(fc.resumo.total_gasto) === 140 && Number(fc.ordens.total) >= 1)
+      ok('a ficha do cliente cruza serviço, valor e ordens', `R$ ${fc.resumo.total_gasto}`)
+    else erro('ficha do cliente', JSON.stringify(fc))
+    fc?.financeiro && Number(fc.financeiro.recebido) === 140
+      ? ok('e traz o dinheiro junto', `R$ ${fc.financeiro.recebido} recebido`)
+      : erro('financeiro na ficha', JSON.stringify(fc?.financeiro))
+
+    const { data: fichaMoto, error: eMotoFicha } = await app.rpc('ficha_da_moto', {
+      p_moto: motoId,
+    })
+    const fm = fichaMoto as {
+      resumo: { servicos: number; garantia_ate: string | null }
+      pecas: Array<{ descricao: string }>
+    } | null
+    if (eMotoFicha) erro('ficha da moto', eMotoFicha.message)
+    else if (fm && fm.pecas.some((x) => x.descricao === 'Óleo 10W30'))
+      ok('a ficha da moto lista a peça trocada nela')
+    else erro('peças na ficha da moto', JSON.stringify(fm?.pecas))
+
+    // O vendedor entra e vê o que o cliente deve; o mecânico não entra.
+    const doVendedor = await appVendedor.rpc('ficha_do_cliente', { p_cliente: cli!.id })
+    doVendedor.error === null && (doVendedor.data as { financeiro: unknown }).financeiro !== null
+      ? ok('o vendedor abre a ficha e vê o financeiro daquele cliente')
+      : erro('ficha para o vendedor', JSON.stringify(doVendedor.error ?? doVendedor.data))
+
+    const { error: eVendedorTabela } = await appVendedor
+      .from('contas_receber').select('id').limit(1)
+    const { data: tabelaVendedor } = await appVendedor
+      .from('contas_receber').select('id').limit(1)
+    !eVendedorTabela && (tabelaVendedor ?? []).length === 0
+      ? ok('mas continua sem enxergar a tabela de contas por fora da ficha')
+      : erro('vendedor leu contas_receber', JSON.stringify(tabelaVendedor ?? eVendedorTabela))
+
+    const doMecanico = await appMecanico.rpc('ficha_do_cliente', { p_cliente: cli!.id })
+    doMecanico.error
+      ? ok('o mecânico não abre a ficha', doMecanico.error.message)
+      : erro('mecânico abriu a ficha', JSON.stringify(doMecanico.data))
 
     // As travas ---------------------------------------------------------------
     const depois = await lancar(app, diasAtras(10), null)
