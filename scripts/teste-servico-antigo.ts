@@ -340,6 +340,72 @@ async function main() {
       ? ok('o mecânico não abre a ficha', doMecanico.error.message)
       : erro('mecânico abriu a ficha', JSON.stringify(doMecanico.data))
 
+    // Indicador e comissão (0065) ----------------------------------------------
+    const { data: indicador, error: eInd } = await app
+      .from('indicadores')
+      .insert({ nome: 'João da Esquina', telefone: '(81) 91234-5678', codigo: `joao ${String(MARCA).slice(-4)}` })
+      .select()
+      .single()
+    if (eInd) throw new Error(`indicador: ${eInd.message}`)
+    indicador!.codigo === `JOAO${String(MARCA).slice(-4)}`
+      ? ok('o código do indicador vira caixa alta e sem espaço', indicador!.codigo)
+      : erro('código do indicador', indicador!.codigo)
+
+    const { data: achado } = await app.rpc('indicador_por_codigo', {
+      p_codigo: indicador!.codigo.toLowerCase(),
+    })
+    const achadoPeloCodigo = (achado as Array<{ nome: string; percentual: number }>)?.[0]
+    achadoPeloCodigo?.nome === 'João da Esquina' && Number(achadoPeloCodigo.percentual) === 10
+      ? ok('o código digitado em minúscula acha o indicador, com o percentual da oficina')
+      : erro('busca por código', JSON.stringify(achado))
+
+    const itensComIndicacao = [
+      { tipo: 'avulso', produto_id: null, servico_id: null, descricao: 'Revisão completa', quantidade: 1, valor_unitario: 1000 },
+    ]
+    const { data: orcIndicado, error: eOrc } = await app.rpc('salvar_orcamento_com_itens', {
+      p_orcamento_id: null, p_cliente_id: cli!.id, p_moto_id: motoId, p_km_registrado: null,
+      p_validade_dias: 7, p_garantia_dias: 90, p_observacoes: null,
+      p_desconto: 0, p_desconto_percentual: null, p_itens: itensComIndicacao,
+      p_indicador_id: indicador!.id,
+    })
+    if (eOrc) throw new Error(`orçamento com indicador: ${eOrc.message}`)
+
+    const { data: osIndicada, error: eAprov } = await app.rpc('aprovar_orcamento', {
+      p_orcamento_id: orcIndicado as string,
+      p_responsavel_id: null,
+    })
+    if (eAprov) throw new Error(`aprovação: ${eAprov.message}`)
+
+    const { data: comissao } = await app
+      .from('comissoes').select('*').eq('orcamento_id', orcIndicado as string).single()
+    comissao && Number(comissao.valor) === 100 && comissao.status === 'a_pagar'
+      ? ok('aprovar o orçamento gera a comissão', `10% de R$ 1.000 = R$ ${comissao.valor}`)
+      : erro('comissão na aprovação', JSON.stringify(comissao))
+
+    // O contrapeso: cancelar a ordem cancela a comissão.
+    await app.rpc('cancelar_os', { p_ordem_servico_id: osIndicada as string, p_motivo: 'teste' })
+    const { data: comissaoDepois } = await app
+      .from('comissoes').select('status').eq('orcamento_id', orcIndicado as string).single()
+    comissaoDepois?.status === 'cancelada'
+      ? ok('e cancelar a ordem cancela a comissão junto')
+      : erro('comissão após cancelar a OS', JSON.stringify(comissaoDepois))
+
+    const { data: resumoInd } = await app.rpc('indicadores_com_comissoes')
+    const r = resumoInd as { percentual_padrao: number; indicadores: Array<{ nome: string; indicacoes: number }> }
+    r?.indicadores?.[0]?.nome === 'João da Esquina' && Number(r.percentual_padrao) === 10
+      ? ok('o resumo de indicadores responde para o admin')
+      : erro('resumo de indicadores', JSON.stringify(r))
+
+    // O vendedor lê o indicador (monta o orçamento), mas não vê comissão.
+    const { data: indDoVendedor } = await appVendedor.from('indicadores').select('id')
+    ;(indDoVendedor ?? []).length === 1
+      ? ok('o vendedor lê os indicadores')
+      : erro('vendedor sem indicadores', JSON.stringify(indDoVendedor))
+    const { data: comDoVendedor } = await appVendedor.from('comissoes').select('id')
+    ;(comDoVendedor ?? []).length === 0
+      ? ok('mas não vê comissão nenhuma')
+      : erro('vendedor viu comissão', JSON.stringify(comDoVendedor))
+
     // As travas ---------------------------------------------------------------
     const depois = await lancar(app, diasAtras(10), null)
     depois.error

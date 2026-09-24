@@ -14,6 +14,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 const ORDEM = [
+  // Comissão aponta para orçamento, ordem e indicador: sai antes dos três.
+  'comissoes',
   // os_itens e os_status_historico não entram: eles caem por cascata quando a
   // ordem é apagada. Apagados direto, esbarram no gatilho que impede mexer nos
   // itens de uma ordem já fechada — regra certa, no lugar errado para isto.
@@ -30,6 +32,7 @@ const ORDEM = [
   'clientes',
   'produtos',
   'servicos',
+  'indicadores',
   'usuarios',
 ] as const
 
