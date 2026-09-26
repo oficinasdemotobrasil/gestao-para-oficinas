@@ -1,7 +1,10 @@
-Coloque aqui uma foto chamada oficina.jpg (ou .png, trocando o nome no
-MolduraDeEntrada.tsx) e publique: ela passa a ocupar o lado esquerdo da tela
-de entrar no computador, com um véu escuro por cima para o texto continuar
-legível.
+Coloque aqui uma foto chamada oficina.jpg, oficina.jpeg ou oficina.png e
+publique: ela passa a ocupar o lado esquerdo da tela de entrar no computador,
+com um véu escuro por cima para o texto continuar legível.
+
+As três extensões são tentadas em ordem, de propósito: antes só .jpg valia, e
+quem salvasse o .png que o celular gerou publicava um site que continuava
+mostrando o desenho, sem erro nenhum para avisar.
 
 O que funciona bem:
 - foto deitada (horizontal), no mínimo 1600 pixels de largura;

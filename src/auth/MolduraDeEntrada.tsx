@@ -20,15 +20,25 @@ import { Logotipo, Simbolo } from '@/componentes/marca/Logotipo'
 /**
  * A foto que ocupa o lado esquerdo no computador.
  *
- * Para colocar uma foto, basta salvar o arquivo em `public/entrada/oficina.jpg`
- * e publicar: a tela procura por ele sozinha e, achando, usa. Não achando,
- * fica a composição da marca — e ninguém precisa mexer em código para isso.
+ * Para colocar uma foto, basta salvar o arquivo em `public/entrada/` com o nome
+ * `oficina` e publicar: a tela procura por ele sozinha e, achando, usa. Não
+ * achando, fica a composição da marca — e ninguém precisa mexer em código.
+ *
+ * As três extensões são tentadas em ordem porque a alternativa era uma falha
+ * silenciosa: quem recebe a foto do dono da oficina recebe o que o celular
+ * dele gerou, salva na pasta, publica — e a tela continua mostrando o desenho,
+ * sem erro nenhum, porque o nome não terminava em .jpg. Ninguém descobre isso
+ * olhando, descobre semanas depois.
  *
  * Enquanto não houver foto de oficina de moto que seja nossa, feita numa
  * oficina ou comprada com licença, o lado fica com o desenho. Foto de banco de
  * imagem baixada sem licença é processo, não é economia.
  */
-const FOTO_DA_ENTRADA = '/entrada/oficina.jpg'
+const FOTOS_DA_ENTRADA = [
+  '/entrada/oficina.jpg',
+  '/entrada/oficina.jpeg',
+  '/entrada/oficina.png',
+]
 
 export function MolduraDeEntrada({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -57,16 +67,18 @@ function PainelDaMarca() {
   // Começa supondo que a foto existe e desiste no primeiro erro de carga. O
   // contrário — perguntar ao servidor antes — atrasaria a tela em todo mundo
   // por causa de um arquivo que quase sempre não está lá.
-  const [temFoto, setTemFoto] = useState(true)
+  const [tentativa, setTentativa] = useState(0)
+  const temFoto = tentativa < FOTOS_DA_ENTRADA.length
 
   return (
     <aside className="relative hidden overflow-hidden bg-inverso desktop:flex desktop:flex-col desktop:justify-between desktop:p-12">
       {temFoto ? (
         <>
           <img
-            src={FOTO_DA_ENTRADA}
+            key={FOTOS_DA_ENTRADA[tentativa]}
+            src={FOTOS_DA_ENTRADA[tentativa]}
             alt=""
-            onError={() => setTemFoto(false)}
+            onError={() => setTentativa((t) => t + 1)}
             className="absolute inset-0 h-full w-full object-cover"
           />
           {/* Véu chapado, sem degradê: a identidade não usa gradiente, e é ele
