@@ -31,7 +31,8 @@
     "teste:xml-da-nota": "tsx scripts/teste-xml-da-nota.ts",
     "teste:certificado": "tsx scripts/teste-certificado.ts",
     "teste:servico-antigo": "tsx scripts/teste-servico-antigo.ts",
-    "teste:cadastro-publico": "tsx scripts/teste-cadastro-publico.mts"
+    "teste:cadastro-publico": "tsx scripts/teste-cadastro-publico.mts",
+    "teste:comissao": "tsx scripts/teste-comissao-do-vendedor.mts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

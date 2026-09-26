@@ -3315,6 +3315,7 @@ async function testarIndicadores() {
     'select count(*) as n from public.comissoes',
     0,
   )
+
   await esperaErro(
     'nem o resumo de comissões',
     'select public.indicadores_com_comissoes()',
@@ -3342,6 +3343,42 @@ async function testarIndicadores() {
   joao && Number(joao.pago) === 100 && Number(joao.a_pagar) === 0
     ? ok('o resumo mostra o que já foi pago e o que falta pagar a cada indicador')
     : erro('resumo de comissões', JSON.stringify(resumo.rows[0].r.indicadores))
+
+  // Por último de propósito: este bloco cria comissão, e a conferência do
+  // resumo acima conta comissões.
+  await logarComo(ID.vendedorA)
+  // Quem anota o código do indicador é o balcão, então o vendedor tem de poder
+  // aprovar. Antes da 0068 não podia: a política de comissões recusava o insert
+  // e a aprovação inteira voltava atrás com 42501 — sem OS, sem nada.
+  const orcDoVendedor = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', null,
+       7, 90, null, 0, null, $1::jsonb, '11111111-aaaa-4aaa-8aaa-111111111111') as id`,
+    [itens],
+  )
+  try {
+    await db.query(
+      `select public.aprovar_orcamento('${orcDoVendedor.rows[0].id}', '${ID.mecanicoA}')`,
+    )
+    ok('o vendedor aprova orçamento com indicador', 'a comissão nasce sem ele ver')
+  } catch (e) {
+    erro('o vendedor aprova orçamento com indicador', (e as Error).message.split('\n')[0])
+  }
+
+  // E a fresta serve só à aprovação: comissão digitada à mão continua recusada.
+  // O orçamento é outro, ainda sem comissão, para o que recusa ser a política e
+  // não a unique de orcamento_id.
+  const orcSemComissao = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', null,
+       7, 90, null, 0, null, $1::jsonb, null) as id`,
+    [itens],
+  )
+  await esperaBloqueio(
+    'mas não inventa comissão à mão pela API',
+    `insert into public.comissoes
+       (oficina_id, indicador_id, orcamento_id, base, percentual, valor)
+     values ('${ID.oficinaA}', '11111111-aaaa-4aaa-8aaa-111111111111',
+             '${orcSemComissao.rows[0].id}', 1000, 100, 1000)`,
+  )
 }
 
 /**
