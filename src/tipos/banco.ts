@@ -1057,6 +1057,7 @@ export type Database = {
       perfil_do_usuario: { Args: Record<string, never>; Returns: PerfilUsuario }
       /** A situação de hoje, calculada das datas (migration 0044). */
       minha_situacao: { Args: Record<string, never>; Returns: StatusOficina }
+      minha_oficina_tem_financeiro: { Args: Record<string, never>; Returns: boolean }
       /** Tudo o que é da oficina, em qualquer situação (migration 0045). */
       exportar_dados_da_oficina: { Args: Record<string, never>; Returns: Record<string, unknown> }
       /** Marca a data. Não apaga nada. Devolve quando a exclusão pode ocorrer. */

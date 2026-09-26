@@ -21,6 +21,14 @@ interface Contexto {
    * `status`, que guarda apenas o que um humano decidiu. Ver migration 0044.
    */
   situacao: StatusOficina | null
+  /**
+   * O financeiro está aberto para esta oficina?
+   *
+   * Vem do banco, de `minha_oficina_tem_financeiro`, e não do plano: durante
+   * os 7 dias de teste a oficina tem tudo, e foi a tela que deixou de saber
+   * disso enquanto o banco já sabia. Uma pergunta, uma resposta, um lugar.
+   */
+  temFinanceiro: boolean
   /** true enquanto ainda não se sabe se há sessão: evita piscar a tela de login. */
   carregando: boolean
   /** Sessão válida no Auth, mas sem linha em public.usuarios. Ver AcessoPendente. */
@@ -66,6 +74,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null)
   const [oficina, setOficina] = useState<Oficina | null>(null)
   const [situacao, setSituacao] = useState<StatusOficina | null>(null)
+  const [temFinanceiro, setTemFinanceiro] = useState(false)
   const [carregando, setCarregando] = useState(true)
   const [semVinculo, setSemVinculo] = useState(false)
 
@@ -83,6 +92,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
     if (error || !linhaUsuario) {
       setUsuario(null)
       setOficina(null)
+      setTemFinanceiro(false)
       setSemVinculo(!error)
       return
     }
@@ -92,6 +102,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
       await supabase.auth.signOut()
       setUsuario(null)
       setOficina(null)
+      setTemFinanceiro(false)
       throw new Error(
         'Seu acesso foi desativado. Fale com o responsável pela oficina.',
       )
@@ -112,6 +123,11 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
     // `status` veria 'ativa' numa oficina cujo prazo venceu ontem.
     const { data: situacaoAtual } = await supabase.rpc('minha_situacao')
     setSituacao((situacaoAtual as StatusOficina | null) ?? null)
+
+    // E no mesmo lugar, pela mesma razão: quem responde se o financeiro está
+    // aberto é o banco, que conhece o plano E o teste em curso.
+    const { data: financeiroAberto } = await supabase.rpc('minha_oficina_tem_financeiro')
+    setTemFinanceiro(financeiroAberto === true)
 
     // A marca entra assim que a oficina chega, antes de qualquer tela pintar.
     // E fica guardada no aparelho para a próxima tela de entrar já nascer com
@@ -151,6 +167,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
         } else {
           setUsuario(null)
           setOficina(null)
+          setTemFinanceiro(false)
           setSemVinculo(false)
         }
       },
@@ -210,6 +227,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
     await supabase.auth.signOut()
     setUsuario(null)
     setOficina(null)
+    setTemFinanceiro(false)
   }, [])
 
   const enviarRecuperacao = useCallback(async (email: string) => {
@@ -234,6 +252,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
       usuario,
       oficina,
       situacao,
+      temFinanceiro,
       carregando,
       semVinculo,
       entrar,
@@ -247,6 +266,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
       usuario,
       oficina,
       situacao,
+      temFinanceiro,
       carregando,
       semVinculo,
       entrar,

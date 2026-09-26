@@ -9,13 +9,17 @@ import { useAuth } from './ProvedorAuth'
  * sumissem, o servidor continuaria recusando o que tem que recusar.
  */
 export function usePermissoes() {
-  const { usuario, oficina } = useAuth()
+  const { usuario, temFinanceiro } = useAuth()
   const perfil = usuario?.perfil ?? null
 
   // O plano decide o que a oficina contratou; o perfil decide quem, dentro
   // dela, alcança o quê. São perguntas diferentes e por isso ficam separadas:
   // esconder o financeiro de um plano que não o tem não é permissão de pessoa.
-  const temFinanceiro = oficina?.plano === 'completo'
+  //
+  // `temFinanceiro` vem do banco, não de comparar o plano aqui: durante o
+  // teste a oficina tem tudo (migrations 0066 e 0067), e esta linha já errou
+  // essa conta uma vez — o cartão prometia o financeiro no teste e a tela
+  // escondia.
 
   const ehAdmin = perfil === 'admin'
   const ehVendedor = perfil === 'vendedor'
