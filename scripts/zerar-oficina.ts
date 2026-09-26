@@ -241,14 +241,35 @@ for (const u of saem) {
   else console.log(`apagado: acesso ${u.email}`)
 }
 
-// 6. A conferência: o que sobrou tem de ser zero.
+/*
+ * 6. A conferência, dizendo o que é para estar zerado e o que é para ficar.
+ *
+ * Sem essa distinção, a lista mostrava número diferente de zero em `usuarios`,
+ * `assinaturas` e `eventos_asaas` debaixo de um título que sugeria erro — e
+ * quem está rodando um script destrutivo, lendo isso, pode "terminar o
+ * serviço" à mão e apagar o acesso do dono ou o histórico de cobrança.
+ */
+const MANTIDAS = new Set(['usuarios', 'assinaturas', 'eventos_asaas'])
+
 console.log('\n--- conferência ---')
+let sobrouAlgo = false
 for (const tabela of PARA_O_BACKUP) {
   const { count } = await admin
     .from(tabela)
     .select('*', { count: 'exact', head: true })
     .eq('oficina_id', oficina.id)
-  console.log(`${tabela.padEnd(24)} ${count}`)
+
+  if (MANTIDAS.has(tabela)) {
+    console.log(`${tabela.padEnd(24)} ${count}  (mantido de propósito)`)
+    continue
+  }
+  if ((count ?? 0) > 0) sobrouAlgo = true
+  console.log(`${tabela.padEnd(24)} ${count}${(count ?? 0) > 0 ? '  ← deveria ser zero' : ''}`)
+}
+
+if (sobrouAlgo) {
+  console.error('\nAlguma tabela que deveria ter sido zerada ainda tem linhas.')
+  console.error('NÃO apague à mão: veja o erro acima, ou rode de novo.')
 }
 
 if (problemas.length > 0) {

@@ -87,6 +87,13 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
   const [semVinculo, setSemVinculo] = useState(false)
   const [perfilCarregado, setPerfilCarregado] = useState(false)
 
+  /** Tudo o que veio do cadastro sai junto. Um lugar só, para não esquecer um. */
+  const limparPerfil = useCallback(() => {
+    setUsuario(null)
+    setOficina(null)
+    setTemFinanceiro(false)
+  }, [])
+
   /**
    * Busca o cadastro do usuário e a oficina dele. O RLS já garante que só volta
    * a oficina certa — não passamos nenhum filtro de tenant daqui.
@@ -99,9 +106,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
       .maybeSingle()
 
     if (error || !linhaUsuario) {
-      setUsuario(null)
-      setOficina(null)
-      setTemFinanceiro(false)
+      limparPerfil()
       setSemVinculo(!error)
       return
     }
@@ -109,9 +114,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
     // Colaborador desativado não entra, mesmo com a senha certa.
     if (!linhaUsuario.ativo) {
       await supabase.auth.signOut()
-      setUsuario(null)
-      setOficina(null)
-      setTemFinanceiro(false)
+      limparPerfil()
       throw new Error(
         'Seu acesso foi desativado. Fale com o responsável pela oficina.',
       )
@@ -133,10 +136,25 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
     const { data: situacaoAtual } = await supabase.rpc('minha_situacao')
     setSituacao((situacaoAtual as StatusOficina | null) ?? null)
 
-    // E no mesmo lugar, pela mesma razão: quem responde se o financeiro está
-    // aberto é o banco, que conhece o plano E o teste em curso.
-    const { data: financeiroAberto } = await supabase.rpc('minha_oficina_tem_financeiro')
-    setTemFinanceiro(financeiroAberto === true)
+    /*
+     * E no mesmo lugar, pela mesma razão: quem responde se o financeiro está
+     * aberto é o banco, que conhece o plano E o teste em curso.
+     *
+     * Falhando a chamada, o palpite erra para MAIS. Descartar o erro e assumir
+     * "não tem" faria o Financeiro sumir do menu de uma oficina que paga por
+     * ele, calado, até a pessoa sair e entrar de novo — uma queda de rede de
+     * dois segundos custaria o dia inteiro. Errando para mais, o pior caso é
+     * ela abrir a tela e ler "seu plano não inclui", que explica o que está
+     * acontecendo em vez de esconder.
+     */
+    const { data: financeiroAberto, error: erroDoFinanceiro } = await supabase.rpc(
+      'minha_oficina_tem_financeiro',
+    )
+    setTemFinanceiro(
+      erroDoFinanceiro
+        ? linhaOficina?.plano === 'completo' || situacaoAtual === 'teste'
+        : financeiroAberto === true,
+    )
 
     // A marca entra assim que a oficina chega, antes de qualquer tela pintar.
     // E fica guardada no aparelho para a próxima tela de entrar já nascer com
@@ -171,20 +189,27 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
     })
 
     const { data: assinatura } = supabase.auth.onAuthStateChange(
-      async (_evento, novaSessao) => {
+      async (evento, novaSessao) => {
         if (!ativo) return
         setSessao(novaSessao)
         if (novaSessao?.user) {
-          // Marca falso ANTES de buscar: é este intervalo que a tela precisa
-          // enxergar como espera.
-          setPerfilCarregado(false)
+          /*
+           * Só o login de verdade abre a janela de espera.
+           *
+           * Este bloco recebe todo evento do Auth, e TOKEN_REFRESHED chega de
+           * hora em hora — e de propósito quando o celular volta do bolso, pelo
+           * efeito de renovação logo abaixo. Marcando falso em todos eles, a
+           * `RotaProtegida` trocava a tela inteira por "Entrando…" e desmontava
+           * o que estava aberto: o orçamento pela metade, a ordem em edição.
+           * Exatamente no momento em que a pessoa ia salvar, que é a razão de
+           * aquele efeito existir.
+           */
+          if (evento === 'SIGNED_IN') setPerfilCarregado(false)
           await carregarPerfil(novaSessao.user.id).catch(() => undefined)
           if (ativo) setPerfilCarregado(true)
         } else {
           setPerfilCarregado(true)
-          setUsuario(null)
-          setOficina(null)
-          setTemFinanceiro(false)
+          limparPerfil()
           setSemVinculo(false)
         }
       },

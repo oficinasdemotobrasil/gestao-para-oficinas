@@ -1465,6 +1465,15 @@ async function testarFinanceiro() {
    * pagou no cartão. Antes disto o único botão que restava era cancelar a
    * conta, que apagava a receita do mês para consertar um campo de texto.
    */
+  // O dinheiro escrito em português. `to_char` com G e D segue o idioma do
+  // servidor, e o Supabase roda em inglês — o histórico sairia "R$ 1,234.50".
+  const escrito = await db.query<{ t: string }>(
+    `select public.descrever_recebimento('pix', 1234.5, date '2026-09-26') as t`,
+  )
+  escrito.rows[0].t === 'pix, R$ 1.234,50, em 26/09/2026'
+    ? ok('o histórico escreve o valor em português', escrito.rows[0].t)
+    : erro('formato do dinheiro no histórico', escrito.rows[0].t)
+
   await esperaErro(
     'corrigir sem dizer o motivo é recusado',
     `select public.corrigir_recebimento('${contaId}', null, null, 'credito', '')`,
