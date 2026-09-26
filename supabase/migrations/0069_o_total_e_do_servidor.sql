@@ -56,11 +56,28 @@ create or replace function public.total_do_orcamento_antes_de_gravar()
 returns trigger
 language plpgsql
 as $$
+declare
+  v_itens numeric(12, 2);
+  v_abatimento numeric(12, 2);
 begin
-  new.valor_total := greatest(
-    public.soma_dos_itens_do_orcamento(new.id) - coalesce(new.desconto, 0),
-    0
-  )::numeric(12, 2);
+  v_itens := public.soma_dos_itens_do_orcamento(new.id);
+
+  /*
+   * O desconto é lido do jeito que a pessoa o escolheu, igual à conta da OS
+   * (`total_da_os`, 0026). Usar só a coluna em reais deixaria uma fresta boba:
+   * quem gravasse `desconto_percentual = 90` sem mexer na outra teria um
+   * orçamento impresso anunciando noventa por cento e cobrando o preço cheio.
+   *
+   * Com as duas tabelas na mesma regra, a ordem de serviço nasce com o mesmo
+   * número do orçamento por construção, e não por causa da cópia.
+   */
+  v_abatimento := case
+    when new.desconto_percentual is not null
+      then v_itens * least(greatest(new.desconto_percentual, 0), 100) / 100
+    else coalesce(new.desconto, 0)
+  end;
+
+  new.valor_total := greatest(v_itens - least(v_abatimento, v_itens), 0)::numeric(12, 2);
   return new;
 end;
 $$;
@@ -264,5 +281,20 @@ begin
   return v_os_id;
 end;
 $$;
+
+/*
+ * As duas funções de recálculo saem do alcance da API.
+ *
+ * Elas são `security definer`, então rodam com poderes de dono do banco e não
+ * enxergam RLS. Chamadas pelos gatilhos — que também são definer — isso é o que
+ * se quer. Expostas pelo PostgREST, viravam uma maneira de escrever numa linha
+ * de outra oficina, ainda que só para pôr nela o número certo. O mesmo cuidado
+ * que a 0019 teve com `recalcular_estoque`.
+ *
+ * Repare que `soma_dos_itens_do_orcamento` NÃO entra: ela é chamada pelo gatilho
+ * BEFORE, que é invoker, então quem salva um orçamento precisa poder executá-la.
+ */
+revoke all on function public.recalcular_total_do_orcamento(uuid) from public, anon;
+revoke all on function public.recalcular_total_da_os(uuid) from public, anon;
 
 select public.conferir_fechadura();

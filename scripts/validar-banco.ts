@@ -3441,6 +3441,32 @@ async function testarIndicadores() {
     ? ok('mudar o desconto refaz o total sozinho', 'R$ 1.000 − R$ 250 = R$ 750')
     : erro('total com desconto', `esperava 75000 centavos e veio ${comDesconto}`)
 
+  // O desconto percentual entra pela mesma regra da OS. Sem isso, gravar só
+  // `desconto_percentual` daria um orçamento impresso anunciando desconto e
+  // cobrando o preço cheio.
+  await db.query(
+    `update public.orcamentos set desconto = 0, desconto_percentual = 10
+      where id = '${orcDoTotal.rows[0].id}'`,
+  )
+  const comPercentual = await contar(
+    `select (valor_total * 100)::int as n from public.orcamentos
+      where id = '${orcDoTotal.rows[0].id}'`,
+  )
+  comPercentual === 90000
+    ? ok('desconto percentual abate pela mesma regra da OS', '10% de R$ 1.000 = R$ 900')
+    : erro('total com percentual', `esperava 90000 centavos e veio ${comPercentual}`)
+
+  // As funções de recálculo são definer: fora do alcance da API, senão viram
+  // uma escrita em linha de outra oficina.
+  await esperaErro(
+    'o vendedor não alcança o recálculo do orçamento',
+    `select public.recalcular_total_do_orcamento('${orcDoTotal.rows[0].id}')`,
+  )
+  await esperaErro(
+    'nem o recálculo da ordem de serviço',
+    `select public.recalcular_total_da_os('${orcDoTotal.rows[0].id}')`,
+  )
+
   // Duplicar copia os itens, então o total do novo nasce da conta e não da
   // cópia. Se alguém tirar a cópia dos itens um dia, o total vira zero e este
   // teste avisa.
@@ -3451,9 +3477,9 @@ async function testarIndicadores() {
     `select (valor_total * 100)::int as n from public.orcamentos
       where id = '${duplicado.rows[0].id}'`,
   )
-  totalDoDuplicado === 75000
-    ? ok('o orçamento duplicado nasce com o total refeito', 'R$ 750')
-    : erro('total do duplicado', `esperava 75000 centavos e veio ${totalDoDuplicado}`)
+  totalDoDuplicado === 90000
+    ? ok('o orçamento duplicado nasce com o total refeito', 'R$ 900, com os 10%')
+    : erro('total do duplicado', `esperava 90000 centavos e veio ${totalDoDuplicado}`)
 
   // Na ordem de serviço a coluna não é refeita, é recusada: derivar do
   // percentual poderia mover o centavo que a 0026 casou com o orçamento.
