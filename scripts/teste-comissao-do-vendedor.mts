@@ -271,7 +271,59 @@ async function main() {
     ? ok('e o valor da ordem de serviço é recusado', eOsTotal.message.split('\n')[0].slice(0, 70))
     : erro('valor da OS', 'a API aceitou a alteração')
 
-  // 8. A fechadura, que o assistente não viu retornar quando a página travou.
+  /*
+   * 8. Desconto percentual, com indicador.
+   *
+   * O caso que ficou errado por um tempo: o gatilho abatia o percentual e a
+   * base da comissão não, então a oficina pagava comissão sobre o valor cheio.
+   */
+  const { data: orcPct } = await loja.rpc('salvar_orcamento_com_itens', {
+    p_orcamento_id: null, p_cliente_id: cli!.id, p_moto_id: motoId,
+    p_km_registrado: 10000, p_validade_dias: 7, p_garantia_dias: 90,
+    p_observacoes: null, p_desconto: 0, p_desconto_percentual: null,
+    p_itens: itens, p_indicador_id: ind.id,
+  })
+  await loja.from('orcamentos').update({ desconto_percentual: 10 }).eq('id', orcPct as string)
+  const { data: totalPct } = await admin
+    .from('orcamentos').select('valor_total').eq('id', orcPct as string).single()
+  Number(totalPct!.valor_total) === 360
+    ? ok('desconto percentual abate o total sozinho', `R$ 400 − 10% = R$ ${totalPct!.valor_total}`)
+    : erro('total com percentual', `esperava 360 e veio ${totalPct!.valor_total}`)
+
+  const { data: quemPct } = await loja.from('usuarios').select('id').limit(1)
+  await loja.rpc('aprovar_orcamento', {
+    p_orcamento_id: orcPct as string,
+    p_responsavel_id: (quemPct as Array<{ id: string }>)[0].id,
+  })
+  const { data: comPct } = await admin
+    .from('comissoes').select('base, valor').eq('orcamento_id', orcPct as string).single()
+  Number(comPct!.base) === 360 && Number(comPct!.valor) === 54
+    ? ok('e a comissão sai sobre o total abatido', `R$ 360 × 15% = R$ ${comPct!.valor}`)
+    : erro('comissão com percentual', JSON.stringify(comPct))
+
+  /*
+   * 9. Item novo muda o total sozinho.
+   *
+   * É a outra metade de a coluna ser derivada: antes, quem mexia num item pela
+   * API deixava o total do orçamento parado no número antigo.
+   */
+  const { data: orcItem } = await loja.rpc('salvar_orcamento_com_itens', {
+    p_orcamento_id: null, p_cliente_id: cli!.id, p_moto_id: motoId,
+    p_km_registrado: 10000, p_validade_dias: 7, p_garantia_dias: 90,
+    p_observacoes: null, p_desconto: 0, p_desconto_percentual: null,
+    p_itens: itens, p_indicador_id: null,
+  })
+  await loja.from('orcamento_itens').insert({
+    orcamento_id: orcItem as string, tipo: 'avulso', descricao: 'Peça extra',
+    quantidade: 1, valor_unitario: 150, valor_total: 150,
+  })
+  const { data: depoisDoItem } = await admin
+    .from('orcamentos').select('valor_total').eq('id', orcItem as string).single()
+  Number(depoisDoItem!.valor_total) === 550
+    ? ok('item novo levanta o total do orçamento sozinho', `R$ 400 + R$ 150 = R$ ${depoisDoItem!.valor_total}`)
+    : erro('total após item', `esperava 550 e veio ${depoisDoItem!.valor_total}`)
+
+  // 10. A fechadura, que o assistente não viu retornar quando a página travou.
   const { error: eFechadura } = await app.rpc('conferir_fechadura')
   eFechadura
     ? erro('conferir_fechadura', eFechadura.message)
