@@ -175,6 +175,76 @@ async function main() {
   })
   if (eAprov3) erro('vendedora aprova orçamento SEM indicador', eAprov3.message)
   else ok('vendedora aprova orçamento sem indicador', 'o caminho normal dela funciona')
+
+  /*
+   * 5. Desconto percentual.
+   *
+   * A base da comissão desconta `orcamentos.desconto`, que guarda o valor em
+   * reais. A tela manda as duas colunas — o valor calculado E o percentual —,
+   * então o desconto entra. Aqui isso deixa de ser confiança na tela e passa a
+   * ser medida.
+   */
+  const comPercentual = async (desconto: number, percentual: number | null) => {
+    const { data: id, error } = await loja.rpc('salvar_orcamento_com_itens', {
+      p_orcamento_id: null, p_cliente_id: cli!.id, p_moto_id: motoId,
+      p_km_registrado: 10000, p_validade_dias: 7, p_garantia_dias: 90,
+      p_observacoes: null, p_desconto: desconto, p_desconto_percentual: percentual,
+      p_itens: itens, p_indicador_id: ind.id,
+    })
+    if (error) throw new Error(`orçamento com desconto: ${error.message}`)
+    const { data: quem } = await loja.from('usuarios').select('id').limit(1)
+    const { error: eA } = await loja.rpc('aprovar_orcamento', {
+      p_orcamento_id: id as string,
+      p_responsavel_id: (quem as Array<{ id: string }>)[0].id,
+    })
+    if (eA) throw new Error(`aprovar com desconto: ${eA.message}`)
+    const { data: c } = await admin
+      .from('comissoes').select('base, valor').eq('orcamento_id', id as string).single()
+    const { data: o } = await admin
+      .from('orcamentos').select('valor_total').eq('id', id as string).single()
+    return { base: Number(c!.base), valor: Number(c!.valor), total: Number(o!.valor_total) }
+  }
+
+  // Como a tela manda: 10% de 400 = 40 em reais, e o percentual ao lado.
+  const r1 = await comPercentual(40, 10)
+  r1.base === 360 && r1.valor === 54
+    ? ok('desconto percentual entra na base', `R$ ${r1.base} × 15% = R$ ${r1.valor}`)
+    : erro('base com desconto percentual', JSON.stringify(r1))
+
+  // E o caso que a revisão levantou: percentual preenchido, reais vazios. A
+  // comissão não fica maior que o total aprovado, porque a base usa a MESMA
+  // conta que gerou o valor_total — se um ignora o percentual, o outro ignora
+  // igual. É isso que fecha a hipótese.
+  const r2 = await comPercentual(0, 10)
+  r2.base === r2.total
+    ? ok('sem o valor em reais, a base é o próprio total aprovado', `base ${r2.base} = total ${r2.total}`)
+    : erro('base maior que o total aprovado', JSON.stringify(r2))
+
+  // 6. O índice novo: uma OS por orçamento.
+  const { data: orcDaOS } = await loja.rpc('salvar_orcamento_com_itens', {
+    p_orcamento_id: null, p_cliente_id: cli!.id, p_moto_id: motoId,
+    p_km_registrado: 10000, p_validade_dias: 7, p_garantia_dias: 90,
+    p_observacoes: null, p_desconto: 0, p_desconto_percentual: null,
+    p_itens: itens, p_indicador_id: null,
+  })
+  const { data: quemOS } = await loja.from('usuarios').select('id').limit(1)
+  await loja.rpc('aprovar_orcamento', {
+    p_orcamento_id: orcDaOS as string,
+    p_responsavel_id: (quemOS as Array<{ id: string }>)[0].id,
+  })
+  const { error: eSegunda } = await admin.from('ordens_servico').insert({
+    oficina_id: of.id, orcamento_id: orcDaOS as string, cliente_id: cli!.id,
+    moto_id: motoId, numero: 9999, status: 'aberta',
+  })
+  eSegunda
+    ? ok('o mesmo orçamento não gera uma segunda OS', eSegunda.message.split('\n')[0].slice(0, 60))
+    : erro('segunda OS do mesmo orçamento', 'o banco aceitou')
+
+  // 7. A fechadura, que o assistente não viu retornar quando a página travou.
+  const { error: eFechadura } = await app.rpc('conferir_fechadura')
+  eFechadura
+    ? erro('conferir_fechadura', eFechadura.message)
+    : ok('conferir_fechadura passa', 'nenhuma tabela sem RLS')
 }
 
 try {
