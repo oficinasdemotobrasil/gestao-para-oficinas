@@ -52,6 +52,15 @@ alter default privileges in schema public
 alter default privileges in schema public
   grant usage, select on sequences to authenticated;
 
+-- E o Supabase concede EXECUTE nas funções novas a `authenticated`, o que é
+-- fácil de esquecer aqui e custou caro: a 0069 revogou funções `security
+-- definer` "de public e anon" e elas continuaram alcançáveis pela API de
+-- produção, porque authenticated tem concessão própria e não herda de public.
+-- O teste local passava e o banco de verdade não. Sem esta linha, qualquer
+-- revogação incompleta continua invisível aqui.
+alter default privileges in schema public
+  grant execute on functions to authenticated;
+
 -- ---------------------------------------------------------------------------
 -- Storage do Supabase, o mínimo para as políticas de anexo serem validadas.
 -- No projeto real isto tudo já existe; aqui é só o esqueleto.

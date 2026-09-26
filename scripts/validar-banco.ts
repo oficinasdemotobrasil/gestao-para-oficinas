@@ -602,8 +602,14 @@ async function testarEstoque() {
     : erro('saldo inicial', `movimentação ${inicialRegistrado}, saldo ${saldoNovo}`)
 
   // A prova do invariante: recalcular do zero tem que dar o mesmo número.
+  //
+  // Como dono do banco de propósito: desde a 0070 `recalcular_estoque` não é
+  // alcançável por quem usa o sistema, e é isso que se quer. Aqui a conta é
+  // conferida por dentro, não pela porta da API.
   const cacheado = await saldo(ID.produtoA)
+  await db.query('set role postgres')
   const recalculado = await contar(`select public.recalcular_estoque('${ID.produtoA}') as n`)
+  await logarComo(ID.adminA)
   cacheado === recalculado
     ? ok(`o saldo em cache bate com a soma do extrato (${cacheado})`)
     : erro('invariante do estoque', `cache ${cacheado}, extrato ${recalculado}`)
@@ -3466,6 +3472,34 @@ async function testarIndicadores() {
     'nem o recálculo da ordem de serviço',
     `select public.recalcular_total_da_os('${orcDoTotal.rows[0].id}')`,
   )
+  await esperaErro(
+    'nem o recálculo do estoque, aberto desde a 0019',
+    `select public.recalcular_estoque('${ID.produtoA}')`,
+  )
+
+  // A comissão segue o total, e o total já abate o percentual. Enquanto as duas
+  // contas eram separadas, um orçamento com desconto percentual e indicador
+  // pagava comissão sobre o valor cheio.
+  const orcPct = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', null,
+       7, 90, null, 0, null, $1::jsonb, '11111111-aaaa-4aaa-8aaa-111111111111') as id`,
+    [itens],
+  )
+  await db.query(
+    `update public.orcamentos set desconto_percentual = 10 where id = '${orcPct.rows[0].id}'`,
+  )
+  await db.query(`select public.aprovar_orcamento('${orcPct.rows[0].id}', '${ID.mecanicoA}')`)
+  await logarComo(ID.adminA)
+  const basePct = await contar(
+    `select (base * 100)::int as n from public.comissoes where orcamento_id = '${orcPct.rows[0].id}'`,
+  )
+  const valorPct = await contar(
+    `select (valor * 100)::int as n from public.comissoes where orcamento_id = '${orcPct.rows[0].id}'`,
+  )
+  basePct === 90000 && valorPct === 13500
+    ? ok('com desconto percentual, a comissão sai sobre o total já abatido', 'R$ 900 × 15% = R$ 135')
+    : erro('comissão com percentual', `base ${basePct}, valor ${valorPct}`)
+  await logarComo(ID.vendedorA)
 
   // Duplicar copia os itens, então o total do novo nasce da conta e não da
   // cópia. Se alguém tirar a cópia dos itens um dia, o total vira zero e este
