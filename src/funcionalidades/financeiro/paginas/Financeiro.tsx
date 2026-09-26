@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, QrCode, CheckCircle2, Wallet, Lock } from 'lucide-react'
+import { Plus, QrCode, CheckCircle2, Wallet, Lock, PencilLine } from 'lucide-react'
 import { Tela, CabecalhoTela, TituloSecao } from '@/componentes/layout/Tela'
 import { Abas } from '@/componentes/ui/Abas'
 import { Card } from '@/componentes/ui/Card'
@@ -25,6 +25,9 @@ import {
   listarContasAPagar,
   receberConta,
   pagarConta,
+  corrigirRecebimento,
+  corrigirPagamento,
+  correcoesDaConta,
   lancarContaAPagar,
   statusDaConta,
   rotuloDaForma,
@@ -116,6 +119,32 @@ export function Financeiro() {
   const [formaDaBaixa, setFormaDaBaixa] = useState<FormaPagamento | ''>('')
   const [lancando, setLancando] = useState(false)
 
+  /*
+   * A correção de uma baixa já feita.
+   *
+   * Separada do `baixando` porque são gestos diferentes: dar baixa soma ao que
+   * entrou, corrigir substitui o que foi registrado. Misturar os dois numa
+   * modal só faria a pessoa somar quando quisesse consertar.
+   */
+  const [corrigindo, setCorrigindo] = useState<{
+    conta: ContaAReceber | ContaPagar
+    tipo: 'receber' | 'pagar'
+  } | null>(null)
+  const [valorCorrigido, setValorCorrigido] = useState('')
+  const [formaCorrigida, setFormaCorrigida] = useState<FormaPagamento | ''>('')
+  const [dataCorrigida, setDataCorrigida] = useState('')
+  const [motivoCorrecao, setMotivoCorrecao] = useState('')
+
+  function abrirCorrecao(conta: ContaAReceber | ContaPagar, tipo: 'receber' | 'pagar') {
+    setCorrigindo({ conta, tipo })
+    setFormaCorrigida(conta.forma_pagamento ?? '')
+    setDataCorrigida(conta.data_pagamento ?? '')
+    setValorCorrigido(
+      tipo === 'receber' ? String((conta as ContaAReceber).valor_recebido).replace('.', ',') : '',
+    )
+    setMotivoCorrecao('')
+  }
+
   const filtro: FiltroDeContas = { status, de: periodo.de, ate: periodo.ate }
 
   const receber = useQuery({
@@ -150,6 +179,32 @@ export function Financeiro() {
       setFormaDaBaixa('')
       recarregar()
       toast.sucesso('Baixa registrada.')
+    },
+    onError: (e) => toast.erro(traduzirErro(e)),
+  })
+
+  const historico = useQuery({
+    queryKey: ['correcoes', corrigindo?.conta.id],
+    enabled: corrigindo !== null,
+    queryFn: () => correcoesDaConta(corrigindo!.conta.id, corrigindo!.tipo),
+  })
+
+  const corrigir = useMutation({
+    mutationFn: async () => {
+      if (!corrigindo) return
+      const forma = formaCorrigida || null
+      const data = dataCorrigida || null
+      if (corrigindo.tipo === 'receber') {
+        const valor = paraNumero(valorCorrigido)
+        await corrigirRecebimento(corrigindo.conta.id, valor > 0 ? valor : null, data, forma, motivoCorrecao)
+      } else {
+        await corrigirPagamento(corrigindo.conta.id, data, forma, motivoCorrecao)
+      }
+    },
+    onSuccess: () => {
+      setCorrigindo(null)
+      recarregar()
+      toast.sucesso('Correção registrada.')
     },
     onError: (e) => toast.erro(traduzirErro(e)),
   })
@@ -307,6 +362,19 @@ export function Financeiro() {
                       <span className="text-corpo font-semibold text-em-superficie">{moeda(c.valor)}</span>
                     </div>
 
+    {efetivo === 'paga' && (
+                      <div className="border-t border-borda-em-superficie pt-3 mt-3">
+                        <Botao
+                          largo
+                          variante="contorno-no-card"
+                          icone={<PencilLine aria-hidden size={20} />}
+                          onClick={() => abrirCorrecao(c, 'receber')}
+                        >
+                          Corrigir recebimento
+                        </Botao>
+                      </div>
+                    )}
+
                     {efetivo !== 'paga' && efetivo !== 'cancelada' && (
                       <div className="flex flex-col gap-2 border-t border-borda-em-superficie pt-3 mt-3">
                         <Botao
@@ -384,7 +452,18 @@ export function Financeiro() {
                 largura: 'w-64',
                 celula: (c) => {
                   const e = statusDaConta(c)
-                  if (e === 'paga' || e === 'cancelada') return null
+                  if (e === 'paga') {
+                    return (
+                      <Botao
+                        variante="contorno-no-card"
+                        icone={<PencilLine aria-hidden size={18} />}
+                        onClick={() => abrirCorrecao(c, 'receber')}
+                      >
+                        Corrigir
+                      </Botao>
+                    )
+                  }
+                  if (e === 'cancelada') return null
                   return (
                     <div className="flex gap-2">
                       <Botao
@@ -437,6 +516,19 @@ export function Financeiro() {
                       </span>
                       <span className="text-corpo font-semibold text-em-superficie">{moeda(c.valor)}</span>
                     </div>
+
+                    {efetivo === 'paga' && (
+                      <div className="border-t border-borda-em-superficie pt-3 mt-3">
+                        <Botao
+                          largo
+                          variante="contorno-no-card"
+                          icone={<PencilLine aria-hidden size={20} />}
+                          onClick={() => abrirCorrecao(c, 'pagar')}
+                        >
+                          Corrigir pagamento
+                        </Botao>
+                      </div>
+                    )}
 
                     {efetivo !== 'paga' && efetivo !== 'cancelada' && (
                       <div className="border-t border-borda-em-superficie pt-3 mt-3">
@@ -501,7 +593,18 @@ export function Financeiro() {
                 largura: 'w-40',
                 celula: (c) => {
                   const e = statusDaConta({ ...c, valor_recebido: 0 })
-                  if (e === 'paga' || e === 'cancelada') return null
+                  if (e === 'paga') {
+                    return (
+                      <Botao
+                        variante="contorno-no-card"
+                        icone={<PencilLine aria-hidden size={18} />}
+                        onClick={() => abrirCorrecao(c, 'pagar')}
+                      >
+                        Corrigir
+                      </Botao>
+                    )
+                  }
+                  if (e === 'cancelada') return null
                   return (
                     <Botao
                       icone={<CheckCircle2 aria-hidden size={18} />}
@@ -561,6 +664,83 @@ export function Financeiro() {
               value={valorDaBaixa}
               onChange={(e) => setValorDaBaixa(e.target.value)}
             />
+          )}
+        </div>
+      </Modal>
+
+      <Modal
+        aberto={corrigindo !== null}
+        aoFechar={() => setCorrigindo(null)}
+        titulo={corrigindo?.tipo === 'pagar' ? 'Corrigir pagamento' : 'Corrigir recebimento'}
+        rodape={
+          <Botao largo carregando={corrigir.isPending} onClick={() => corrigir.mutate()}>
+            Salvar correção
+          </Botao>
+        }
+      >
+        <p className="pb-1 text-corpo text-em-superficie-2">
+          {corrigindo?.conta.descricao} — {moeda(corrigindo?.conta.valor ?? 0)}
+        </p>
+        <p className="pb-4 text-apoio text-em-superficie-2">
+          Aqui se conserta o que foi anotado na baixa. O valor da conta em si vem
+          da ordem de serviço — para mudar o que o cliente deve, é lá.
+        </p>
+
+        <div className="flex flex-col gap-4 pb-2">
+          <Selecao
+            rotulo="Forma de pagamento"
+            value={formaCorrigida}
+            onChange={(e) => setFormaCorrigida(e.target.value as FormaPagamento | '')}
+          >
+            <option value="">Não informar</option>
+            {FORMAS.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.rotulo}
+              </option>
+            ))}
+          </Selecao>
+
+          <Campo
+            rotulo="Data do pagamento"
+            type="date"
+            value={dataCorrigida}
+            onChange={(e) => setDataCorrigida(e.target.value)}
+          />
+
+          {corrigindo?.tipo === 'receber' && (
+            <Campo
+              rotulo="Valor recebido"
+              inputMode="decimal"
+              dica="Corrigir para menos reabre a conta: o cliente volta a dever a diferença."
+              value={valorCorrigido}
+              onChange={(e) => setValorCorrigido(e.target.value)}
+            />
+          )}
+
+          <Campo
+            rotulo="Motivo da correção"
+            obrigatorio
+            placeholder="O cliente mudou de ideia e pagou no cartão"
+            dica="Fica registrado com o seu nome. É o que explica a diferença quando alguém for conferir o mês."
+            value={motivoCorrecao}
+            onChange={(e) => setMotivoCorrecao(e.target.value)}
+          />
+
+          {(historico.data ?? []).length > 0 && (
+            <div className="rounded-controle bg-acento-suave px-4 py-3">
+              <p className="text-apoio font-semibold text-em-superficie">
+                Correções anteriores
+              </p>
+              <ul className="flex flex-col gap-2 pt-2">
+                {(historico.data ?? []).map((h) => (
+                  <li key={h.id} className="text-apoio text-em-superficie-2">
+                    {formatarData(h.criado_em.slice(0, 10))}
+                    {h.quem ? ` · ${h.quem}` : ''}: de {h.de} para {h.para}.{' '}
+                    <span className="italic">{h.motivo}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       </Modal>

@@ -400,6 +400,19 @@ type Indicador = {
 type StatusComissao = 'a_pagar' | 'paga' | 'cancelada'
 
 /** Nasce na aprovação do orçamento e é cancelada junto com a OS (0065). */
+/** Uma correção de baixa já registrada. Ver migration 0071. */
+export type CorrecaoFinanceiraLinha = {
+  id: string
+  oficina_id: string
+  conta_receber_id: string | null
+  conta_pagar_id: string | null
+  usuario_id: string | null
+  de: string
+  para: string
+  motivo: string
+  criado_em: string
+}
+
 type Comissao = {
   id: string
   oficina_id: string
@@ -594,6 +607,7 @@ export type Database = {
       movimentacoes_estoque: Tabela<MovimentacaoEstoque>
       indicadores: Tabela<Indicador>
       comissoes: Tabela<Comissao>
+      correcoes_financeiras: Tabela<CorrecaoFinanceiraLinha>
       orcamentos: TabelaNumerada<Orcamento>
       orcamento_itens: Tabela<OrcamentoItem>
       ordens_servico: TabelaNumerada<OrdemServico>
@@ -1058,6 +1072,25 @@ export type Database = {
       /** A situação de hoje, calculada das datas (migration 0044). */
       minha_situacao: { Args: Record<string, never>; Returns: StatusOficina }
       minha_oficina_tem_financeiro: { Args: Record<string, never>; Returns: boolean }
+      corrigir_recebimento: {
+        Args: {
+          p_conta_id: string
+          p_valor: number | null
+          p_data: string | null
+          p_forma: string | null
+          p_motivo: string
+        }
+        Returns: unknown
+      }
+      corrigir_pagamento: {
+        Args: {
+          p_conta_id: string
+          p_data: string | null
+          p_forma: string | null
+          p_motivo: string
+        }
+        Returns: unknown
+      }
       /** Tudo o que é da oficina, em qualquer situação (migration 0045). */
       exportar_dados_da_oficina: { Args: Record<string, never>; Returns: Record<string, unknown> }
       /** Marca a data. Não apaga nada. Devolve quando a exclusão pode ocorrer. */

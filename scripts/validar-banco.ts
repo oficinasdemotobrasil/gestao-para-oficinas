@@ -1458,6 +1458,61 @@ async function testarFinanceiro() {
     1,
   )
 
+  /*
+   * Corrigir o que já foi recebido (0071).
+   *
+   * O caso real: o cliente disse PIX, o vendedor deu baixa, e na hora o cliente
+   * pagou no cartão. Antes disto o único botão que restava era cancelar a
+   * conta, que apagava a receita do mês para consertar um campo de texto.
+   */
+  await esperaErro(
+    'corrigir sem dizer o motivo é recusado',
+    `select public.corrigir_recebimento('${contaId}', null, null, 'credito', '')`,
+  )
+
+  await db.query(
+    `select public.corrigir_recebimento('${contaId}', null, null, 'credito',
+       'cliente mudou de ideia no balcão')`,
+  )
+  await esperaLinhas(
+    'corrigir a forma de pagamento não mexe no valor nem reabre a conta',
+    `select count(*) as n from public.contas_receber
+      where id = '${contaId}' and forma_pagamento = 'credito'
+        and status = 'paga' and valor_recebido = valor`,
+    1,
+  )
+
+  const registro = await db.query<{ de: string; para: string; motivo: string }>(
+    `select de, para, motivo from public.correcoes_financeiras
+      where conta_receber_id = '${contaId}'`,
+  )
+  registro.rows[0]?.de.includes('dinheiro') && registro.rows[0]?.para.includes('credito')
+    ? ok('e fica registrado como estava e como ficou', registro.rows[0].motivo)
+    : erro('registro da correção', JSON.stringify(registro.rows))
+
+  // Corrigir para menos devolve o cliente à condição de devedor.
+  const valorDaConta = await contar(
+    `select (valor * 100)::int as n from public.contas_receber where id = '${contaId}'`,
+  )
+  await db.query(
+    `select public.corrigir_recebimento('${contaId}', ${valorDaConta / 100 - 10}, null, null,
+       'entrou menos do que eu tinha lançado')`,
+  )
+  await esperaLinhas(
+    'corrigir para menos reabre a conta e limpa a data do pagamento',
+    `select count(*) as n from public.contas_receber
+      where id = '${contaId}' and status = 'aberta' and data_pagamento is null`,
+    1,
+  )
+
+  await esperaErro(
+    'e corrigir para mais do que a conta vale é recusado',
+    `select public.corrigir_recebimento('${contaId}', 99999, null, null, 'teste')`,
+  )
+
+  // Volta ao estado de paga, para os testes seguintes continuarem de pé.
+  await db.query(`select public.receber_conta('${contaId}')`)
+
   // Atrasada é calculada, não gravada.
   await db.query(
     `update public.contas_receber set vencimento = current_date - 5
@@ -1492,8 +1547,25 @@ async function testarFinanceiro() {
   await logarComo(ID.vendedorA)
   await esperaLinhas('vendedor NÃO lê contas a receber', 'select count(*) as n from public.contas_receber', 0)
   await esperaLinhas('vendedor NÃO lê contas a pagar', 'select count(*) as n from public.contas_pagar', 0)
+  await esperaErro(
+    'vendedor NÃO corrige recebimento',
+    `select public.corrigir_recebimento('${contaId}', null, null, 'pix', 'tentativa')`,
+  )
+  await esperaLinhas(
+    'e não lê o histórico de correções',
+    'select count(*) as n from public.correcoes_financeiras',
+    0,
+  )
   await logarComo(ID.mecanicoA)
   await esperaLinhas('mecânico NÃO lê contas a receber', 'select count(*) as n from public.contas_receber', 0)
+  await logarComo(ID.adminA)
+  await esperaBloqueio(
+    'nem o admin escreve no histórico à mão: quem audita não redige a própria ata',
+    `insert into public.correcoes_financeiras
+       (oficina_id, conta_receber_id, de, para, motivo)
+     values ('${ID.oficinaA}', '${contaId}', 'inventado', 'inventado', 'à mão')`,
+  )
+  await logarComo(ID.mecanicoA)
 
   await logarComo(ID.adminA)
 }

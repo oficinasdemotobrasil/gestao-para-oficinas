@@ -114,6 +114,90 @@ export async function receberConta(
   if (error) throw error
 }
 
+/**
+ * Corrige o que foi registrado na baixa: forma, data e valor recebido.
+ *
+ * Diferente de receber de novo — receber soma ao que já entrou, corrigir
+ * substitui. Campo nulo quer dizer "mantém", então a tela manda só o que a
+ * pessoa mexeu.
+ */
+export async function corrigirRecebimento(
+  contaId: string,
+  valor: number | null,
+  data: string | null,
+  forma: FormaPagamento | null,
+  motivo: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('corrigir_recebimento', {
+    p_conta_id: contaId,
+    p_valor: valor,
+    p_data: data,
+    p_forma: forma,
+    p_motivo: motivo,
+  })
+  if (error) throw error
+}
+
+export async function corrigirPagamento(
+  contaId: string,
+  data: string | null,
+  forma: FormaPagamento | null,
+  motivo: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('corrigir_pagamento', {
+    p_conta_id: contaId,
+    p_data: data,
+    p_forma: forma,
+    p_motivo: motivo,
+  })
+  if (error) throw error
+}
+
+export interface CorrecaoFinanceira {
+  id: string
+  de: string
+  para: string
+  motivo: string
+  criado_em: string
+  /** Quem corrigiu. Nulo se a pessoa foi removida da oficina depois. */
+  quem: string | null
+}
+
+/** O histórico de correções de uma conta, para a tela poder mostrar quem mexeu. */
+export async function correcoesDaConta(
+  contaId: string,
+  tipo: 'receber' | 'pagar',
+): Promise<CorrecaoFinanceira[]> {
+  const consulta = supabase
+    .from('correcoes_financeiras')
+    .select('*')
+    .order('criado_em', { ascending: false })
+
+  const { data, error } =
+    tipo === 'receber'
+      ? await consulta.eq('conta_receber_id', contaId)
+      : await consulta.eq('conta_pagar_id', contaId)
+
+  if (error) throw error
+  const linhas = data ?? []
+  if (linhas.length === 0) return []
+
+  // O nome de quem corrigiu vem numa consulta à parte, e não por junção: os
+  // tipos gerados não modelam essa ligação, e forçá-la custaria mais do que
+  // uma segunda ida ao banco para meia dúzia de linhas.
+  const { data: pessoas } = await supabase.from('usuarios').select('id, nome')
+  const nomes = new Map((pessoas ?? []).map((p) => [p.id, p.nome]))
+
+  return linhas.map((l) => ({
+    id: l.id,
+    de: l.de,
+    para: l.para,
+    motivo: l.motivo,
+    criado_em: l.criado_em,
+    quem: l.usuario_id ? (nomes.get(l.usuario_id) ?? null) : null,
+  }))
+}
+
 export async function cancelarContaReceber(contaId: string): Promise<void> {
   const { error } = await supabase.rpc('cancelar_conta_receber', { p_conta_id: contaId })
   if (error) throw error
