@@ -3379,6 +3379,38 @@ async function testarIndicadores() {
      values ('${ID.oficinaA}', '11111111-aaaa-4aaa-8aaa-111111111111',
              '${orcSemComissao.rows[0].id}', 1000, 100, 1000)`,
   )
+
+  // A comissão sai sobre os itens, não sobre `valor_total` — que o vendedor
+  // grava direto pela API. Sem isto, ele inflava o total antes de aprovar e a
+  // comissão saía sobre o número inventado.
+  const orcInflado = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', null,
+       7, 90, null, 0, null, $1::jsonb, '11111111-aaaa-4aaa-8aaa-111111111111') as id`,
+    [itens],
+  )
+  await db.query(
+    `update public.orcamentos set valor_total = 99999 where id = '${orcInflado.rows[0].id}'`,
+  )
+  await db.query(
+    `select public.aprovar_orcamento('${orcInflado.rows[0].id}', '${ID.mecanicoA}')`,
+  )
+  // A leitura é do admin: o vendedor não vê comissão, e é essa a regra.
+  await logarComo(ID.adminA)
+  const base = await contar(
+    `select (base * 100)::int as n from public.comissoes
+      where orcamento_id = '${orcInflado.rows[0].id}'`,
+  )
+  base === 100000
+    ? ok('a comissão sai sobre a soma dos itens, não sobre o valor_total inflado', 'R$ 1.000')
+    : erro('base da comissão', `esperava 100000 centavos e veio ${base}`)
+
+  // E uma OS por orçamento, mesmo que alguém reescreva a função sem o for update.
+  await esperaBloqueio(
+    'o mesmo orçamento não gera duas ordens de serviço',
+    `insert into public.ordens_servico
+       (oficina_id, orcamento_id, cliente_id, moto_id, numero, status)
+     values ('${ID.oficinaA}', '${orcInflado.rows[0].id}', '${ID.clienteA}', '${ID.motoA}', 9999, 'aberta')`,
+  )
 }
 
 /**

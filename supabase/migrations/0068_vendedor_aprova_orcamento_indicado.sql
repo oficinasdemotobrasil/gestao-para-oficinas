@@ -23,6 +23,33 @@
 -- Fica o 2. E ele só funciona com um detalhe que custou uma investigação: o
 -- `on conflict` do insert original tinha de sair. Ver o comentário dentro da
 -- função.
+--
+-- A revisão desta migração achou mais duas coisas, das duas vezes por olhar a
+-- aprovação como caminho de dinheiro e não como função isolada. As duas entram
+-- aqui porque é o mesmo caminho e o mesmo clique:
+--
+-- * Dois cliques ao mesmo tempo criavam DUAS ordens de serviço do mesmo
+--   orçamento. A conferência de status lia a linha sem travá-la, então as duas
+--   chamadas passavam juntas. Com indicador a unique de `comissoes` segurava a
+--   segunda por acidente; sem indicador, nada segurava.
+--
+-- * A base da comissão vinha de `orcamentos.valor_total`, que o atendimento
+--   pode gravar direto pela API — testado: o vendedor gravou 50.000 num
+--   orçamento cujos itens somam 50, sem erro. A comissão saía sobre o número
+--   inflado. Agora a base é a soma dos itens, que é o que o cliente assinou.
+--
+-- O buraco maior desse segundo ponto continua aberto e é trabalho próprio:
+-- `valor_total` não deveria ser escrevível pelo cliente da API em nenhuma
+-- hipótese, porque dele saem também a OS e a conta a receber do cliente.
+
+-- Uma ordem por orçamento ------------------------------------------------------
+-- O `for update` lá embaixo resolve a corrida; este índice é a trava que não
+-- depende de ninguém lembrar do `for update` na próxima vez que a função for
+-- reescrita. Parcial porque OS avulsa, sem orçamento, é caminho legítimo.
+-- Conferido em produção antes de criar: nenhum orçamento tem duas OS hoje.
+create unique index if not exists ordens_servico_uma_por_orcamento
+  on public.ordens_servico (orcamento_id)
+  where orcamento_id is not null;
 
 -- A fresta ---------------------------------------------------------------------
 -- Só insert, e só com a chave. Ler, alterar e apagar continuam sendo do admin:
@@ -55,8 +82,13 @@ declare
   v_orc record;
   v_os_id uuid;
   v_percentual numeric(5, 2);
+  v_base numeric(12, 2);
 begin
-  select * into v_orc from public.orcamentos where id = p_orcamento_id;
+  -- `for update` trava a linha do orçamento até o fim da transação. Sem ele,
+  -- dois cliques simultâneos passavam juntos pela conferência de status abaixo
+  -- e nasciam duas OS. Agora o segundo espera, lê 'aprovado' e é recusado com a
+  -- mensagem que a pessoa entende.
+  select * into v_orc from public.orcamentos where id = p_orcamento_id for update;
   if not found then
     raise exception 'Orçamento não encontrado.' using errcode = 'no_data_found';
   end if;
@@ -103,18 +135,39 @@ begin
     join public.oficinas o on o.id = i.oficina_id
     where i.id = v_orc.indicador_id;
 
+    /*
+     * A base é a soma dos itens, não `orcamentos.valor_total`.
+     *
+     * A política de orçamentos é `for all` para o atendimento, sem recorte de
+     * coluna, então o vendedor grava `valor_total` direto pela API — testado em
+     * produção: 50.000 num orçamento de 50 reais, sem erro. Usando aquele campo,
+     * a comissão saía sobre o número inflado, e comissão é dinheiro que sai da
+     * oficina para fora.
+     *
+     * A soma dos itens é o que o cliente viu e aprovou. Nos orçamentos honestos
+     * os dois números são o mesmo, porque `salvar_orcamento_com_itens` calcula
+     * `valor_total` exatamente assim.
+     */
+    select greatest(coalesce(sum(valor_total), 0) - coalesce(v_orc.desconto, 0), 0)
+      into v_base
+    from public.orcamento_itens
+    where orcamento_id = v_orc.id;
+
     perform set_config('app.comissao_da_aprovacao', 'sim', true);
 
     /*
      * Sem `on conflict` — e isto é a segunda metade da correção.
      *
      * A 0065 tinha `on conflict (orcamento_id) do nothing` para evitar erro
-     * feio se alguém aprovasse duas vezes. Só que `ON CONFLICT` faz o Postgres
-     * exigir que quem insere também consiga LER a tabela, para achar a linha em
-     * conflito — e o vendedor não lê `comissoes`, de propósito. Resultado: a
-     * política de insert passava e o `on conflict` recusava em seguida, com a
-     * mesma mensagem de RLS. Foi por isso que abrir a política, sozinho, não
-     * resolveu.
+     * feio se alguém aprovasse duas vezes. Com ele, a política de insert passava
+     * e o `on conflict` recusava em seguida, com a mesma mensagem de RLS — foi
+     * por isso que abrir a política, sozinho, não resolveu.
+     *
+     * A causa foi medida, não deduzida, porque a documentação só fala de
+     * SELECT no `DO UPDATE`: o mesmo insert, com a mesma chave, na mesma
+     * transação, foi testado nas quatro combinações. Ele só passa com
+     * `on conflict` quando existe política de SELECT para quem insere — e o
+     * vendedor não lê `comissoes`, de propósito.
      *
      * Aprovar duas vezes já está barrado lá em cima, pelo status do orçamento.
      * O que sobra é a unique de `orcamento_id`, que é a trava de verdade: numa
@@ -125,8 +178,8 @@ begin
       (oficina_id, indicador_id, orcamento_id, ordem_servico_id, base, percentual, valor)
     values
       (v_orc.oficina_id, v_orc.indicador_id, v_orc.id, v_os_id,
-       v_orc.valor_total, v_percentual,
-       round(v_orc.valor_total * v_percentual / 100, 2));
+       v_base, v_percentual,
+       round(v_base * v_percentual / 100, 2));
 
     perform set_config('app.comissao_da_aprovacao', '', true);
   end if;
