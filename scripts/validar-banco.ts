@@ -3405,6 +3405,67 @@ async function testarIndicadores() {
     : erro('base da comissão', `esperava 100000 centavos e veio ${base}`)
 
   // E uma OS por orçamento, mesmo que alguém reescreva a função sem o for update.
+  /*
+   * O total é do servidor (0069).
+   *
+   * A política de orçamentos é `for all` para o atendimento, então o vendedor
+   * alcança a coluna pela API. O que ele não alcança mais é o resultado.
+   */
+  await logarComo(ID.vendedorA)
+  const orcDoTotal = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', null,
+       7, 90, null, 0, null, $1::jsonb, null) as id`,
+    [itens],
+  )
+  await db.query(
+    `update public.orcamentos set valor_total = 99999 where id = '${orcDoTotal.rows[0].id}'`,
+  )
+  const totalGravado = await contar(
+    `select (valor_total * 100)::int as n from public.orcamentos
+      where id = '${orcDoTotal.rows[0].id}'`,
+  )
+  totalGravado === 100000
+    ? ok('inflar o total do orçamento pela API não cola', 'o banco refez a conta: R$ 1.000')
+    : erro('total do orçamento', `esperava 100000 centavos e veio ${totalGravado}`)
+
+  // E mexer só no desconto faz o total acompanhar, que é o outro lado de ser
+  // derivado: antes, o desconto mudava e o total ficava parado.
+  await db.query(
+    `update public.orcamentos set desconto = 250 where id = '${orcDoTotal.rows[0].id}'`,
+  )
+  const comDesconto = await contar(
+    `select (valor_total * 100)::int as n from public.orcamentos
+      where id = '${orcDoTotal.rows[0].id}'`,
+  )
+  comDesconto === 75000
+    ? ok('mudar o desconto refaz o total sozinho', 'R$ 1.000 − R$ 250 = R$ 750')
+    : erro('total com desconto', `esperava 75000 centavos e veio ${comDesconto}`)
+
+  // Duplicar copia os itens, então o total do novo nasce da conta e não da
+  // cópia. Se alguém tirar a cópia dos itens um dia, o total vira zero e este
+  // teste avisa.
+  const duplicado = await db.query<{ id: string }>(
+    `select public.duplicar_orcamento('${orcDoTotal.rows[0].id}') as id`,
+  )
+  const totalDoDuplicado = await contar(
+    `select (valor_total * 100)::int as n from public.orcamentos
+      where id = '${duplicado.rows[0].id}'`,
+  )
+  totalDoDuplicado === 75000
+    ? ok('o orçamento duplicado nasce com o total refeito', 'R$ 750')
+    : erro('total do duplicado', `esperava 75000 centavos e veio ${totalDoDuplicado}`)
+
+  // Na ordem de serviço a coluna não é refeita, é recusada: derivar do
+  // percentual poderia mover o centavo que a 0026 casou com o orçamento.
+  const osDoTotal = await db.query<{ id: string }>(
+    `select public.aprovar_orcamento('${orcDoTotal.rows[0].id}', '${ID.mecanicoA}') as id`,
+  )
+  await esperaBloqueio(
+    'e o valor da ordem de serviço não se muda pela API',
+    `update public.ordens_servico set valor_total = 99999 where id = '${osDoTotal.rows[0].id}'`,
+  )
+
+  await logarComo(ID.adminA)
   await esperaBloqueio(
     'o mesmo orçamento não gera duas ordens de serviço',
     `insert into public.ordens_servico

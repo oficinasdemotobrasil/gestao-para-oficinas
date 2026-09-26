@@ -240,7 +240,38 @@ async function main() {
     ? ok('o mesmo orçamento não gera uma segunda OS', eSegunda.message.split('\n')[0].slice(0, 60))
     : erro('segunda OS do mesmo orçamento', 'o banco aceitou')
 
-  // 7. A fechadura, que o assistente não viu retornar quando a página travou.
+  /*
+   * 7. O total é do servidor (0069).
+   *
+   * Este é o teste que não pode ser só local: o que se está provando é que a
+   * API de produção recusa o número inventado, e a API é o PostgREST com o RLS
+   * ligado — não o Postgres do teste.
+   */
+  const { data: orcTotal } = await loja.rpc('salvar_orcamento_com_itens', {
+    p_orcamento_id: null, p_cliente_id: cli!.id, p_moto_id: motoId,
+    p_km_registrado: 10000, p_validade_dias: 7, p_garantia_dias: 90,
+    p_observacoes: null, p_desconto: 0, p_desconto_percentual: null,
+    p_itens: itens, p_indicador_id: null,
+  })
+  await loja.from('orcamentos').update({ valor_total: 50000 }).eq('id', orcTotal as string)
+  const { data: depois } = await admin
+    .from('orcamentos').select('valor_total').eq('id', orcTotal as string).single()
+  Number(depois!.valor_total) === 400
+    ? ok('inflar o total do orçamento pela API não cola', `continua R$ ${depois!.valor_total}`)
+    : erro('total do orçamento', `vendedora gravou 50000 e ficou ${depois!.valor_total}`)
+
+  const { data: quemTotal } = await loja.from('usuarios').select('id').limit(1)
+  const { data: osTotal } = await loja.rpc('aprovar_orcamento', {
+    p_orcamento_id: orcTotal as string,
+    p_responsavel_id: (quemTotal as Array<{ id: string }>)[0].id,
+  })
+  const { error: eOsTotal } = await loja
+    .from('ordens_servico').update({ valor_total: 50000 }).eq('id', osTotal as string)
+  eOsTotal
+    ? ok('e o valor da ordem de serviço é recusado', eOsTotal.message.split('\n')[0].slice(0, 70))
+    : erro('valor da OS', 'a API aceitou a alteração')
+
+  // 8. A fechadura, que o assistente não viu retornar quando a página travou.
   const { error: eFechadura } = await app.rpc('conferir_fechadura')
   eFechadura
     ? erro('conferir_fechadura', eFechadura.message)
