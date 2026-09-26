@@ -61,6 +61,9 @@ export function Assinatura() {
   const [pix, setPix] = useState<Pix | null>(null)
   const [copiado, setCopiado] = useState(false)
   const [confirmado, setConfirmado] = useState(false)
+  // A escolha consciente do downgrade. Volta a falso a cada plano escolhido:
+  // quem aceitou perder o financeiro num plano não aceitou no outro.
+  const [downgradeAceito, setDowngradeAceito] = useState(false)
 
   const planos = useQuery({
     queryKey: ['planos'],
@@ -131,19 +134,52 @@ export function Assinatura() {
    */
   const planoAtual = planos.data?.find((p) => p.id === oficina.plano)
   const planoEscolhido = planos.data?.find((p) => p.id === escolhido)
-  const perdas: string[] = []
-  if (planoAtual && planoEscolhido) {
-    if (planoAtual.tem_financeiro && !planoEscolhido.tem_financeiro) {
-      perdas.push('Você perde o módulo financeiro: contas a receber, contas a pagar e cobrança por PIX.')
+
+  function perdasAoTrocar(candidato: Plano | undefined): string[] {
+    const lista: string[] = []
+    if (!planoAtual || !candidato) return lista
+    if (planoAtual.tem_financeiro && !candidato.tem_financeiro) {
+      lista.push('Você perde o módulo financeiro: contas a receber, contas a pagar e cobrança por PIX.')
     }
-    const limite = planoEscolhido.limite_colaboradores
+    const limite = candidato.limite_colaboradores
     const quantas = pessoas.data ?? 0
     if (limite != null && quantas > limite) {
-      perdas.push(
+      lista.push(
         `A sua oficina tem ${quantas} pessoas com acesso e este plano permite ${limite}. ` +
           'Ninguém é desativado, mas você não consegue cadastrar mais ninguém até liberar vagas.',
       )
     }
+    return lista
+  }
+
+  const perdas = perdasAoTrocar(planoEscolhido)
+
+  /*
+   * O plano mais barato que não tira nada de quem está aqui hoje.
+   *
+   * Descoberto pela mesma conta das perdas, e não pelo nome: quando um plano
+   * novo entrar na tabela, esta tela acerta sozinha. É o "seguir com o plano
+   * maior" que a pessoa precisa ter na mão na hora de decidir — sem ele,
+   * recusar o downgrade seria fechar a janela e procurar o outro cartão.
+   */
+  const semPerdas = (planos.data ?? [])
+    .filter(
+      (p) =>
+        Number(p.preco_mensal) > 0 && p.id !== escolhido && perdasAoTrocar(p).length === 0,
+    )
+    .sort((a, b) => Number(a.preco_mensal) - Number(b.preco_mensal))[0]
+
+  // Enquanto a pessoa não decide, a tela de pagamento não aparece.
+  const decidindo = perdas.length > 0 && !downgradeAceito
+
+  function escolherPlano(id: PlanoOficina) {
+    setDowngradeAceito(false)
+    setEscolhido(id)
+  }
+
+  function fecharEscolha() {
+    setDowngradeAceito(false)
+    setEscolhido(null)
   }
 
   async function assinar() {
@@ -166,6 +202,7 @@ export function Assinatura() {
         fila.invalidateQueries({ queryKey: ['assinatura'] }),
       ])
       setEscolhido(null)
+      setDowngradeAceito(false)
 
       // No PIX a pessoa NÃO sai do aplicativo: o código aparece aqui mesmo.
       // Sair para pagar é onde se perde gente — muda de contexto, não entende
@@ -318,7 +355,7 @@ export function Assinatura() {
                         type="button"
                         largo
                         variante={atual ? 'contorno-no-card' : 'principal'}
-                        onClick={() => setEscolhido(p.id)}
+                        onClick={() => escolherPlano(p.id)}
                       >
                         Assinar
                       </Botao>
@@ -334,16 +371,27 @@ export function Assinatura() {
       {/* Escolha da forma de pagamento --------------------------------------- */}
       <Modal
         aberto={escolhido !== null}
-        aoFechar={() => setEscolhido(null)}
-        titulo="Como você prefere pagar?"
+        aoFechar={fecharEscolha}
+        titulo={decidindo ? 'Confira o que muda' : 'Como você prefere pagar?'}
       >
-        <div className="space-y-4">
-          {perdas.length > 0 && (
+        {decidindo ? (
+          /*
+           * A perda é uma decisão, não um aviso.
+           *
+           * Quem passou os sete dias com o sistema inteiro aberto se acostumou
+           * com ele. Deixar essa pessoa clicar em "pagar" e descobrir depois
+           * que o financeiro sumiu é o caminho mais curto para o cancelamento —
+           * e a culpa seria nossa, não dela. Então ela escolhe, com os dois
+           * caminhos na mesma tela.
+           */
+          <div className="space-y-4">
             <div
               role="alert"
               className="rounded-controle bg-atencao-fundo px-4 py-3 text-apoio text-em-superficie"
             >
-              <p className="font-semibold">Atenção ao trocar de plano</p>
+              <p className="font-semibold">
+                O plano {planoEscolhido?.nome} não tem tudo o que você está usando
+              </p>
               <ul className="list-disc pt-1 pl-5">
                 {perdas.map((perda) => (
                   <li key={perda}>{perda}</li>
@@ -354,8 +402,45 @@ export function Assinatura() {
                 aparecer se você subir de plano de novo.
               </p>
             </div>
-          )}
 
+            <div className="flex flex-col gap-3 pt-2">
+              {semPerdas && (
+                <Botao type="button" largo onClick={() => escolherPlano(semPerdas.id)}>
+                  Seguir com o {semPerdas.nome} ({moeda(Number(semPerdas.preco_mensal))}/mês)
+                </Botao>
+              )}
+              <Botao
+                type="button"
+                largo
+                variante="contorno-no-card"
+                onClick={() => setDowngradeAceito(true)}
+              >
+                Entendi, quero o {planoEscolhido?.nome} mesmo
+              </Botao>
+              <button
+                type="button"
+                onClick={fecharEscolha}
+                className="min-h-toque text-apoio text-em-superficie-2 underline"
+              >
+                Decidir depois
+              </button>
+            </div>
+          </div>
+        ) : (
+        <div className="space-y-4">
+          {/* Qual plano está sendo pago.
+              Sem isto, as duas telas de pagamento são idênticas — e quem acabou
+              de trocar de plano na tela anterior não tem como conferir. Pior: o
+              cartão que fica atrás do modal continua sendo o do plano recusado. */}
+          <div className="rounded-controle bg-acento-suave px-4 py-3">
+            <p className="text-corpo font-semibold text-em-superficie">
+              {planoEscolhido?.nome}
+            </p>
+            <p className="text-apoio text-em-superficie-2">
+              {moeda(Number(planoEscolhido?.preco_mensal ?? 0))} por mês, com cancelamento a
+              qualquer momento.
+            </p>
+          </div>
           {FORMAS.map(({ valor, rotulo, detalhe, Icone }) => (
             <button
               key={valor}
@@ -385,7 +470,7 @@ export function Assinatura() {
               type="button"
               variante="contorno-no-card"
               compactoNoDesktop
-              onClick={() => setEscolhido(null)}
+              onClick={fecharEscolha}
             >
               Voltar
             </Botao>
@@ -399,6 +484,7 @@ export function Assinatura() {
             </Botao>
           </div>
         </div>
+        )}
       </Modal>
 
       {/* O PIX, sem sair do aplicativo ------------------------------------------ */}
