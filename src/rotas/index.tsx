@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet, ScrollRestoration } from 'react-router-dom'
 import { RotaProtegida, RotaPublica, RotaPorPerfil } from '@/auth/RotaProtegida'
 import { EstruturaDoApp } from '@/componentes/layout/EstruturaDoApp'
 import { Entrar } from '@/auth/paginas/Entrar'
@@ -39,7 +39,28 @@ import { Privacidade, Termos } from '@/funcionalidades/legal/PaginaLegal'
 import { ListaOrdens } from '@/funcionalidades/ordens/paginas/ListaOrdens'
 import { OrdemDeServico } from '@/funcionalidades/ordens/paginas/OrdemDeServico'
 
+/**
+ * Cada tela nova começa no topo.
+ *
+ * Sem isto, quem estava no fim de uma lista comprida e tocava num item caía na
+ * tela seguinte na mesma altura da rolagem — no meio do conteúdo, às vezes
+ * depois do que interessava. `ScrollRestoration` também devolve a posição
+ * anterior quando a pessoa volta, que é o outro lado da mesma moeda: voltar
+ * para a lista e ter de procurar de novo onde você estava é igualmente ruim.
+ */
+function Raiz() {
+  return (
+    <>
+      <ScrollRestoration />
+      <Outlet />
+    </>
+  )
+}
+
 export const rotas = createBrowserRouter([
+  {
+    element: <Raiz />,
+    children: [
   {
     element: <RotaPublica />,
     children: [
@@ -246,4 +267,6 @@ export const rotas = createBrowserRouter([
   },
 
   { path: '*', element: <Navigate to="/" replace /> },
+    ],
+  },
 ])

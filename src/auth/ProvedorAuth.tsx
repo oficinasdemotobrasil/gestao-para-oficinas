@@ -33,6 +33,14 @@ interface Contexto {
   carregando: boolean
   /** Sessão válida no Auth, mas sem linha em public.usuarios. Ver AcessoPendente. */
   semVinculo: boolean
+  /**
+   * O cadastro da pessoa já foi buscado no banco para a sessão atual.
+   *
+   * Existe para separar "ainda não sei" de "procurei e não achou". Sem essa
+   * separação, o intervalo entre entrar e o perfil chegar era lido como
+   * ausência de vínculo, e a tela de acesso negado piscava em todo login.
+   */
+  perfilCarregado: boolean
   entrar: (email: string, senha: string) => Promise<void>
   sair: () => Promise<void>
   enviarRecuperacao: (email: string) => Promise<void>
@@ -77,6 +85,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
   const [temFinanceiro, setTemFinanceiro] = useState(false)
   const [carregando, setCarregando] = useState(true)
   const [semVinculo, setSemVinculo] = useState(false)
+  const [perfilCarregado, setPerfilCarregado] = useState(false)
 
   /**
    * Busca o cadastro do usuário e a oficina dele. O RLS já garante que só volta
@@ -155,7 +164,10 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
       if (data.session?.user) {
         await carregarPerfil(data.session.user.id).catch(() => undefined)
       }
-      if (ativo) setCarregando(false)
+      if (ativo) {
+        setPerfilCarregado(true)
+        setCarregando(false)
+      }
     })
 
     const { data: assinatura } = supabase.auth.onAuthStateChange(
@@ -163,8 +175,13 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
         if (!ativo) return
         setSessao(novaSessao)
         if (novaSessao?.user) {
+          // Marca falso ANTES de buscar: é este intervalo que a tela precisa
+          // enxergar como espera.
+          setPerfilCarregado(false)
           await carregarPerfil(novaSessao.user.id).catch(() => undefined)
+          if (ativo) setPerfilCarregado(true)
         } else {
+          setPerfilCarregado(true)
           setUsuario(null)
           setOficina(null)
           setTemFinanceiro(false)
@@ -255,6 +272,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
       temFinanceiro,
       carregando,
       semVinculo,
+      perfilCarregado,
       entrar,
       sair,
       enviarRecuperacao,
@@ -269,6 +287,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
       temFinanceiro,
       carregando,
       semVinculo,
+      perfilCarregado,
       entrar,
       sair,
       enviarRecuperacao,

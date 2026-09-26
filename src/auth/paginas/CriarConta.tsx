@@ -21,7 +21,7 @@
  *    distração, e é o tipo de coisa que não se sustenta numa discussão.
  */
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Check, Eye, EyeOff, ArrowLeft } from 'lucide-react'
 import { z } from 'zod'
@@ -72,7 +72,18 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
   const { entrar } = useAuth()
   const [aberto, setAberto] = useState<boolean | null>(null)
   const [planos, setPlanos] = useState<PlanoNaTela[] | null>(null)
-  const [escolhido, setEscolhido] = useState<PlanoNaTela | null>(null)
+  /*
+   * O plano escolhido mora no endereço, não na memória do componente.
+   *
+   * Quem está no segundo passo e toca em "Termos de Uso" sai desta tela. Com o
+   * plano guardado só em `useState`, voltar trazia a pessoa de volta ao passo
+   * um, como se ela nunca tivesse escolhido — e o botão de voltar do navegador
+   * fazia o mesmo. No endereço, voltar devolve exatamente a seção onde ela
+   * estava, e o passo um continua sendo o `voltar` seguinte.
+   */
+  const [parametros, definirParametros] = useSearchParams()
+  const planoNaUrl = parametros.get('plano')
+  const escolhido = (planos ?? []).find((p) => p.id === planoNaUrl) ?? null
   const [aceitou, setAceitou] = useState(false)
   const [erroGeral, setErroGeral] = useState<string | null>(null)
   const [mostrarSenha, setMostrarSenha] = useState(false)
@@ -199,7 +210,7 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
             <button
               key={plano.id}
               type="button"
-              onClick={() => setEscolhido(plano)}
+              onClick={() => definirParametros({ plano: plano.id })}
               className="rounded-card bg-superficie p-5 text-left shadow-card active:opacity-90"
             >
               <div className="flex items-baseline justify-between gap-3">
@@ -241,7 +252,7 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
     <MolduraDeEntrada>
       <button
         type="button"
-        onClick={() => setEscolhido(null)}
+        onClick={() => definirParametros({})}
         className="flex min-h-toque items-center gap-1.5 text-corpo text-em-fundo-2"
       >
         <ArrowLeft aria-hidden size={18} />

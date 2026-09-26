@@ -20,6 +20,7 @@ import { Conta } from './Conta'
 import { ComissaoPadrao } from './ComissaoPadrao'
 import { CertificadoDigital } from './CertificadoDigital'
 import { Exemplos } from './Exemplos'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Aparencia } from './Aparencia'
 
 const opcional = z
@@ -117,6 +118,11 @@ export function Configuracoes() {
     }
   }, [oficina, reset])
 
+  const navegar = useNavigate()
+  const [parametros] = useSearchParams()
+  /** Veio do cadastro agora há pouco. Ver CriarConta. */
+  const recemChegado = parametros.get('novo') === '1'
+
   const salvar = useMutation({
     mutationFn: async (dados: DadosOficinaValidados) => {
       const { error } = await supabase
@@ -128,6 +134,12 @@ export function Configuracoes() {
     onSuccess: async () => {
       await recarregarUsuario()
       toast.sucesso('Configurações salvas.')
+      /*
+       * Quem acabou de criar a conta cai aqui direto, porque é aqui que os
+       * dados faltam. Salvou, acabou o motivo de estar nesta tela: o lugar
+       * dela é o início, vendo o sistema, e não numa página de ajustes.
+       */
+      if (recemChegado) navegar('/', { replace: true })
     },
     onError: (erro) => setError('root', { message: traduzirErro(erro) }),
   })
@@ -156,6 +168,7 @@ export function Configuracoes() {
               type="tel"
               inputMode="numeric"
               placeholder="(11) 3333-4444"
+              dica="Telefone, endereço e cidade são o que falta para o passo “Complete os dados da oficina” ficar pronto."
               erro={errors.telefone?.message}
               value={field.value ?? ''}
               onChange={(e) => field.onChange(mascararTelefone(e.target.value))}
