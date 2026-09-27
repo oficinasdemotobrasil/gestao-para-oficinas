@@ -80,10 +80,17 @@ function PainelDaMarca() {
             src={FOTOS_DA_ENTRADA[tentativa]}
             alt=""
             onError={() => setTentativa((t) => t + 1)}
-            className="absolute inset-0 h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full object-cover object-right"
           />
           {/* Véu chapado, sem degradê: a identidade não usa gradiente, e é ele
-              que garante o contraste do texto sobre qualquer foto. */}
+              que garante o contraste do texto sobre qualquer foto.
+
+              `object-right` porque este painel é alto e estreito: de uma foto
+              deitada ele mostra uma fatia vertical, e no centro dela a oficina
+              aparecia vazia. À direita está o mecânico trabalhando — que é o
+              que a pessoa precisa ver. Espelhar a imagem resolveria o
+              enquadramento e inverteria a oficina inteira: quem conhece moto
+              percebe o escapamento do lado errado. */}
           <span aria-hidden className="absolute inset-0 bg-inverso/75" />
         </>
       ) : (
