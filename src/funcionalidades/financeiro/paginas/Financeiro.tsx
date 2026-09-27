@@ -38,6 +38,20 @@ import {
 } from '../api'
 import type { ContaPagar, FormaPagamento, StatusConta } from '@/tipos/banco'
 
+/**
+ * Troca o código da forma pelo rótulo, na frase que o banco montou.
+ *
+ * O banco guarda a frase pronta e com o código cru — 'pix', 'credito' —, porque
+ * é ele quem sabe o valor no instante da correção. O nome bonito é assunto de
+ * tela, e a frase sempre começa pela forma, então a troca é só no primeiro
+ * pedaço.
+ */
+function comRotulo(texto: string): string {
+  const [forma, ...resto] = texto.split(', ')
+  const achada = FORMAS.find((f) => f.id === forma)
+  return [achada?.rotulo ?? forma, ...resto].join(', ')
+}
+
 const abas = [
   { id: 'receber', rotulo: 'A receber' },
   { id: 'pagar', rotulo: 'A pagar' },
@@ -204,6 +218,10 @@ export function Financeiro() {
     onSuccess: () => {
       setCorrigindo(null)
       recarregar()
+      // O histórico também: sem isto, quem corrige e reabre dentro de meio
+      // minuto vê a lista vazia — pelo cache — e conclui que o registro não
+      // ficou guardado. Justo na tela que existe para provar o contrário.
+      void cache.invalidateQueries({ queryKey: ['correcoes'] })
       toast.sucesso('Correção registrada.')
     },
     onError: (e) => toast.erro(traduzirErro(e)),
@@ -735,7 +753,8 @@ export function Financeiro() {
                 {(historico.data ?? []).map((h) => (
                   <li key={h.id} className="text-apoio text-em-superficie-2">
                     {formatarData(h.criado_em.slice(0, 10))}
-                    {h.quem ? ` · ${h.quem}` : ''}: de {h.de} para {h.para}.{' '}
+                    {h.quem ? ` · ${h.quem}` : ''}: de {comRotulo(h.de)} para{' '}
+                    {comRotulo(h.para)}.{' '}
                     <span className="italic">{h.motivo}</span>
                   </li>
                 ))}
