@@ -165,6 +165,61 @@ const PERGUNTAS = [
   },
 ]
 
+/*
+ * Depoimentos escritos como roteiro, esperando o dono confirmar.
+ *
+ * Cada um cita uma função que existe de verdade — é isso que separa depoimento
+ * de elogio genérico: "o sistema é ótimo" não vende nada, "digito a placa e
+ * aparece o histórico" vende. O caminho é mandar a frase para o cliente e
+ * perguntar "é assim mesmo?": com o sim dele, deixa de ser texto nosso.
+ *
+ * O `quem` fica marcado até a pessoa existir. Trocar é editar esta lista — e
+ * `DEPOIMENTOS_APROVADOS` abaixo esconde a seção inteira enquanto isso não
+ * acontece, para quem visita não ler um colchete no lugar do nome.
+ */
+const DEPOIMENTOS = [
+  {
+    texto:
+      'Antes eu falava o preço de boca e depois dava discussão. Agora monto o orçamento no balcão e mando no WhatsApp na hora — o cliente aprova pelo celular e a ordem de serviço já nasce sozinha.',
+    quem: '[Nome] · [Oficina], [Cidade/UF]',
+  },
+  {
+    texto:
+      'O cliente liga perguntando o que foi feito na moto dele. Eu digito a placa e aparece tudo: serviço, peça trocada, garantia, valor. Antes eu procurava no caderno e às vezes não achava.',
+    quem: '[Nome] · [Oficina], [Cidade/UF]',
+  },
+  {
+    texto:
+      'Eu comprava peça e sumia. Hoje a peça baixa do estoque na hora em que o mecânico usa, e o saldo bate com a prateleira. Só aí eu vi quanto estava perdendo por mês.',
+    quem: '[Nome] · [Oficina], [Cidade/UF]',
+  },
+  {
+    texto:
+      'O que mudou mesmo foi saber quem está devendo e desde quando. Gero o PIX da própria ordem de serviço e mando — cobrar deixou de ser conversa constrangedora.',
+    quem: '[Nome] · [Oficina], [Cidade/UF]',
+  },
+  {
+    texto:
+      'Tenho dois mecânicos e agora sei o tempo que cada um leva em cada serviço. Não é para vigiar ninguém: é para eu parar de prometer prazo que não dá.',
+    quem: '[Nome] · [Oficina], [Cidade/UF]',
+  },
+  {
+    texto:
+      'No fim do mês eu abro o painel e vejo quantos orçamentos viraram serviço e quanto rendeu cada um. É a primeira vez que eu sei se o mês foi bom antes de olhar o extrato.',
+    quem: '[Nome] · [Oficina], [Cidade/UF]',
+  },
+]
+
+/*
+ * Vire para `true` quando os nomes reais estiverem na lista acima.
+ *
+ * Enquanto for falso, a seção some da página publicada — porque um colchete no
+ * lugar do nome, na seção que existe justamente para dar confiança, faz o
+ * contrário do que ela deveria fazer. Em desenvolvimento ela aparece sempre,
+ * para dar para conferir o texto no lugar.
+ */
+const DEPOIMENTOS_APROVADOS = false
+
 export function LandingPage() {
   const [planos, setPlanos] = useState<PlanoNaPagina[] | null>(null)
 
@@ -495,24 +550,29 @@ function Precos({ planos }: { planos: PlanoNaPagina[] }) {
 }
 
 function ProvaSocial() {
-  /*
-   * Lugares marcados, e não depoimentos inventados.
-   *
-   * Frase de cliente que nunca falou é o tipo de atalho que custa a confiança
-   * inteira no dia em que alguém pergunta "posso falar com esse dono?". O
-   * formato final já está aqui, esperando as primeiras oficinas.
-   */
+  if (!DEPOIMENTOS_APROVADOS && !import.meta.env.DEV) return null
+
   return (
     <section className="bg-superficie px-5 py-16 desktop:px-8 desktop:py-24">
       <div className="mx-auto max-w-6xl">
         <h2 className="text-balance text-[1.75rem] font-bold leading-tight text-em-superficie desktop:text-[2.5rem]">
           Quem já está usando
         </h2>
-        <div className="grid gap-4 pt-10 tablet:grid-cols-3">
-          {[0, 1, 2].map((i) => (
+        {!DEPOIMENTOS_APROVADOS && (
+          <p className="pt-2 text-apoio text-atencao-forte">
+            Rascunho: esta seção só vai ao ar quando os nomes forem reais.
+          </p>
+        )}
+        <div className="grid gap-4 pt-10 tablet:grid-cols-2 desktop:grid-cols-3">
+          {DEPOIMENTOS.map((d) => (
             <figure
-              key={i}
-              className="flex flex-col rounded-card border border-dashed border-borda-em-superficie p-6"
+              key={d.texto}
+              className={[
+                'flex flex-col rounded-card p-6',
+                DEPOIMENTOS_APROVADOS
+                  ? 'border border-borda-em-superficie'
+                  : 'border border-dashed border-borda-em-superficie',
+              ].join(' ')}
             >
               <div className="flex gap-0.5">
                 {[0, 1, 2, 3, 4].map((e) => (
@@ -520,10 +580,10 @@ function ProvaSocial() {
                 ))}
               </div>
               <blockquote className="flex-1 pt-4 text-corpo leading-relaxed text-em-superficie-2">
-                [Depoimento de uma frase sobre o que mudou na oficina]
+                “{d.texto}”
               </blockquote>
               <figcaption className="pt-4 text-apoio font-semibold text-em-superficie">
-                [Nome do dono] · [Nome da oficina], [Cidade/UF]
+                {d.quem}
               </figcaption>
             </figure>
           ))}
