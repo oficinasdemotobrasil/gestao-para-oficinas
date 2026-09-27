@@ -84,6 +84,13 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
   const [parametros, definirParametros] = useSearchParams()
   const planoNaUrl = parametros.get('plano')
   const escolhido = (planos ?? []).find((p) => p.id === planoNaUrl) ?? null
+
+  /*
+   * O e-mail digitado na página do produto chega pelo endereço e já preenche o
+   * campo. Quem escreveu o endereço uma vez não deve escrever de novo — e é
+   * nessa pequena repetição que se perde gente no meio do cadastro.
+   */
+  const emailNaUrl = parametros.get('email') ?? ''
   const [aceitou, setAceitou] = useState(false)
   const [erroGeral, setErroGeral] = useState<string | null>(null)
   const [mostrarSenha, setMostrarSenha] = useState(false)
@@ -210,7 +217,12 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
             <button
               key={plano.id}
               type="button"
-              onClick={() => definirParametros({ plano: plano.id })}
+              // O e-mail vai junto: escolher o plano reescreve o endereço, e
+              // sem isto o que a pessoa digitou na página do produto sumiria
+              // exatamente aqui, um passo antes do campo que o espera.
+              onClick={() =>
+                definirParametros(emailNaUrl ? { plano: plano.id, email: emailNaUrl } : { plano: plano.id })
+              }
               className="rounded-card bg-superficie p-5 text-left shadow-card active:opacity-90"
             >
               <div className="flex items-baseline justify-between gap-3">
@@ -252,7 +264,7 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
     <MolduraDeEntrada>
       <button
         type="button"
-        onClick={() => definirParametros({})}
+        onClick={() => definirParametros(emailNaUrl ? { email: emailNaUrl } : {})}
         className="flex min-h-toque items-center gap-1.5 text-corpo text-em-fundo-2"
       >
         <ArrowLeft aria-hidden size={18} />
@@ -291,6 +303,7 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
           autoComplete="username"
           placeholder="voce@oficina.com.br"
           erro={errors.email?.message}
+          defaultValue={emailNaUrl}
           {...register('email')}
         />
 
