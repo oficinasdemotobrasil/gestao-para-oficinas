@@ -95,6 +95,7 @@ const RECURSOS = [
       'Ache a moto pela placa, monte com peças e serviços do seu catálogo e mande no WhatsApp num toque. Preço por escrito acaba com a discussão duas semanas depois.',
     pontos: ['PDF com a sua logo e a sua cor', 'Validade e garantia em dias', 'Vira ordem de serviço na aprovação'],
     tela: <TelaOrcamento />,
+    foto: '/site/balcao-entrega.webp',
   },
   {
     etiqueta: 'Na bancada',
@@ -103,6 +104,7 @@ const RECURSOS = [
       'A ordem nasce do orçamento aprovado, com o responsável e os itens. Cada passo fica registrado com quem fez e quando — e a peça sai do estoque na hora em que é usada.',
     pontos: ['Tempo de serviço por mecânico', 'Baixa de peça automática', 'Garantia contada da entrega'],
     tela: <TelaOrdem />,
+    foto: '/site/mecanico-bancada.webp',
   },
   {
     etiqueta: 'No caixa',
@@ -111,6 +113,7 @@ const RECURSOS = [
       'A cobrança nasce da própria ordem de serviço. Veja quem está devendo e desde quando, gere o PIX e mande pelo WhatsApp sem constrangimento.',
     pontos: ['Contas a receber e a pagar', 'PIX gerado da ordem', 'Quem deve, quanto e desde quando'],
     tela: <TelaFinanceiro />,
+    foto: '/site/moto-elevador.webp',
   },
   {
     etiqueta: 'No atendimento',
@@ -119,6 +122,7 @@ const RECURSOS = [
       'Digite a placa e veja tudo: serviços feitos, peças trocadas, garantias em aberto, valores e o que o dono ainda deve. Responder ao cliente leva segundos.',
     pontos: ['Histórico completo da moto', 'Ficha do cliente com saldo', 'Busca por placa, nome ou nº da OS'],
     tela: <TelaBusca />,
+    foto: '/site/celular-na-mao.webp',
   },
 ]
 
@@ -311,6 +315,20 @@ function Dobra() {
 
   return (
     <section className="relative overflow-hidden border-b border-borda-em-fundo">
+      {/* A foto fica atrás de tudo, com véu chapado por cima — sem degradê,
+          porque a identidade não usa, e é o véu que garante a leitura do texto
+          sobre qualquer trecho da imagem. o ponto focal muda com a largura: no
+          computador o texto ocupa a esquerda, então a foto mostra o lado vazio
+          ali; no celular a coluna é estreita e recorta uma fatia fina, que
+          presa à esquerda era só chão vazio — a foto sumia da página justo
+          onde ela mais precisa dar vida. */}
+      <img
+        src="/site/oficina-panoramica.webp"
+        alt=""
+        fetchPriority="high"
+        className="absolute inset-0 h-full w-full object-cover object-center desktop:object-left"
+      />
+      <span aria-hidden className="absolute inset-0 bg-fundo/85" />
       <Simbolo
         tamanho="80%"
         className="pointer-events-none absolute -right-[18%] -top-[26%] hidden text-[#17171A] desktop:block"
@@ -462,7 +480,18 @@ function Recursos() {
                   ))}
                 </ul>
               </div>
-              <div className="rounded-card bg-fundo p-8">{<Celular>{r.tela}</Celular>}</div>
+              <div className="relative overflow-hidden rounded-card p-8">
+                <img
+                  src={r.foto}
+                  alt=""
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+                <span aria-hidden className="absolute inset-0 bg-inverso/70" />
+                <div className="relative">
+                  <Celular>{r.tela}</Celular>
+                </div>
+              </div>
             </div>
           ))}
         </div>
@@ -487,7 +516,16 @@ function NoComputador() {
             está para receber. O mesmo login do celular, a mesma informação.
           </p>
         </div>
-        <div className="pt-10">
+        <div className="grid items-center gap-8 pt-10 desktop:grid-cols-[1fr_1.15fr]">
+          {/* A foto mostra a cena; o painel ao lado mostra o produto. Foto de
+              banco de imagem com gráfico na tela seria dar a entender que
+              aquele gráfico é o nosso. */}
+          <img
+            src="/site/computador-balcao.webp"
+            alt="Dono de oficina no computador do balcão"
+            loading="lazy"
+            className="aspect-[4/3] w-full rounded-card object-cover"
+          />
           <TelaPainel />
         </div>
       </div>
@@ -555,9 +593,23 @@ function ProvaSocial() {
   return (
     <section className="bg-superficie px-5 py-16 desktop:px-8 desktop:py-24">
       <div className="mx-auto max-w-6xl">
-        <h2 className="text-balance text-[1.75rem] font-bold leading-tight text-em-superficie desktop:text-[2.5rem]">
-          Quem já está usando
-        </h2>
+        <div className="grid items-center gap-8 pb-4 desktop:grid-cols-[auto_1fr]">
+          <img
+            src="/site/retrato-mecanico.webp"
+            alt=""
+            loading="lazy"
+            className="h-40 w-40 rounded-full object-cover desktop:h-48 desktop:w-48"
+          />
+          <div>
+            <h2 className="text-balance text-[1.75rem] font-bold leading-tight text-em-superficie desktop:text-[2.5rem]">
+              Quem já está usando
+            </h2>
+            <p className="max-w-xl pt-3 text-corpo text-em-superficie-2">
+              Oficinas de bairro que trocaram o caderno pelo celular — e contam o
+              que mudou na semana delas.
+            </p>
+          </div>
+        </div>
         {!DEPOIMENTOS_APROVADOS && (
           <p className="pt-2 text-apoio text-atencao-forte">
             Rascunho: esta seção só vai ao ar quando os nomes forem reais.

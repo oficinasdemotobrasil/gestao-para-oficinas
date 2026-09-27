@@ -1,0 +1,21 @@
+Fotos da página do produto (a landing page em src/funcionalidades/site).
+
+Compradas em banco de imagens com licença. Guarde a nota e o número da licença
+fora daqui — em repositório não se guarda documento de compra.
+
+Onde cada uma é usada:
+
+  oficina-panoramica.webp   dobra da página, atrás do texto, com véu escuro.
+                            A mesma serve à tela de entrar (public/entrada).
+  balcao-entrega.webp       linha "No balcão", atrás do aparelho.
+  mecanico-bancada.webp     linha "Na bancada".
+  moto-elevador.webp        linha "No caixa".
+  celular-na-mao.webp       linha "No atendimento".
+  computador-balcao.webp    seção do painel no computador.
+  retrato-mecanico.webp     seção de depoimentos.
+
+Todas já estão em WebP. Ao trocar alguma, mantenha o nome do arquivo: a página
+aponta para ele, e trocar o nome em dois lugares é onde se esquece um.
+
+Só a da dobra carrega junto com a página; as outras carregam quando a pessoa
+rola até elas.

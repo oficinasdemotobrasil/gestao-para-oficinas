@@ -35,6 +35,7 @@ import { Logotipo, Simbolo } from '@/componentes/marca/Logotipo'
  * imagem baixada sem licença é processo, não é economia.
  */
 const FOTOS_DA_ENTRADA = [
+  '/entrada/oficina.webp',
   '/entrada/oficina.jpg',
   '/entrada/oficina.jpeg',
   '/entrada/oficina.png',
