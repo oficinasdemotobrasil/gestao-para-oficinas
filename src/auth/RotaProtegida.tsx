@@ -2,6 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from './ProvedorAuth'
 import { usePermissoes } from './usePermissoes'
 import { Carregando } from '@/componentes/ui/Carregando'
+import { LandingPage } from '@/funcionalidades/site/LandingPage'
 
 /** Exige sessão válida e cadastro ativo na oficina. */
 export function RotaProtegida() {
@@ -11,6 +12,17 @@ export function RotaProtegida() {
   if (carregando) return <Carregando rotulo="Entrando…" />
 
   if (!sessao) {
+    /*
+     * Visitante na raiz vê a página do produto; em qualquer outro endereço, vai
+     * para o login guardando de onde veio.
+     *
+     * A mesma porta serve às duas pessoas: quem tem conta abre o app, quem não
+     * tem lê o que o app faz. Colocar a página de venda num endereço separado
+     * dividiria o tráfego em dois, e o dono de oficina que ouviu falar do GIRO
+     * digita o endereço puro.
+     */
+    if (local.pathname === '/') return <LandingPage />
+
     // Guarda de onde a pessoa veio, para voltar ao mesmo lugar depois do login.
     return <Navigate to="/entrar" state={{ de: local.pathname }} replace />
   }
