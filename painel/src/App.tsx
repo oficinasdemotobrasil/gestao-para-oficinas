@@ -10,6 +10,7 @@ import {
   ROTULO_DO_PLANO,
   ROTULO_DA_SITUACAO,
   definirPrazo,
+  entrarComoSuporte,
   dinheiro,
   ROTULO_CALCULADO,
   TOM_DA_SITUACAO,
@@ -297,6 +298,17 @@ function Lista({ sessao }: { sessao: Session }) {
   const [aba, setAba] = useState<'negocio' | 'oficinas'>('negocio')
   const [erro, setErro] = useState('')
   const [mexendo, setMexendo] = useState<string | null>(null)
+
+  /*
+   * Entrar na oficina do cliente.
+   *
+   * O motivo é pedido antes, e não depois, porque depois ninguém escreve. Ele
+   * é a única resposta que vai existir se um dia alguém perguntar quem olhou os
+   * dados dos clientes daquela oficina.
+   */
+  const [entrandoEm, setEntrandoEm] = useState<OficinaNaLista | null>(null)
+  const [motivoDoSuporte, setMotivoDoSuporte] = useState('')
+  const [abrindoSuporte, setAbrindoSuporte] = useState(false)
   const [filtroSituacao, setFiltroSituacao] = useState<string>('')
   const [filtroPlano, setFiltroPlano] = useState<string>('')
   const [busca, setBusca] = useState('')
@@ -470,7 +482,7 @@ function Lista({ sessao }: { sessao: Session }) {
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-borda-clara">
-                {['Oficina', 'Uso no mês', 'Último acesso', 'Plano', 'Situação', 'Acesso até'].map(
+                {['Oficina', 'Uso no mês', 'Último acesso', 'Plano', 'Situação', 'Acesso até', 'Suporte'].map(
                   (t) => (
                     <th key={t} className="px-4 py-3 text-sm font-medium text-claro-secundario">
                       {t}
@@ -562,6 +574,19 @@ function Lista({ sessao }: { sessao: Session }) {
                         ))}
                       </select>
                     </td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        disabled={mexendo === o.id}
+                        onClick={() => {
+                          setEntrandoEm(o)
+                          setMotivoDoSuporte('')
+                        }}
+                        className="h-9 rounded-controle border border-borda-clara px-3 text-sm text-claro hover:bg-claro/5 disabled:opacity-50"
+                      >
+                        Entrar
+                      </button>
+                    </td>
                   </tr>
                 )
               })}
@@ -569,6 +594,66 @@ function Lista({ sessao }: { sessao: Session }) {
           </table>
         </div>
       ))}
+
+      {entrandoEm && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
+          <div className="w-full max-w-lg rounded-card bg-superficie p-6">
+            <h2 className="text-lg font-semibold text-claro">
+              Entrar na {entrandoEm.nome}
+            </h2>
+            <p className="pt-2 text-sm text-claro-secundario">
+              O sistema abre numa aba nova, logado como <strong>Suporte GIRO</strong>. O
+              acesso dura 30 minutos e fecha sozinho. Tudo o que você fizer lá fica
+              com esse nome.
+            </p>
+
+            <label className="block pt-5 text-sm text-claro-secundario" htmlFor="motivo-suporte">
+              Por que você está entrando?
+            </label>
+            <textarea
+              id="motivo-suporte"
+              rows={3}
+              value={motivoDoSuporte}
+              onChange={(e) => setMotivoDoSuporte(e.target.value)}
+              placeholder="Cliente relatou que o orçamento 128 sumiu da lista"
+              className="mt-2 w-full rounded-controle border border-borda-clara bg-transparent p-3 text-sm text-claro"
+            />
+            <p className="pt-2 text-xs text-claro-secundario">
+              Fica guardado com o seu nome e a data. Escreva o que você diria a
+              alguém que perguntasse depois — “suporte” não responde nada.
+            </p>
+
+            <div className="flex flex-col gap-2 pt-6 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setEntrandoEm(null)}
+                className="h-11 rounded-controle border border-borda-clara px-5 text-sm text-claro"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={motivoDoSuporte.trim().length < 5 || abrindoSuporte}
+                onClick={() => {
+                  setAbrindoSuporte(true)
+                  entrarComoSuporte(entrandoEm.id, motivoDoSuporte.trim())
+                    .then((r) => {
+                      setEntrandoEm(null)
+                      // A aba é aberta pelo clique da pessoa, não por
+                      // redirecionamento: assim o painel continua aberto do lado.
+                      window.open(r.link, '_blank', 'noopener')
+                    })
+                    .catch((e: Error) => alert(e.message))
+                    .finally(() => setAbrindoSuporte(false))
+                }}
+                className="h-11 rounded-controle bg-acento px-5 text-sm font-semibold text-escuro disabled:opacity-50"
+              >
+                {abrindoSuporte ? 'Abrindo…' : 'Entrar na oficina'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {aba === 'oficinas' && (
       <p className="pt-6 text-xs text-escuro-secundario">

@@ -173,6 +173,38 @@ export const mudarPlano = (oficina_id: string, plano: Plano) =>
 export const mudarSituacao = (oficina_id: string, situacao: Situacao) =>
   chamar<{ ok: true }>({ acao: 'situacao', oficina_id, situacao })
 
+/**
+ * Entrar na oficina do cliente para dar suporte.
+ *
+ * Devolve um link que abre o sistema do cliente já logado como "Suporte GIRO".
+ * O acesso dura trinta minutos e morre sozinho — quem garante isso é o banco
+ * (migration 0073), não esta tela.
+ *
+ * O motivo é obrigatório e fica guardado. É ele que responde, meses depois,
+ * por que alguém entrou na conta de um cliente.
+ */
+export const entrarComoSuporte = (oficina_id: string, motivo: string) =>
+  chamar<{ ok: true; link: string; oficina: string; expira_em: string }>({
+    acao: 'suporte_entrar',
+    oficina_id,
+    motivo,
+  })
+
+export const sairDoSuporte = () => chamar<{ ok: true }>({ acao: 'suporte_sair' })
+
+export interface SessaoDeSuporte {
+  id: string
+  oficina_id: string
+  motivo: string
+  iniciada_em: string
+  expira_em: string
+  encerrada_em: string | null
+  oficina: { nome: string } | null
+}
+
+export const listarSessoesDeSuporte = async (oficina_id?: string) =>
+  (await chamar<{ sessoes: SessaoDeSuporte[] }>({ acao: 'suporte_sessoes', oficina_id })).sessoes
+
 export const listarEstornos = async () =>
   (await chamar<{ estornos: Estorno[] }>({ acao: 'estornos' })).estornos
 

@@ -35,6 +35,7 @@ interface Corpo {
   acao?:
     | 'listar' | 'criar' | 'plano' | 'situacao' | 'prazo' | 'reprocessar'
     | 'estornos' | 'marcar_estorno' | 'desmarcar_estorno'
+    | 'suporte_entrar' | 'suporte_sair' | 'suporte_sessoes'
   oficina_id?: string
   plano?: Plano
   situacao?: Situacao
@@ -429,6 +430,140 @@ Deno.serve(async (req: Request) => {
     })
     if (error) return responder({ erro: error.message }, 500)
     return responder({ ok: true })
+  }
+
+  /*
+   * Entrar na oficina do cliente para dar suporte.
+   *
+   * O acesso é de UMA conta só, `suporte@giro.app.br`, cuja linha em `usuarios`
+   * é reapontada para a oficina do atendimento. A alternativa — gerar sessão
+   * para o usuário do próprio cliente — seria mais simples e deixaria o
+   * registro mentindo: tudo que o suporte fizesse apareceria como se fosse ele.
+   *
+   * O acesso morre sozinho em trinta minutos, porque `oficina_do_usuario()`
+   * (migration 0073) exige sessão aberta e dentro do prazo. Esquecer de sair
+   * não deixa porta aberta.
+   */
+  if (corpo.acao === 'suporte_entrar') {
+    if (!corpo.oficina_id) return responder({ erro: 'Informe a oficina.' }, 400)
+    const motivo = (corpo.motivo ?? '').trim()
+    if (motivo.length < 5) {
+      return responder(
+        { erro: 'Escreva o motivo do acesso. É o que responde, meses depois, por que alguém entrou aqui.' },
+        400,
+      )
+    }
+
+    const { data: oficina } = await servico
+      .from('oficinas').select('id, nome').eq('id', corpo.oficina_id).maybeSingle()
+    if (!oficina) return responder({ erro: 'Oficina não encontrada.' }, 404)
+
+    // A conta de suporte, criada na primeira vez e reaproveitada depois.
+    const EMAIL_DO_SUPORTE = 'suporte@giro.app.br'
+    let suporteId: string | null = null
+
+    const { data: linha } = await servico
+      .from('usuarios').select('id').eq('email', EMAIL_DO_SUPORTE).maybeSingle()
+
+    if (linha) {
+      suporteId = linha.id
+    } else {
+      // Senha aleatória e descartada: ninguém entra por senha nesta conta. O
+      // único caminho é o link gerado abaixo, que dura poucos minutos.
+      const { data: nova, error: erroConta } = await servico.auth.admin.createUser({
+        email: EMAIL_DO_SUPORTE,
+        password: crypto.randomUUID() + crypto.randomUUID(),
+        email_confirm: true,
+      })
+      if (erroConta || !nova?.user) {
+        return responder({ erro: erroConta?.message ?? 'Não consegui criar a conta de suporte.' }, 500)
+      }
+      suporteId = nova.user.id
+      const { error: erroLinha } = await servico.from('usuarios').insert({
+        id: suporteId,
+        oficina_id: corpo.oficina_id,
+        nome: 'Suporte GIRO',
+        email: EMAIL_DO_SUPORTE,
+        perfil: 'admin',
+        ativo: true,
+        de_suporte: true,
+      })
+      if (erroLinha) return responder({ erro: erroLinha.message }, 500)
+    }
+
+    // Uma sessão por vez: entrar em outra oficina fecha a anterior, senão o
+    // registro ficaria com duas sessões abertas e nenhuma delas verdadeira.
+    await servico
+      .from('sessoes_de_suporte')
+      .update({ encerrada_em: new Date().toISOString() })
+      .eq('usuario_id', suporteId)
+      .is('encerrada_em', null)
+
+    const { error: erroMover } = await servico
+      .from('usuarios')
+      .update({ oficina_id: corpo.oficina_id, ativo: true, perfil: 'admin' })
+      .eq('id', suporteId)
+    if (erroMover) return responder({ erro: erroMover.message }, 500)
+
+    const expira = new Date(Date.now() + 30 * 60 * 1000)
+    const { error: erroSessao } = await servico.from('sessoes_de_suporte').insert({
+      oficina_id: corpo.oficina_id,
+      usuario_id: suporteId,
+      admin_id: sessao.user.id,
+      motivo,
+      expira_em: expira.toISOString(),
+    })
+    if (erroSessao) return responder({ erro: erroSessao.message }, 500)
+
+    const { data: link, error: erroLink } = await servico.auth.admin.generateLink({
+      type: 'magiclink',
+      email: EMAIL_DO_SUPORTE,
+    })
+    if (erroLink || !link?.properties?.action_link) {
+      return responder({ erro: erroLink?.message ?? 'Não consegui gerar o acesso.' }, 500)
+    }
+
+    return responder({
+      ok: true,
+      link: link.properties.action_link,
+      oficina: oficina.nome,
+      expira_em: expira.toISOString(),
+    })
+  }
+
+  // Sair antes da hora. O prazo já fecha sozinho; isto é para não deixar aberto
+  // o resto dos trinta minutos depois de terminar o atendimento.
+  if (corpo.acao === 'suporte_sair') {
+    const { data: linha } = await servico
+      .from('usuarios').select('id').eq('email', 'suporte@giro.app.br').maybeSingle()
+    if (!linha) return responder({ ok: true })
+
+    await servico
+      .from('sessoes_de_suporte')
+      .update({ encerrada_em: new Date().toISOString() })
+      .eq('usuario_id', linha.id)
+      .is('encerrada_em', null)
+
+    const { error } = await servico
+      .from('usuarios').update({ ativo: false }).eq('id', linha.id)
+    if (error) return responder({ erro: error.message }, 500)
+    return responder({ ok: true })
+  }
+
+  // O histórico. É a resposta para "quem entrou na minha conta?" — e por isso
+  // ele não tem como ser apagado por aqui.
+  if (corpo.acao === 'suporte_sessoes') {
+    let consulta = servico
+      .from('sessoes_de_suporte')
+      .select('id, oficina_id, motivo, iniciada_em, expira_em, encerrada_em, oficina:oficinas(nome)')
+      .order('iniciada_em', { ascending: false })
+      .limit(100)
+
+    if (corpo.oficina_id) consulta = consulta.eq('oficina_id', corpo.oficina_id)
+
+    const { data, error } = await consulta
+    if (error) return responder({ erro: error.message }, 500)
+    return responder({ sessoes: data ?? [] })
   }
 
   return responder({ erro: 'Ação desconhecida.' }, 400)
