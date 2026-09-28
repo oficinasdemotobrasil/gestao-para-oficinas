@@ -469,49 +469,50 @@ Deno.serve(async (req: Request) => {
      * Com uma conta por oficina, a autoria fica onde aconteceu e nada se move.
      * O endereço nunca recebe e-mail: o acesso é só pelo link gerado abaixo.
      */
-    const emailDoSuporte = `suporte+${corpo.oficina_id}@giro.app.br`
-    let suporteId: string | null = null
-
     /*
-     * A conta é achada pela MARCAÇÃO, não pelo endereço.
+     * A conta é achada pela MARCAÇÃO, e o endereço nunca é usado para procurar.
      *
-     * Procurar por e-mail era frágil: o admin da oficina cadastra colaboradores,
-     * e bastava ele criar um com esse endereço para o suporte entrar numa conta
-     * que não é a nossa. A marcação `de_suporte`, desde a 0074 e a 0076, só a
-     * plataforma escreve — então ela não pode ser plantada.
+     * Duas versões caíram aqui. Procurar por e-mail deixava o admin da oficina
+     * plantar um colaborador com aquele endereço: na primeira versão o suporte
+     * entrava na conta dele; na segunda, corrigida a busca, o cadastro esbarrava
+     * na chave primária e o suporte daquela oficina quebrava PARA SEMPRE — uma
+     * negação de serviço que qualquer cliente podia disparar sozinho.
+     *
+     * Agora o endereço é sorteado na criação e nunca mais consultado. Quem
+     * responde "qual é a conta desta oficina?" é a marcação `de_suporte`, que
+     * só a plataforma escreve (0074 e 0076) — não dá para plantar nem adivinhar.
      */
+    let suporteId: string | null = null
+    let emailDoSuporte: string | null = null
+
     const { data: linha } = await servico
       .from('usuarios')
-      .select('id')
+      .select('id, email')
       .eq('oficina_id', corpo.oficina_id)
       .eq('de_suporte', true)
       .maybeSingle()
 
     if (linha) {
       suporteId = linha.id
+      emailDoSuporte = linha.email
       const { error: erroLigar } = await servico
         .from('usuarios').update({ ativo: true }).eq('id', suporteId)
       if (erroLigar) return responder({ erro: erroLigar.message }, 500)
     } else {
-      // A conta no Auth pode existir sem a linha — se a oficina foi limpa, por
-      // exemplo. Recriar daria "e-mail já existe" e quebraria para sempre.
-      const { data: contas } = await servico.auth.admin.listUsers({ page: 1, perPage: 1000 })
-      const jaExiste = contas?.users.find((u) => u.email === emailDoSuporte)
+      // Endereço sorteado: nunca colide com um que o cliente possa ter criado.
+      // Ele não recebe e-mail nenhum — o acesso é só pelo link gerado abaixo.
+      emailDoSuporte = `suporte+${crypto.randomUUID()}@giro.app.br`
 
-      if (jaExiste) {
-        suporteId = jaExiste.id
-      } else {
+      const { data: nova, error: erroConta } = await servico.auth.admin.createUser({
+        email: emailDoSuporte,
         // Senha aleatória e descartada: ninguém entra por senha nesta conta.
-        const { data: nova, error: erroConta } = await servico.auth.admin.createUser({
-          email: emailDoSuporte,
-          password: crypto.randomUUID() + crypto.randomUUID(),
-          email_confirm: true,
-        })
-        if (erroConta || !nova?.user) {
-          return responder({ erro: erroConta?.message ?? 'Não consegui criar a conta de suporte.' }, 500)
-        }
-        suporteId = nova.user.id
+        password: crypto.randomUUID() + crypto.randomUUID(),
+        email_confirm: true,
+      })
+      if (erroConta || !nova?.user) {
+        return responder({ erro: erroConta?.message ?? 'Não consegui criar a conta de suporte.' }, 500)
       }
+      suporteId = nova.user.id
 
       const { error: erroLinha } = await servico.from('usuarios').insert({
         id: suporteId,
