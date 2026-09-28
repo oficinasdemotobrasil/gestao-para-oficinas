@@ -3902,11 +3902,15 @@ async function testarAcessoDeSuporte() {
      values ('51999999-0000-4000-8000-000000000001', '${ID.oficinaA}', 'Sobra', 'sobra@teste.local', 'mecanico')`,
   )
 
-  await db.exec(`
-    insert into auth.users (id, email) values ('50000000-0000-4000-8000-000000000002', 'sup2@giro.local');
-    insert into public.usuarios (id, oficina_id, nome, email, perfil, ativo, de_suporte)
-    values ('50000000-0000-4000-8000-000000000002', '${ID.oficinaA}', 'Suporte 2', 'sup2@giro.local', 'admin', true, true);
-  `)
+  // A conta de suporte é recriada com a oficina já lotada. Antes eu inseria uma
+  // SEGUNDA conta aqui, o que a 0077 passou a proibir com razão — e o teste
+  // provava a isenção de vaga por um caminho que não existe na vida real.
+  await db.query(`delete from public.sessoes_de_suporte where usuario_id = '${SUPORTE}'`)
+  await db.query(`delete from public.usuarios where id = '${SUPORTE}'`)
+  await db.exec(
+    `insert into public.usuarios (id, oficina_id, nome, email, perfil, ativo, de_suporte)
+     values ('${SUPORTE}', '${ID.oficinaA}', 'Suporte GIRO', 'suporte@giro.local', 'admin', true, true)`,
+  )
   ok('mas a conta de suporte entra assim mesmo, sem ocupar vaga')
 
   /*
@@ -3978,6 +3982,20 @@ async function testarAcessoDeSuporte() {
   await comoAdministradorDoBanco()
   await db.query(
     `update public.sessoes_de_suporte set encerrada_em = now() where id = '${sessaoA.rows[0].id}'`,
+  )
+
+  // Duas contas de suporte na mesma oficina: o banco recusa (0077). Sem isto,
+  // dois atendimentos simultâneos criariam duas, e a busca da função passaria a
+  // devolver duas linhas — quebrando o suporte daquela oficina para sempre.
+  await comoAdministradorDoBanco()
+  await db.exec(
+    `insert into auth.users (id, email) values ('50000000-0000-4000-8000-00000000000c', 'suporte+c@giro.local')`,
+  )
+  await esperaErro(
+    'a oficina não pode ter duas contas de suporte',
+    `insert into public.usuarios (id, oficina_id, nome, email, perfil, ativo, de_suporte)
+     values ('50000000-0000-4000-8000-00000000000c', '${ID.oficinaA}', 'Suporte 2',
+             'suporte+c@giro.local', 'admin', true, true)`,
   )
 
   // A oficina vizinha ganha a conta dela, e as duas convivem.
