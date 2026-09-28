@@ -462,23 +462,40 @@ Deno.serve(async (req: Request) => {
     const EMAIL_DO_SUPORTE = 'suporte@giro.app.br'
     let suporteId: string | null = null
 
+    /*
+     * Quem manda é a conta no Auth, e não a linha em `usuarios`.
+     *
+     * As duas podem se separar: a linha vive dentro de uma oficina, e some com
+     * ela se a oficina for apagada — aconteceu num teste. Com a conta do Auth
+     * órfã, a versão anterior tentava criar de novo, o Auth respondia "e-mail
+     * já existe" e o recurso ficava quebrado para sempre, sem ninguém entender
+     * por quê. Agora a linha é refeita a partir da conta que existe.
+     */
     const { data: linha } = await servico
       .from('usuarios').select('id').eq('email', EMAIL_DO_SUPORTE).maybeSingle()
 
     if (linha) {
       suporteId = linha.id
     } else {
-      // Senha aleatória e descartada: ninguém entra por senha nesta conta. O
-      // único caminho é o link gerado abaixo, que dura poucos minutos.
-      const { data: nova, error: erroConta } = await servico.auth.admin.createUser({
-        email: EMAIL_DO_SUPORTE,
-        password: crypto.randomUUID() + crypto.randomUUID(),
-        email_confirm: true,
-      })
-      if (erroConta || !nova?.user) {
-        return responder({ erro: erroConta?.message ?? 'Não consegui criar a conta de suporte.' }, 500)
+      const { data: contas } = await servico.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const jaExiste = contas?.users.find((u) => u.email === EMAIL_DO_SUPORTE)
+
+      if (jaExiste) {
+        suporteId = jaExiste.id
+      } else {
+        // Senha aleatória e descartada: ninguém entra por senha nesta conta. O
+        // único caminho é o link gerado abaixo, que dura poucos minutos.
+        const { data: nova, error: erroConta } = await servico.auth.admin.createUser({
+          email: EMAIL_DO_SUPORTE,
+          password: crypto.randomUUID() + crypto.randomUUID(),
+          email_confirm: true,
+        })
+        if (erroConta || !nova?.user) {
+          return responder({ erro: erroConta?.message ?? 'Não consegui criar a conta de suporte.' }, 500)
+        }
+        suporteId = nova.user.id
       }
-      suporteId = nova.user.id
+
       const { error: erroLinha } = await servico.from('usuarios').insert({
         id: suporteId,
         oficina_id: corpo.oficina_id,
