@@ -3752,6 +3752,7 @@ async function main() {
     await testarFichaCompleta()
     await testarIndicadores()
     await testarTesteMostraTudo()
+    await testarAcessoDeSuporte()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
     // impressão de que correu tudo bem — foi o que aconteceu quando a coluna
@@ -3766,6 +3767,149 @@ async function main() {
   }
   await db.close()
   process.exit(falhou === 0 ? 0 : 1)
+}
+
+/**
+ * O acesso de suporte (0073).
+ *
+ * A conta de suporte é a única do sistema que muda de oficina. O que se prova
+ * aqui é o contorno dela: enxerga enquanto a sessão vale, para de enxergar
+ * quando o prazo passa, não aparece na equipe do cliente e não ocupa vaga.
+ */
+async function testarAcessoDeSuporte() {
+  console.log('\n\x1b[1mAcesso de suporte\x1b[0m')
+
+  const SUPORTE = '50000000-0000-4000-8000-000000000001'
+
+  await db.query('set role postgres')
+  await db.exec(`
+    insert into auth.users (id, email) values ('${SUPORTE}', 'suporte@giro.local');
+    insert into public.usuarios (id, oficina_id, nome, email, perfil, ativo, de_suporte)
+    values ('${SUPORTE}', '${ID.oficinaA}', 'Suporte GIRO', 'suporte@giro.local', 'admin', true, true);
+  `)
+
+  // Sem sessão aberta, a conta existe e não enxerga nada.
+  await logarComo(SUPORTE)
+  await esperaLinhas(
+    'sem sessão aberta, o suporte não enxerga a oficina',
+    'select count(*) as n from public.clientes',
+    0,
+  )
+
+  // Com sessão dentro do prazo, enxerga como o dono.
+  await db.query('set role postgres')
+  const sessao = await db.query<{ id: string }>(
+    `insert into public.sessoes_de_suporte
+       (oficina_id, usuario_id, admin_id, motivo, expira_em)
+     values ('${ID.oficinaA}', '${SUPORTE}', '${ID.adminA}',
+             'cliente relatou orçamento sumido', now() + interval '30 minutes')
+     returning id`,
+  )
+  await logarComo(SUPORTE)
+  const quantosClientes = await contar('select count(*) as n from public.clientes')
+  quantosClientes > 0
+    ? ok('com a sessão aberta, enxerga a oficina inteira', `${quantosClientes} clientes`)
+    : erro('suporte com sessão aberta', 'não enxergou nada')
+
+  // E pode agir, porque foi essa a decisão: olhar e mexer.
+  await db.query(
+    `insert into public.clientes (oficina_id, nome, telefone)
+     values ('${ID.oficinaA}', 'Cliente criado no suporte', '81900000000')`,
+  )
+  await esperaLinhas(
+    'e pode agir, porque foi essa a decisão: olhar e mexer',
+    `select count(*) as n from public.clientes where nome = 'Cliente criado no suporte'`,
+    1,
+  )
+
+  // Passado o prazo, a porta fecha sozinha — sem ninguém encerrar.
+  await db.query('set role postgres')
+  await db.query(
+    `update public.sessoes_de_suporte set expira_em = now() - interval '1 minute'
+      where id = '${sessao.rows[0].id}'`,
+  )
+  await logarComo(SUPORTE)
+  await esperaLinhas(
+    'vencido o prazo, o acesso fecha sozinho',
+    'select count(*) as n from public.clientes',
+    0,
+  )
+
+  // Encerrar à mão também fecha.
+  await db.query('set role postgres')
+  await db.query(
+    `update public.sessoes_de_suporte
+        set expira_em = now() + interval '30 minutes', encerrada_em = now()
+      where id = '${sessao.rows[0].id}'`,
+  )
+  await logarComo(SUPORTE)
+  await esperaLinhas(
+    'e encerrar a sessão fecha antes do prazo',
+    'select count(*) as n from public.clientes',
+    0,
+  )
+
+  // O cliente não vê a conta de suporte na equipe dele.
+  await logarComo(ID.adminA)
+  await esperaLinhas(
+    'o dono da oficina não vê a conta de suporte na equipe',
+    `select count(*) as n from public.usuarios where de_suporte`,
+    0,
+  )
+  const equipe = await contar('select count(*) as n from public.usuarios')
+  equipe === 3
+    ? ok('e a equipe dele continua com as três pessoas de sempre')
+    : erro('equipe da oficina', `veio ${equipe}`)
+
+  // Nem a lista de sessões, que é da plataforma.
+  await esperaLinhas(
+    'ninguém lê as sessões de suporte pela API',
+    'select count(*) as n from public.sessoes_de_suporte',
+    0,
+  )
+
+  // A conta de suporte não gasta vaga do plano.
+  //
+  // Em vez de rebaixar o plano — o que o gatilho da 0038 proíbe enquanto há
+  // sessão aberta, e com razão —, a oficina é lotada com gente de verdade até
+  // o limite do plano dela. A conta de suporte entra em cima disso.
+  await comoAdministradorDoBanco()
+  const limite = await contar(
+    `select limite_colaboradores as n from public.planos
+      where id = (select plano from public.oficinas where id = '${ID.oficinaA}')`,
+  )
+  const jaTem = await contar(
+    `select count(*) as n from public.usuarios
+      where oficina_id = '${ID.oficinaA}' and ativo and not de_suporte`,
+  )
+  for (let i = jaTem; i < limite; i++) {
+    const novoId = `5111111${i}-0000-4000-8000-000000000001`
+    await db.exec(`
+      insert into auth.users (id, email) values ('${novoId}', 'enche${i}@teste.local');
+      insert into public.usuarios (id, oficina_id, nome, email, perfil)
+      values ('${novoId}', '${ID.oficinaA}', 'Enche ${i}', 'enche${i}@teste.local', 'mecanico');
+    `)
+  }
+
+  // Os dois comandos vão separados: juntos, o PGlite recusa por "multiple
+  // commands", o teste passaria e estaria provando a coisa errada.
+  await db.exec(
+    `insert into auth.users (id, email) values ('51999999-0000-4000-8000-000000000001', 'sobra@teste.local')`,
+  )
+  await esperaErro(
+    'com a oficina no limite, mais um colaborador é recusado',
+    `insert into public.usuarios (id, oficina_id, nome, email, perfil)
+     values ('51999999-0000-4000-8000-000000000001', '${ID.oficinaA}', 'Sobra', 'sobra@teste.local', 'mecanico')`,
+  )
+
+  await db.exec(`
+    insert into auth.users (id, email) values ('50000000-0000-4000-8000-000000000002', 'sup2@giro.local');
+    insert into public.usuarios (id, oficina_id, nome, email, perfil, ativo, de_suporte)
+    values ('50000000-0000-4000-8000-000000000002', '${ID.oficinaA}', 'Suporte 2', 'sup2@giro.local', 'admin', true, true);
+  `)
+  ok('mas a conta de suporte entra assim mesmo, sem ocupar vaga')
+
+  await logarComo(ID.adminA)
 }
 
 void main()
