@@ -3926,19 +3926,83 @@ async function testarAcessoDeSuporte() {
     `update public.usuarios set oficina_id = '${ID.oficinaB}' where id = '${ID.vendedorA}'`,
   )
 
+  /*
+   * Nem a conta de suporte se move — e é por isso que existe uma por oficina.
+   *
+   * A primeira ideia era uma conta só, reapontada para a oficina do
+   * atendimento. O banco recusa: quatro tabelas apontam para o usuário JUNTO
+   * com a oficina dele, então assim que o suporte encosta numa OS a conta fica
+   * presa ali. Ver 0075.
+   */
   await comoAdministradorDoBanco()
-  await db.query(
+  await esperaErro(
+    'nem a conta de suporte muda de oficina — cada oficina tem a sua',
     `update public.usuarios set oficina_id = '${ID.oficinaB}' where id = '${SUPORTE}'`,
   )
-  const ondeEsta = await contar(
-    `select count(*) as n from public.usuarios
-      where id = '${SUPORTE}' and oficina_id = '${ID.oficinaB}'`,
+
+  /*
+   * E agora o que fez o desenho anterior cair: o suporte AGE na oficina.
+   *
+   * Mudar o status de uma OS grava uma linha em `os_status_historico` com
+   * usuário E oficina. Era essa linha que prendia a conta na primeira oficina
+   * onde ela trabalhasse. Com uma conta por oficina, agir é só agir.
+   */
+  const sessaoA = await db.query<{ id: string }>(
+    `insert into public.sessoes_de_suporte
+       (oficina_id, usuario_id, admin_id, motivo, expira_em)
+     values ('${ID.oficinaA}', '${SUPORTE}', '${ID.adminA}', 'atendendo e mexendo de verdade',
+             now() + interval '30 minutes')
+     returning id`,
   )
-  ondeEsta === 1
-    ? ok('mas a conta de suporte muda de oficina, que é para isso que ela existe')
-    : erro('mover a conta de suporte', 'não mudou')
+  await logarComo(SUPORTE)
+  const osParaMexer = await db.query<{ id: string }>(
+    `select id from public.ordens_servico
+      where oficina_id = '${ID.oficinaA}' and status = 'aberta' limit 1`,
+  )
+  if (osParaMexer.rows[0]) {
+    await db.query(
+      `update public.ordens_servico set status = 'em_andamento'
+        where id = '${osParaMexer.rows[0].id}'`,
+    )
+    const deixouRastro = await contar(
+      `select count(*) as n from public.os_status_historico
+        where usuario_id = '${SUPORTE}' and oficina_id = '${ID.oficinaA}'`,
+    )
+    deixouRastro > 0
+      ? ok('o suporte age e o rastro fica com o nome dele, na oficina certa')
+      : erro('rastro do suporte', 'não gravou o histórico')
+  } else {
+    erro('ordem para mexer', 'nenhuma OS aberta na oficina A')
+  }
+
+  await comoAdministradorDoBanco()
   await db.query(
-    `update public.usuarios set oficina_id = '${ID.oficinaA}' where id = '${SUPORTE}'`,
+    `update public.sessoes_de_suporte set encerrada_em = now() where id = '${sessaoA.rows[0].id}'`,
+  )
+
+  // A oficina vizinha ganha a conta dela, e as duas convivem.
+  const SUPORTE_B = '50000000-0000-4000-8000-00000000000b'
+  await db.exec(`
+    insert into auth.users (id, email) values ('${SUPORTE_B}', 'suporte+b@giro.local');
+    insert into public.usuarios (id, oficina_id, nome, email, perfil, ativo, de_suporte)
+    values ('${SUPORTE_B}', '${ID.oficinaB}', 'Suporte GIRO', 'suporte+b@giro.local', 'admin', true, true);
+  `)
+  await db.query(
+    `insert into public.sessoes_de_suporte (oficina_id, usuario_id, admin_id, motivo, expira_em)
+     values ('${ID.oficinaB}', '${SUPORTE_B}', '${ID.adminB}', 'atendendo a oficina vizinha',
+             now() + interval '30 minutes')`,
+  )
+  await logarComo(SUPORTE_B)
+  const naVizinha = await contar('select count(*) as n from public.clientes')
+  naVizinha > 0
+    ? ok('a conta de suporte da oficina vizinha enxerga só a oficina dela', `${naVizinha} cliente(s)`)
+    : erro('suporte na oficina B', 'não enxergou nada')
+
+  // E o que ela enxerga é da oficina B, não da A.
+  await esperaLinhas(
+    'e não enxerga a oficina do lado',
+    `select count(*) as n from public.clientes where oficina_id = '${ID.oficinaA}'`,
+    0,
   )
 
   /*

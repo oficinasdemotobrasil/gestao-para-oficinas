@@ -458,35 +458,40 @@ Deno.serve(async (req: Request) => {
       .from('oficinas').select('id, nome').eq('id', corpo.oficina_id).maybeSingle()
     if (!oficina) return responder({ erro: 'Oficina não encontrada.' }, 404)
 
-    // A conta de suporte, criada na primeira vez e reaproveitada depois.
-    const EMAIL_DO_SUPORTE = 'suporte@giro.app.br'
+    /*
+     * CADA oficina tem a sua conta de suporte.
+     *
+     * A primeira versão usava uma conta só, reapontada para a oficina do
+     * atendimento. O banco recusa: quatro tabelas apontam para o usuário junto
+     * com a oficina dele, e basta o suporte mexer numa OS para a conta ficar
+     * presa ali. Funcionava no primeiro atendimento e travava no segundo.
+     *
+     * Com uma conta por oficina, a autoria fica onde aconteceu e nada se move.
+     * O endereço nunca recebe e-mail: o acesso é só pelo link gerado abaixo.
+     */
+    const emailDoSuporte = `suporte+${corpo.oficina_id}@giro.app.br`
     let suporteId: string | null = null
 
-    /*
-     * Quem manda é a conta no Auth, e não a linha em `usuarios`.
-     *
-     * As duas podem se separar: a linha vive dentro de uma oficina, e some com
-     * ela se a oficina for apagada — aconteceu num teste. Com a conta do Auth
-     * órfã, a versão anterior tentava criar de novo, o Auth respondia "e-mail
-     * já existe" e o recurso ficava quebrado para sempre, sem ninguém entender
-     * por quê. Agora a linha é refeita a partir da conta que existe.
-     */
     const { data: linha } = await servico
-      .from('usuarios').select('id').eq('email', EMAIL_DO_SUPORTE).maybeSingle()
+      .from('usuarios').select('id').eq('email', emailDoSuporte).maybeSingle()
 
     if (linha) {
       suporteId = linha.id
+      const { error: erroLigar } = await servico
+        .from('usuarios').update({ ativo: true }).eq('id', suporteId)
+      if (erroLigar) return responder({ erro: erroLigar.message }, 500)
     } else {
+      // A conta no Auth pode existir sem a linha — se a oficina foi limpa, por
+      // exemplo. Recriar daria "e-mail já existe" e quebraria para sempre.
       const { data: contas } = await servico.auth.admin.listUsers({ page: 1, perPage: 1000 })
-      const jaExiste = contas?.users.find((u) => u.email === EMAIL_DO_SUPORTE)
+      const jaExiste = contas?.users.find((u) => u.email === emailDoSuporte)
 
       if (jaExiste) {
         suporteId = jaExiste.id
       } else {
-        // Senha aleatória e descartada: ninguém entra por senha nesta conta. O
-        // único caminho é o link gerado abaixo, que dura poucos minutos.
+        // Senha aleatória e descartada: ninguém entra por senha nesta conta.
         const { data: nova, error: erroConta } = await servico.auth.admin.createUser({
-          email: EMAIL_DO_SUPORTE,
+          email: emailDoSuporte,
           password: crypto.randomUUID() + crypto.randomUUID(),
           email_confirm: true,
         })
@@ -500,7 +505,7 @@ Deno.serve(async (req: Request) => {
         id: suporteId,
         oficina_id: corpo.oficina_id,
         nome: 'Suporte GIRO',
-        email: EMAIL_DO_SUPORTE,
+        email: emailDoSuporte,
         perfil: 'admin',
         ativo: true,
         de_suporte: true,
@@ -508,19 +513,13 @@ Deno.serve(async (req: Request) => {
       if (erroLinha) return responder({ erro: erroLinha.message }, 500)
     }
 
-    // Uma sessão por vez: entrar em outra oficina fecha a anterior, senão o
-    // registro ficaria com duas sessões abertas e nenhuma delas verdadeira.
+    // Uma sessão por vez nesta oficina: duas abertas deixariam o registro com
+    // duas verdades e nenhuma delas real.
     await servico
       .from('sessoes_de_suporte')
       .update({ encerrada_em: new Date().toISOString() })
       .eq('usuario_id', suporteId)
       .is('encerrada_em', null)
-
-    const { error: erroMover } = await servico
-      .from('usuarios')
-      .update({ oficina_id: corpo.oficina_id, ativo: true, perfil: 'admin' })
-      .eq('id', suporteId)
-    if (erroMover) return responder({ erro: erroMover.message }, 500)
 
     const expira = new Date(Date.now() + 30 * 60 * 1000)
     const { error: erroSessao } = await servico.from('sessoes_de_suporte').insert({
@@ -534,7 +533,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: link, error: erroLink } = await servico.auth.admin.generateLink({
       type: 'magiclink',
-      email: EMAIL_DO_SUPORTE,
+      email: emailDoSuporte,
     })
     if (erroLink || !link?.properties?.action_link) {
       return responder({ erro: erroLink?.message ?? 'Não consegui gerar o acesso.' }, 500)
@@ -551,19 +550,26 @@ Deno.serve(async (req: Request) => {
   // Sair antes da hora. O prazo já fecha sozinho; isto é para não deixar aberto
   // o resto dos trinta minutos depois de terminar o atendimento.
   if (corpo.acao === 'suporte_sair') {
-    const { data: linha } = await servico
-      .from('usuarios').select('id').eq('email', 'suporte@giro.app.br').maybeSingle()
-    if (!linha) return responder({ ok: true })
+    // Sem oficina informada, fecha tudo o que estiver aberto: é o botão de
+    // pânico, e ele tem de funcionar sem a pessoa lembrar onde entrou.
+    const { data: abertas } = await servico
+      .from('sessoes_de_suporte')
+      .select('usuario_id')
+      .is('encerrada_em', null)
+      .eq(corpo.oficina_id ? 'oficina_id' : 'encerrada_em', corpo.oficina_id ?? null)
+
+    const ids = [...new Set((abertas ?? []).map((s) => s.usuario_id))]
 
     await servico
       .from('sessoes_de_suporte')
       .update({ encerrada_em: new Date().toISOString() })
-      .eq('usuario_id', linha.id)
       .is('encerrada_em', null)
+      .in('usuario_id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000'])
 
-    const { error } = await servico
-      .from('usuarios').update({ ativo: false }).eq('id', linha.id)
-    if (error) return responder({ erro: error.message }, 500)
+    if (ids.length) {
+      const { error } = await servico.from('usuarios').update({ ativo: false }).in('id', ids)
+      if (error) return responder({ erro: error.message }, 500)
+    }
     return responder({ ok: true })
   }
 

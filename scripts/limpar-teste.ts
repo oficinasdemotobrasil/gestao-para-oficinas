@@ -33,6 +33,8 @@ const ORDEM = [
   'produtos',
   'servicos',
   'indicadores',
+  // A conta de suporte da oficina entra aqui junto com a equipe: desde a 0075
+  // cada oficina tem a sua, então ela morre com a oficina, sem órfão nenhum.
   'usuarios',
 ] as const
 
@@ -75,32 +77,6 @@ export async function limparOficina(
       break
     }
     restantes = teimosas
-  }
-
-  /*
-   * 1.5. A conta de suporte sai antes, em vez de ser apagada junto.
-   *
-   * Ela mora na oficina que está sendo atendida — inclusive numa oficina de
-   * teste. Apagada aqui, a conta do Auth ficaria órfã e o recurso de suporte
-   * pararia de funcionar até alguém descobrir por quê. Aconteceu uma vez.
-   */
-  const { data: suporte } = await admin
-    .from('usuarios')
-    .select('id')
-    .eq('oficina_id', oficinaId)
-    .eq('de_suporte', true)
-    .maybeSingle()
-
-  if (suporte) {
-    const { data: outra } = await admin
-      .from('oficinas').select('id').neq('id', oficinaId).limit(1).maybeSingle()
-    if (outra) {
-      await admin.from('sessoes_de_suporte').delete().eq('usuario_id', suporte.id)
-      await admin
-        .from('usuarios')
-        .update({ oficina_id: outra.id, ativo: false })
-        .eq('id', suporte.id)
-    }
   }
 
   // 2. O resto, filho antes do pai.
