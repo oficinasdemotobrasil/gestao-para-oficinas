@@ -472,8 +472,20 @@ Deno.serve(async (req: Request) => {
     const emailDoSuporte = `suporte+${corpo.oficina_id}@giro.app.br`
     let suporteId: string | null = null
 
+    /*
+     * A conta é achada pela MARCAÇÃO, não pelo endereço.
+     *
+     * Procurar por e-mail era frágil: o admin da oficina cadastra colaboradores,
+     * e bastava ele criar um com esse endereço para o suporte entrar numa conta
+     * que não é a nossa. A marcação `de_suporte`, desde a 0074 e a 0076, só a
+     * plataforma escreve — então ela não pode ser plantada.
+     */
     const { data: linha } = await servico
-      .from('usuarios').select('id').eq('email', emailDoSuporte).maybeSingle()
+      .from('usuarios')
+      .select('id')
+      .eq('oficina_id', corpo.oficina_id)
+      .eq('de_suporte', true)
+      .maybeSingle()
 
     if (linha) {
       suporteId = linha.id

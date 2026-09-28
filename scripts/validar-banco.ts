@@ -4045,6 +4045,31 @@ async function testarAcessoDeSuporte() {
     'nem o admin da oficina marca alguém como suporte',
     `update public.usuarios set de_suporte = true where id = '${ID.vendedorA}'`,
   )
+
+  /*
+   * E nem no cadastro (0076).
+   *
+   * O gatilho só rodava no UPDATE, então sobrava a porta do INSERT: o admin
+   * cadastraria alguém já marcado. Não vazaria dado para fora, mas daria um
+   * colaborador invisível na equipe e fora do limite do plano — a mesma
+   * exceção da plataforma sendo escrita por quem ela deveria barrar.
+   */
+  await comoAdministradorDoBanco()
+  await db.exec(
+    `insert into auth.users (id, email) values ('52000000-0000-4000-8000-000000000001', 'infiltrado@teste.local')`,
+  )
+  await logarComo(ID.adminA)
+  await esperaErro(
+    'nem cadastra um colaborador já marcado como suporte',
+    `insert into public.usuarios (id, oficina_id, nome, email, perfil, de_suporte)
+     values ('52000000-0000-4000-8000-000000000001', '${ID.oficinaA}', 'Infiltrado',
+             'infiltrado@teste.local', 'mecanico', true)`,
+  )
+  await esperaLinhas(
+    'e o cadastro comum continua funcionando',
+    `select count(*) as n from public.usuarios where email = 'infiltrado@teste.local'`,
+    0,
+  )
   await logarComo(ID.adminA)
 
   await logarComo(ID.adminA)
