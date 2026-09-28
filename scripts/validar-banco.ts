@@ -3909,6 +3909,38 @@ async function testarAcessoDeSuporte() {
   `)
   ok('mas a conta de suporte entra assim mesmo, sem ocupar vaga')
 
+  /*
+   * Mover colaborador entre oficinas: proibido para todos, menos para o
+   * suporte.
+   *
+   * A primeira regra não tinha teste nenhum — descobri porque a apaguei sem
+   * querer ao reescrever o gatilho na 0074 e os 501 checks continuaram verdes.
+   * A segunda é o motivo de a 0074 existir: sem ela, o botão de suporte
+   * funcionaria na primeira oficina e falharia na segunda.
+   */
+  // Logado como admin de propósito: sem isso, quem recusa é a regra do
+  // não-admin, e o teste passaria provando outra coisa.
+  await logarComo(ID.adminA)
+  await esperaErro(
+    'nem o admin move um colaborador para outra oficina',
+    `update public.usuarios set oficina_id = '${ID.oficinaB}' where id = '${ID.vendedorA}'`,
+  )
+
+  await comoAdministradorDoBanco()
+  await db.query(
+    `update public.usuarios set oficina_id = '${ID.oficinaB}' where id = '${SUPORTE}'`,
+  )
+  const ondeEsta = await contar(
+    `select count(*) as n from public.usuarios
+      where id = '${SUPORTE}' and oficina_id = '${ID.oficinaB}'`,
+  )
+  ondeEsta === 1
+    ? ok('mas a conta de suporte muda de oficina, que é para isso que ela existe')
+    : erro('mover a conta de suporte', 'não mudou')
+  await db.query(
+    `update public.usuarios set oficina_id = '${ID.oficinaA}' where id = '${SUPORTE}'`,
+  )
+
   await logarComo(ID.adminA)
 }
 
