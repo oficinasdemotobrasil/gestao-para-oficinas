@@ -11,9 +11,26 @@
 -- linha foi criada do zero em vez de movida. Um bug que só aparece na segunda
 -- vez é pior do que um que aparece na primeira.
 --
--- A exceção é estreita de propósito: vale só para a linha marcada `de_suporte`.
--- E ela não abre caminho para nada, porque mover a conta não dá acesso: o
--- acesso nasce da sessão registrada, que confere usuário E oficina E prazo.
+-- ATENÇÃO — a primeira versão desta migração tinha um buraco, e ele quase foi
+-- para produção. A exceção olhava só o valor da coluna: "se a linha é de
+-- suporte, pode". Mas a política "admin edita colaborador e cada um edita a si"
+-- (0009) deixa qualquer pessoa editar a PRÓPRIA linha, e `de_suporte` era uma
+-- coluna comum. Bastavam dois pedidos à API:
+--
+--   1. update usuarios set de_suporte = true where id = <eu mesmo>
+--      -- o gatilho via `new.de_suporte` e liberava
+--   2. update usuarios set de_suporte = false, perfil = 'admin',
+--             oficina_id = <oficina de outro cliente>
+--      -- o gatilho via `old.de_suporte` e liberava de novo
+--
+-- Um mecânico viraria admin de outra oficina, permanente e sem registro — o
+-- vazamento entre clientes que o sistema inteiro existe para impedir. Achado na
+-- revisão, antes de rodar.
+--
+-- A lição: exceção não pode depender do VALOR da linha, porque o valor é escrito
+-- por quem a exceção deveria barrar. Tem de depender de QUEM CHAMA. Aqui, quem
+-- move a conta é a função da plataforma, que fala com o banco sem sessão de
+-- usuário — `auth.uid()` nulo. Ninguém logado no aplicativo consegue isso.
 
 create or replace function public.impedir_escalada_de_perfil()
 returns trigger
@@ -22,9 +39,17 @@ security definer
 set search_path = public
 as $$
 begin
-  -- A conta de suporte é a única que muda de oficina, e quem a move é a função
-  -- da plataforma. Ver 0073.
-  if new.de_suporte or old.de_suporte then
+  -- A marcação de suporte é da plataforma, e de mais ninguém. Sem esta linha,
+  -- qualquer um se marcaria e atravessaria as regras abaixo.
+  if new.de_suporte is distinct from old.de_suporte and auth.uid() is not null then
+    raise exception 'A marcação de conta de suporte é definida pela plataforma.'
+      using errcode = 'insufficient_privilege';
+  end if;
+
+  -- A exceção: a conta de suporte muda de oficina, e só quando quem pede é o
+  -- servidor. Ela já era de suporte antes e continua sendo depois — nenhum dos
+  -- dois lados pode ser fabricado por quem está logado.
+  if old.de_suporte and new.de_suporte and auth.uid() is null then
     return new;
   end if;
 

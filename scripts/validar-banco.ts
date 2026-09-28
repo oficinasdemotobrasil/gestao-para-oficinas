@@ -3941,6 +3941,48 @@ async function testarAcessoDeSuporte() {
     `update public.usuarios set oficina_id = '${ID.oficinaA}' where id = '${SUPORTE}'`,
   )
 
+  /*
+   * O ataque que a primeira versão da 0074 permitia.
+   *
+   * A exceção olhava o VALOR da coluna — "se a linha é de suporte, pode" — e a
+   * política da 0009 deixa cada um editar a própria linha. Dois pedidos à API e
+   * um mecânico virava admin de outra oficina, permanente e sem registro.
+   *
+   * Os dois passos ficam aqui separados porque barrar só o segundo não
+   * adiantaria: é o primeiro que fabrica a condição do segundo.
+   */
+  await logarComo(ID.mecanicoA)
+  await esperaErro(
+    'o mecânico não se marca como conta de suporte',
+    `update public.usuarios set de_suporte = true where id = '${ID.mecanicoA}'`,
+  )
+  await esperaLinhas(
+    'e continua sendo colaborador comum',
+    `select count(*) as n from public.usuarios where id = '${ID.mecanicoA}' and not de_suporte`,
+    1,
+  )
+  await esperaErro(
+    'nem se promove e se muda de oficina pelo caminho da exceção',
+    `update public.usuarios
+        set de_suporte = false, perfil = 'admin', oficina_id = '${ID.oficinaB}'
+      where id = '${ID.mecanicoA}'`,
+  )
+
+  await logarComo(ID.vendedorA)
+  await esperaErro(
+    'o vendedor também não se marca como suporte',
+    `update public.usuarios set de_suporte = true where id = '${ID.vendedorA}'`,
+  )
+
+  // E nem o admin da oficina, que tem poder sobre a equipe dele: a marcação é
+  // da plataforma, não de dentro da oficina.
+  await logarComo(ID.adminA)
+  await esperaErro(
+    'nem o admin da oficina marca alguém como suporte',
+    `update public.usuarios set de_suporte = true where id = '${ID.vendedorA}'`,
+  )
+  await logarComo(ID.adminA)
+
   await logarComo(ID.adminA)
 }
 
