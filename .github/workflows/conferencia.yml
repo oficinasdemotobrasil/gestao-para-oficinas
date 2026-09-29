@@ -1,0 +1,79 @@
+# A conferência que roda a cada push, no servidor do GitHub.
+#
+# Por que ela existe, em uma frase: o gancho de pre-push é local, e quem clonar
+# o projeto numa máquina nova não o tem — `git config core.hooksPath .githooks`
+# é um passo que se esquece. Em setembro de 2026, sete erros de tipo ficaram
+# invisíveis por dias: a checagem rápida passava, cada deploy falhava em
+# silêncio na Vercel, e o site seguia servindo a versão antiga. Ninguém percebeu
+# até alguém abrir o painel da Vercel na mão.
+#
+# O gancho continua valendo: ele avisa em dez segundos, antes do push. Este
+# arquivo é a rede embaixo, para quando o gancho não estiver ligado.
+#
+# O que NÃO roda aqui, de propósito: os 22 scripts de teste ao vivo. Eles falam
+# com o Supabase de produção com a chave de serviço, criam oficina descartável e
+# apagam no fim. Rodar isso a cada push seria pôr credencial de produção num
+# servidor de terceiro e mexer no banco do cliente a cada commit. Esses
+# continuam sendo rodados à mão, quando há o que provar.
+
+name: Conferência
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Um push novo cancela a conferência do anterior: em sequência de commits, só o
+# último interessa.
+concurrency:
+  group: conferencia-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  aplicativo:
+    name: Aplicativo — build e 517 checks do banco
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Acompanha o que a Vercel usa. Mudando lá, muda aqui — senão a
+          # conferência passa a provar outra coisa.
+          node-version: 22
+          cache: npm
+
+      - name: Instalar
+        run: npm ci
+
+      # O mesmo comando da Vercel, e não a checagem rápida: `tsc -b` é mais
+      # rígido que `tsc --noEmit`, e foi a diferença entre os dois que deixou
+      # o deploy quebrado por dias sem ninguém ver.
+      - name: Build de produção
+        run: npm run build
+
+      # Sobe as 77 migrações num Postgres de verdade (PGlite, em memória) e
+      # prova o isolamento entre oficinas, as travas de dinheiro e as regras de
+      # acesso. Não precisa de credencial nenhuma.
+      - name: Provas do banco
+        run: npm run validar:banco
+
+  painel:
+    name: Painel da plataforma — build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: painel/package-lock.json
+
+      - name: Instalar
+        run: npm ci
+        working-directory: painel
+
+      - name: Build de produção
+        run: npm run build
+        working-directory: painel
