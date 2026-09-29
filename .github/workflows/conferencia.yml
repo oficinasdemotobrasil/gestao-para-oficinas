@@ -31,7 +31,7 @@ concurrency:
 
 jobs:
   aplicativo:
-    name: Aplicativo — build e 517 checks do banco
+    name: Aplicativo — build e provas do banco
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
