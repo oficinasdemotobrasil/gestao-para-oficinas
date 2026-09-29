@@ -523,7 +523,37 @@ Deno.serve(async (req: Request) => {
         ativo: true,
         de_suporte: true,
       })
-      if (erroLinha) return responder({ erro: erroLinha.message }, 500)
+
+      if (erroLinha) {
+        /*
+         * Corrida: outra chamada criou a conta desta oficina entre o "não
+         * achei" e o "criei", e o índice da 0077 recusou a segunda — que é o
+         * que se quer.
+         *
+         * Devolver erro aqui faria quem clicou tentar de novo sem entender por
+         * quê. Em vez disso, o login recém-criado é apagado (senão vira lixo no
+         * Auth, sem uso e sem dono) e o atendimento segue na conta que venceu a
+         * corrida.
+         */
+        if (erroLinha.code !== '23505') {
+          return responder({ erro: erroLinha.message }, 500)
+        }
+
+        await servico.auth.admin.deleteUser(suporteId)
+
+        const { data: vencedora } = await servico
+          .from('usuarios')
+          .select('id, email')
+          .eq('oficina_id', corpo.oficina_id)
+          .eq('de_suporte', true)
+          .maybeSingle()
+
+        if (!vencedora) return responder({ erro: erroLinha.message }, 500)
+
+        suporteId = vencedora.id
+        emailDoSuporte = vencedora.email
+        await servico.from('usuarios').update({ ativo: true }).eq('id', suporteId)
+      }
     }
 
     // Uma sessão por vez nesta oficina: duas abertas deixariam o registro com
