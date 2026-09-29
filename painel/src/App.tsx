@@ -11,6 +11,7 @@ import {
   ROTULO_DA_SITUACAO,
   definirPrazo,
   entrarComoSuporte,
+  sairDoSuporte,
   dinheiro,
   ROTULO_CALCULADO,
   TOM_DA_SITUACAO,
@@ -309,6 +310,18 @@ function Lista({ sessao }: { sessao: Session }) {
   const [entrandoEm, setEntrandoEm] = useState<OficinaNaLista | null>(null)
   const [motivoDoSuporte, setMotivoDoSuporte] = useState('')
   const [abrindoSuporte, setAbrindoSuporte] = useState(false)
+
+  /*
+   * O atendimento aberto nesta tela. Existe para dar um jeito de encerrar antes
+   * dos 30 minutos: a função de sair existia desde o começo, mas nenhum botão a
+   * chamava — a revisão pegou. Fechar ao terminar é o que deixa o registro dizer
+   * quanto tempo o atendimento durou de verdade.
+   */
+  const [atendimentoAberto, setAtendimentoAberto] = useState<{
+    oficinaId: string
+    nome: string
+    expira: string
+  } | null>(null)
   const [filtroSituacao, setFiltroSituacao] = useState<string>('')
   const [filtroPlano, setFiltroPlano] = useState<string>('')
   const [busca, setBusca] = useState('')
@@ -595,6 +608,30 @@ function Lista({ sessao }: { sessao: Session }) {
         </div>
       ))}
 
+      {atendimentoAberto && (
+        <div className="mb-4 flex flex-col gap-3 rounded-card border border-acento bg-acento-suave px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-claro">
+            Atendimento aberto em <strong>{atendimentoAberto.nome}</strong> até{' '}
+            {new Date(atendimentoAberto.expira).toLocaleTimeString('pt-BR', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+            . Fecha sozinho no horário, mas encerre ao terminar.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              sairDoSuporte(atendimentoAberto.oficinaId)
+                .then(() => setAtendimentoAberto(null))
+                .catch((e: Error) => alert(e.message))
+            }}
+            className="h-10 shrink-0 rounded-controle bg-claro px-4 text-sm font-semibold text-escuro"
+          >
+            Encerrar atendimento
+          </button>
+        </div>
+      )}
+
       {entrandoEm && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
           <div className="w-full max-w-lg rounded-card bg-superficie p-6">
@@ -638,6 +675,11 @@ function Lista({ sessao }: { sessao: Session }) {
                   setAbrindoSuporte(true)
                   entrarComoSuporte(entrandoEm.id, motivoDoSuporte.trim())
                     .then((r) => {
+                      setAtendimentoAberto({
+                        oficinaId: entrandoEm.id,
+                        nome: r.oficina,
+                        expira: r.expira_em,
+                      })
                       setEntrandoEm(null)
                       // A aba é aberta pelo clique da pessoa, não por
                       // redirecionamento: assim o painel continua aberto do lado.

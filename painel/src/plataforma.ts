@@ -190,7 +190,9 @@ export const entrarComoSuporte = (oficina_id: string, motivo: string) =>
     motivo,
   })
 
-export const sairDoSuporte = () => chamar<{ ok: true }>({ acao: 'suporte_sair' })
+/** Encerra o atendimento. Sem oficina, fecha todos os abertos — é o pânico. */
+export const sairDoSuporte = (oficina_id?: string) =>
+  chamar<{ ok: true }>({ acao: 'suporte_sair', oficina_id })
 
 export interface SessaoDeSuporte {
   id: string

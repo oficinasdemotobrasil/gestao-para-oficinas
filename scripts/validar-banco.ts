@@ -3945,6 +3945,60 @@ async function testarAcessoDeSuporte() {
   )
 
   /*
+   * O servidor liga e desliga a conta de suporte (0078).
+   *
+   * Antes, o "sair" devolvia 500: dois gatilhos barravam o servidor de mexer em
+   * `ativo`, e a conta ficava ativa para sempre. O acesso fechava assim mesmo,
+   * porque a sessão é a trava — mas o painel mostrava gente que não estava lá.
+   */
+  await comoAdministradorDoBanco()
+  await db.query(`update public.usuarios set ativo = false where id = '${SUPORTE}'`)
+  await esperaLinhas(
+    'o servidor desliga a conta de suporte ao fechar o atendimento',
+    `select count(*) as n from public.usuarios where id = '${SUPORTE}' and not ativo`,
+    1,
+  )
+  await db.query(`update public.usuarios set ativo = true where id = '${SUPORTE}'`)
+  await esperaLinhas(
+    'e liga de novo no atendimento seguinte',
+    `select count(*) as n from public.usuarios where id = '${SUPORTE}' and ativo`,
+    1,
+  )
+  await esperaErro(
+    'mas nem o servidor muda o perfil da conta de suporte',
+    `update public.usuarios set perfil = 'vendedor' where id = '${SUPORTE}'`,
+  )
+
+  /*
+   * A conta de suporte não conta como administrador (0078, achado no caminho).
+   *
+   * Sem isto, o dono real podia se desativar enquanto houvesse uma conta de
+   * suporte ativa — o banco contava o suporte como "o admin que sobra" — e a
+   * oficina ficava sem nenhum administrador de verdade.
+   */
+  await logarComo(ID.adminA)
+  await esperaErro(
+    'o dono não se desativa deixando só a conta de suporte como admin',
+    `update public.usuarios set ativo = false where id = '${ID.adminA}'`,
+  )
+
+  // Uma sessão aberta por conta: a segunda é recusada pelo banco (0078).
+  await comoAdministradorDoBanco()
+  await db.query(
+    `insert into public.sessoes_de_suporte (oficina_id, usuario_id, admin_id, motivo, expira_em)
+     values ('${ID.oficinaA}', '${SUPORTE}', '${ID.adminA}', 'primeira sessão aberta', now() + interval '30 minutes')`,
+  )
+  await esperaErro(
+    'a mesma conta não fica com duas sessões abertas',
+    `insert into public.sessoes_de_suporte (oficina_id, usuario_id, admin_id, motivo, expira_em)
+     values ('${ID.oficinaA}', '${SUPORTE}', '${ID.adminA}', 'segunda sessão aberta', now() + interval '30 minutes')`,
+  )
+  await db.query(
+    `update public.sessoes_de_suporte set encerrada_em = now()
+      where usuario_id = '${SUPORTE}' and encerrada_em is null`,
+  )
+
+  /*
    * E agora o que fez o desenho anterior cair: o suporte AGE na oficina.
    *
    * Mudar o status de uma OS grava uma linha em `os_status_historico` com

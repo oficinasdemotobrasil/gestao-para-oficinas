@@ -572,7 +572,13 @@ Deno.serve(async (req: Request) => {
       motivo,
       expira_em: expira.toISOString(),
     })
-    if (erroSessao) return responder({ erro: erroSessao.message }, 500)
+
+    // Corrida: outro atendimento abriu a sessão desta conta entre o "fechar a
+    // anterior" e o "abrir a nova", e o índice da 0078 recusou a segunda. A
+    // sessão que venceu já dá o acesso — segue com ela em vez de dar erro.
+    if (erroSessao && erroSessao.code !== '23505') {
+      return responder({ erro: erroSessao.message }, 500)
+    }
 
     const { data: link, error: erroLink } = await servico.auth.admin.generateLink({
       type: 'magiclink',
@@ -595,11 +601,18 @@ Deno.serve(async (req: Request) => {
   if (corpo.acao === 'suporte_sair') {
     // Sem oficina informada, fecha tudo o que estiver aberto: é o botão de
     // pânico, e ele tem de funcionar sem a pessoa lembrar onde entrou.
-    const { data: abertas } = await servico
+    // Sem oficina, o filtro de oficina simplesmente não entra. A versão
+    // anterior acrescentava `.eq('encerrada_em', null)` nesse caso, que vira
+    // `encerrada_em=eq.null` — comparação com o texto "null", que nunca bate. O
+    // pânico respondia "ok" e não fechava sessão nenhuma. Achado pela revisão.
+    let consultaAbertas = servico
       .from('sessoes_de_suporte')
       .select('usuario_id')
       .is('encerrada_em', null)
-      .eq(corpo.oficina_id ? 'oficina_id' : 'encerrada_em', corpo.oficina_id ?? null)
+    if (corpo.oficina_id) consultaAbertas = consultaAbertas.eq('oficina_id', corpo.oficina_id)
+
+    const { data: abertas, error: erroAbertas } = await consultaAbertas
+    if (erroAbertas) return responder({ erro: erroAbertas.message }, 500)
 
     const ids = [...new Set((abertas ?? []).map((s) => s.usuario_id))]
 
