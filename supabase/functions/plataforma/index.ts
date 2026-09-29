@@ -136,8 +136,59 @@ Deno.serve(async (req: Request) => {
     if (indicadores.error) return responder({ erro: indicadores.error.message }, 500)
     if (painel.error) return responder({ erro: painel.error.message }, 500)
 
+    /*
+     * A ficha de cada oficina: com quem falar e como.
+     *
+     * Fica aqui, e não na `plataforma_oficinas`, porque é leitura direta de
+     * três tabelas, sem conta nenhuma — e pôr no banco custaria uma migração
+     * para aplicar à mão só para trazer colunas que já existem.
+     *
+     * Os responsáveis são os administradores ativos, sem a conta de suporte:
+     * é com o dono que se fala sobre pagamento, não com o mecânico.
+     */
+    const [cadastros, responsaveis, contratos, planos] = await Promise.all([
+      servico
+        .from('oficinas')
+        .select('id, telefone, endereco, cnpj, teste_ate, exclusao_pedida_em, motivo_da_saida, termos_aceitos_em'),
+      servico
+        .from('usuarios')
+        .select('oficina_id, nome, email, telefone')
+        .eq('perfil', 'admin')
+        .eq('ativo', true)
+        .eq('de_suporte', false)
+        .order('criado_em'),
+      servico
+        .from('assinaturas')
+        .select('oficina_id, plano, inicio, proxima_cobranca')
+        .eq('situacao', 'ativa'),
+      servico.from('planos').select('id, preco_mensal'),
+    ])
+    for (const r of [cadastros, responsaveis, contratos, planos]) {
+      if (r.error) return responder({ erro: r.error.message }, 500)
+    }
+
+    const precoDoPlano = new Map((planos.data ?? []).map((p) => [p.id, Number(p.preco_mensal)]))
+    const cadastroPorId = new Map((cadastros.data ?? []).map((c) => [c.id, c]))
+    const oficinas = (lista.data ?? []).map((o: { id: string; plano: string }) => {
+      const { id: _, ...cadastro } = cadastroPorId.get(o.id) ?? { id: '' }
+      const contrato = (contratos.data ?? []).find((c) => c.oficina_id === o.id) ?? null
+      return {
+        ...o,
+        ...cadastro,
+        mensalidade: precoDoPlano.get(o.plano) ?? null,
+        responsaveis: (responsaveis.data ?? [])
+          .filter((u) => u.oficina_id === o.id)
+          .map(({ nome, email, telefone }) => ({ nome, email, telefone })),
+        assinatura: contrato && {
+          plano: contrato.plano,
+          inicio: contrato.inicio,
+          proxima_cobranca: contrato.proxima_cobranca,
+        },
+      }
+    })
+
     return responder({
-      oficinas: lista.data ?? [],
+      oficinas,
       indicadores: indicadores.data ?? {},
       painel: painel.data ?? {},
     })

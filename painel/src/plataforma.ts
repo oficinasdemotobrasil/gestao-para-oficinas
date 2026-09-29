@@ -55,6 +55,22 @@ export interface OficinaNaLista {
   acesso_ate: string | null
   excluir_em: string | null
   criado_em: string
+
+  // A ficha: com quem falar e como. Vem da função, lida direto do cadastro.
+  telefone: string | null
+  endereco: string | null
+  /** CPF ou CNPJ — a coluna tem o nome antigo. */
+  cnpj: string | null
+  teste_ate: string | null
+  exclusao_pedida_em: string | null
+  motivo_da_saida: string | null
+  termos_aceitos_em: string | null
+  /** Preço do plano atual. Nulo se o plano sumiu do catálogo. */
+  mensalidade: number | null
+  /** Administradores ativos, sem a conta de suporte. O primeiro é o mais antigo. */
+  responsaveis: { nome: string; email: string; telefone: string | null }[]
+  /** O contrato em vigor. Nulo é quem nunca assinou ou já encerrou. */
+  assinatura: { plano: Plano; inicio: string; proxima_cobranca: string | null } | null
 }
 
 export interface PainelDoNegocio {
@@ -147,10 +163,19 @@ async function chamar<T>(corpo: Record<string, unknown>): Promise<T> {
   return data as T
 }
 
-export const listarOficinas = () =>
-  chamar<{ oficinas: OficinaNaLista[]; indicadores: Indicadores; painel: PainelDoNegocio }>({
-    acao: 'listar',
-  })
+export const listarOficinas = async () => {
+  const r = await chamar<{
+    oficinas: OficinaNaLista[]
+    indicadores: Indicadores
+    painel: PainelDoNegocio
+  }>({ acao: 'listar' })
+  // O painel e a função são publicados separados. Se o painel chegar antes, a
+  // ficha aparece vazia em vez de a lista inteira quebrar.
+  return {
+    ...r,
+    oficinas: r.oficinas.map((o) => ({ ...o, responsaveis: o.responsaveis ?? [] })),
+  }
+}
 
 /**
  * Estender teste, liberar bloqueio e dar cortesia são a mesma operação: mudar

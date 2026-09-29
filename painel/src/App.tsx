@@ -1,6 +1,15 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { Negocio } from './Negocio'
+import {
+  FichaDaOficina,
+  data,
+  contatoPrincipal,
+  linkDoEmail,
+  linkDoWhatsApp,
+  mensagemDaSituacao,
+  mensagemDeAusencia,
+} from './Contato'
 import {
   supabase,
   listarOficinas,
@@ -26,7 +35,6 @@ import {
 const PLANOS: Plano[] = ['gratuito', 'essencial', 'completo']
 const SITUACOES: Situacao[] = ['ativa', 'suspensa', 'cancelada']
 
-const data = (iso: string) => new Date(iso).toLocaleDateString('pt-BR')
 
 /** Login. É a única tela para quem não está autenticado. */
 function Entrar() {
@@ -325,6 +333,8 @@ function Lista({ sessao }: { sessao: Session }) {
   const [filtroSituacao, setFiltroSituacao] = useState<string>('')
   const [filtroPlano, setFiltroPlano] = useState<string>('')
   const [busca, setBusca] = useState('')
+  /** A oficina com a ficha aberta. Uma por vez: duas abertas viram uma parede. */
+  const [fichaAberta, setFichaAberta] = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
     setErro('')
@@ -360,7 +370,10 @@ function Lista({ sessao }: { sessao: Session }) {
       (!filtroSituacao || o.situacao === filtroSituacao) &&
       (!filtroPlano || o.plano === filtroPlano) &&
       (!busca.trim() ||
-        `${o.nome} ${o.cidade ?? ''}`.toLowerCase().includes(busca.trim().toLowerCase())),
+        [o.nome, o.cidade, o.telefone, o.cnpj, ...o.responsaveis.flatMap((p) => [p.nome, p.email, p.telefone])]
+          .join(' ')
+          .toLowerCase()
+          .includes(busca.trim().toLowerCase())),
   )
 
   const porSituacao = indicadores?.por_situacao ?? {}
@@ -449,7 +462,7 @@ function Lista({ sessao }: { sessao: Session }) {
           type="search"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          placeholder="Nome ou cidade"
+          placeholder="Oficina, cidade, responsável, e-mail ou telefone"
           aria-label="Buscar oficina"
           className="h-11 min-w-[14rem] flex-1 rounded-controle border border-borda-escura bg-transparent px-4 text-sm text-escuro placeholder:text-escuro-secundario"
         />
@@ -507,25 +520,66 @@ function Lista({ sessao }: { sessao: Session }) {
             <tbody>
               {visiveis.map((o) => {
                 const acesso = desdeQuando(o.ultimo_acesso)
+                const aberta = fichaAberta === o.id
+                const alternarFicha = () => setFichaAberta(aberta ? null : o.id)
+                const { pessoa, telefone } = contatoPrincipal(o)
+                const daSituacao = mensagemDaSituacao(o)
+                const deAusencia = mensagemDeAusencia(o)
+                // Prazo que pede conversa: o teste acabando ou a mensalidade vencida.
+                const prazoPedeConversa = ['teste', 'atrasada', 'bloqueada'].includes(o.situacao)
                 return (
-                  <tr key={o.id} className="border-b border-borda-clara last:border-b-0">
+                  <Fragment key={o.id}>
+                  <tr className={`border-b border-borda-clara ${aberta ? 'bg-borda-clara/30' : ''}`}>
                     <td className="px-4 py-3">
-                      <span className="block font-medium text-claro">{o.nome}</span>
-                      <span className="block text-xs text-claro-secundario">
+                      <button
+                        type="button"
+                        onClick={alternarFicha}
+                        aria-expanded={aberta}
+                        className="flex items-center gap-2 text-left font-medium text-claro hover:underline"
+                      >
+                        <span aria-hidden className="inline-block w-3 text-xs text-claro-secundario">
+                          {aberta ? '▾' : '▸'}
+                        </span>
+                        {o.nome}
+                      </button>
+                      <span className="block pl-5 text-xs text-claro-secundario">
                         {o.cidade || 'sem cidade'} · desde {data(o.criado_em)}
                         {o.excluir_em && ' · pediu para sair'}
                       </span>
+                      {pessoa && (
+                        <span className="block pl-5 text-xs text-claro-secundario">
+                          {pessoa.nome.split(' ')[0]} ·{' '}
+                          <a
+                            href={linkDoEmail(pessoa.email, `GIRO — ${o.nome}`, `Oi, ${pessoa.nome.split(' ')[0]}!\n\n`)}
+                            className="underline decoration-borda-clara underline-offset-2 hover:text-claro"
+                          >
+                            {pessoa.email}
+                          </a>
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-claro">
-                      {o.ordens_no_mes} OS · {o.orcamentos_no_mes} orç.
-                      <span className="block text-xs text-claro-secundario">
-                        {o.pessoas} {o.pessoas === 1 ? 'pessoa' : 'pessoas'}
-                      </span>
+                      <button type="button" onClick={alternarFicha} className="text-left hover:underline">
+                        {o.ordens_no_mes} OS · {o.orcamentos_no_mes} orç.
+                        <span className="block text-xs text-claro-secundario">
+                          {o.pessoas} {o.pessoas === 1 ? 'pessoa' : 'pessoas'}
+                        </span>
+                      </button>
                     </td>
-                    <td
-                      className={`px-4 py-3 text-sm ${acesso.sumido ? 'font-semibold text-erro' : 'text-claro'}`}
-                    >
-                      {acesso.texto}
+                    <td className="px-4 py-3 text-sm">
+                      {deAusencia ? (
+                        <a
+                          href={linkDoWhatsApp(telefone, deAusencia.texto)}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={`WhatsApp: ${deAusencia.rotulo.toLowerCase()}`}
+                          className="font-semibold text-erro underline decoration-erro/40 underline-offset-4 hover:decoration-erro"
+                        >
+                          {acesso.texto}
+                        </a>
+                      ) : (
+                        <span className="text-claro">{acesso.texto}</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <select
@@ -544,11 +598,16 @@ function Lista({ sessao }: { sessao: Session }) {
                       </select>
                     </td>
                     <td className="px-4 py-3">
-                      <span
-                        className={`mr-2 inline-block rounded-badge px-2 py-1 text-xs font-medium ${TOM_DA_SITUACAO[o.situacao]}`}
+                      {/* O selo é o atalho da conversa que a situação pede. */}
+                      <a
+                        href={linkDoWhatsApp(telefone, daSituacao.texto)}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={`WhatsApp: ${daSituacao.rotulo.toLowerCase()}`}
+                        className={`mr-2 inline-block rounded-badge px-2 py-1 text-xs font-medium underline-offset-2 hover:underline ${TOM_DA_SITUACAO[o.situacao]}`}
                       >
                         {ROTULO_CALCULADO[o.situacao]}
-                      </span>
+                      </a>
                       <select
                         value={o.status}
                         disabled={mexendo === o.id}
@@ -565,9 +624,21 @@ function Lista({ sessao }: { sessao: Session }) {
                       </select>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="block text-sm text-claro">
-                        {o.acesso_ate ? data(o.acesso_ate) : 'Sem prazo'}
-                      </span>
+                      {o.acesso_ate && prazoPedeConversa ? (
+                        <a
+                          href={linkDoWhatsApp(telefone, daSituacao.texto)}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={`WhatsApp: ${daSituacao.rotulo.toLowerCase()}`}
+                          className="block text-sm text-claro underline decoration-borda-clara underline-offset-4 hover:decoration-claro"
+                        >
+                          {data(o.acesso_ate)}
+                        </a>
+                      ) : (
+                        <span className="block text-sm text-claro">
+                          {o.acesso_ate ? data(o.acesso_ate) : 'Sem prazo'}
+                        </span>
+                      )}
                       <select
                         value=""
                         disabled={mexendo === o.id}
@@ -601,6 +672,14 @@ function Lista({ sessao }: { sessao: Session }) {
                       </button>
                     </td>
                   </tr>
+                  {aberta && (
+                    <tr className="border-b border-borda-clara">
+                      <td colSpan={7} className="p-0">
+                        <FichaDaOficina o={o} />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 )
               })}
             </tbody>
@@ -609,7 +688,7 @@ function Lista({ sessao }: { sessao: Session }) {
       ))}
 
       {atendimentoAberto && (
-        <div className="mb-4 flex flex-col gap-3 rounded-card border border-acento bg-acento-suave px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex flex-col gap-3 rounded-card border border-acento bg-acento-suave px-4 py-3 tablet:flex-row tablet:items-center tablet:justify-between">
           <p className="text-sm text-claro">
             Atendimento aberto em <strong>{atendimentoAberto.nome}</strong> até{' '}
             {new Date(atendimentoAberto.expira).toLocaleTimeString('pt-BR', {
@@ -633,7 +712,7 @@ function Lista({ sessao }: { sessao: Session }) {
       )}
 
       {entrandoEm && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 tablet:items-center">
           <div className="w-full max-w-lg rounded-card bg-superficie p-6">
             <h2 className="text-lg font-semibold text-claro">
               Entrar na {entrandoEm.nome}
@@ -660,7 +739,7 @@ function Lista({ sessao }: { sessao: Session }) {
               alguém que perguntasse depois — “suporte” não responde nada.
             </p>
 
-            <div className="flex flex-col gap-2 pt-6 sm:flex-row sm:justify-end">
+            <div className="flex flex-col gap-2 pt-6 tablet:flex-row tablet:justify-end">
               <button
                 type="button"
                 onClick={() => setEntrandoEm(null)}
