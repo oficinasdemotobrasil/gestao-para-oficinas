@@ -5,7 +5,9 @@ import { FolhaDeBusca, type OpcaoDeBusca } from '@/componentes/ui/FolhaDeBusca'
 import { Contador } from '@/componentes/ui/Contador'
 import { moeda } from '@/lib/formato'
 import { paraNumero } from '@/lib/numero'
+import { useQueryClient } from '@tanstack/react-query'
 import { usePermissoes } from '@/auth/usePermissoes'
+import { buscarReservas, textoDoEstoque } from '@/funcionalidades/estoque/reservas'
 import { listarProdutos } from '@/funcionalidades/produtos/api'
 import { listarServicos } from '@/funcionalidades/servicos/api'
 import type { ItemSaidaEmEdicao } from './api'
@@ -24,20 +26,26 @@ const novaChave = () => Math.random().toString(36).slice(2)
 
 export function ItensDaNotaSaida({ itens, aoMudar, somenteLeitura = false }: Props) {
   const p = usePermissoes()
+  const cache = useQueryClient()
   const [escolhendo, setEscolhendo] = useState<'produto' | 'servico' | null>(null)
 
   const buscarProdutos = useCallback(
     async (termo: string): Promise<OpcaoDeBusca[]> => {
-      const lista = await listarProdutos(termo, p.verCusto)
+      // A reserva é complemento: se ela falhar, a busca segue mostrando o
+      // estoque como antes, em vez de não deixar escolher peça nenhuma.
+      const [lista, reservas] = await Promise.all([
+        listarProdutos(termo, p.verCusto),
+        buscarReservas(cache).catch(() => undefined),
+      ])
       return lista
         .filter((x) => x.ativo)
         .map((x) => ({
           id: `${x.id}|${x.nome}|${x.preco_venda}`,
           titulo: x.nome,
-          descricao: `${moeda(x.preco_venda)} · ${x.estoque_atual} ${x.unidade} em estoque`,
+          descricao: `${moeda(x.preco_venda)} · ${textoDoEstoque(x.estoque_atual, x.unidade, reservas, x.id)}`,
         }))
     },
-    [p.verCusto],
+    [p.verCusto, cache],
   )
 
   const buscarServicos = useCallback(async (termo: string): Promise<OpcaoDeBusca[]> => {

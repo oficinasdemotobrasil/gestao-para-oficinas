@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, Scale, Pencil, TriangleAlert, Boxes } from 'lucide-react'
 import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
@@ -16,6 +16,7 @@ import { obterProduto } from '../api'
 import { ModalMovimentacao } from '@/funcionalidades/estoque/ModalMovimentacao'
 import { LinhaMovimentacao } from '@/funcionalidades/estoque/LinhaMovimentacao'
 import { listarMovimentacoes } from '@/funcionalidades/estoque/api'
+import { useReservas } from '@/funcionalidades/estoque/reservas'
 
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
@@ -43,6 +44,8 @@ export function DetalheProduto() {
     enabled: Boolean(produto),
   })
 
+  const reservas = useReservas(Boolean(produto))
+
   if (isPending) return <Carregando />
   if (isError) return <EstadoErro aoTentarDeNovo={() => void refetch()} />
   if (!produto) {
@@ -58,6 +61,8 @@ export function DetalheProduto() {
   const saldo = Number(produto.estoque_atual)
   const minimo = Number(produto.estoque_minimo)
   const precisaRepor = minimo > 0 && saldo <= minimo
+  const reserva = reservas.data?.get(produto.id)
+  const livre = reserva ? Math.max(saldo - reserva.total, 0) : saldo
   const custo = produto.preco_custo != null ? Number(produto.preco_custo) : null
   const venda = Number(produto.preco_venda)
   const margem = custo != null && custo > 0 && venda > 0 ? ((venda - custo) / venda) * 100 : null
@@ -101,6 +106,35 @@ export function DetalheProduto() {
               <BadgeAtivo ativo={produto.ativo} />
             )}
           </div>
+
+          {/* A peça prometida continua na prateleira até a ordem ser finalizada.
+              Dizer para qual ordem é o que evita vender no balcão a peça que
+              está separada para uma moto. */}
+          {reserva && (
+            <div className="mt-4 rounded-controle bg-atencao-fundo px-4 py-3">
+              <p className="text-corpo font-medium text-em-superficie">
+                {formatarQuantidade(reserva.total)} {produto.unidade} reservad
+                {reserva.total === 1 ? 'o' : 'os'} · {formatarQuantidade(livre)} livre
+                {livre === 1 ? '' : 's'}
+              </p>
+              <p className="pt-0.5 text-apoio text-em-superficie-2">
+                Prometido para ordens em aberto. Sai do estoque quando cada uma for finalizada.
+              </p>
+              <ul className="flex flex-wrap gap-x-4 gap-y-1 pt-2">
+                {reserva.ordens.map((o) => (
+                  <li key={o.id}>
+                    <Link
+                      to={`/ordens/${o.id}`}
+                      className="text-apoio font-medium text-em-superficie underline underline-offset-4"
+                    >
+                      OS nº {String(o.numero).padStart(4, '0')} · {formatarQuantidade(o.quantidade)}{' '}
+                      {produto.unidade}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="grid grid-cols-3 gap-2 pt-5">
             {acoes.map(({ tipo, rotulo, Icone }) => (

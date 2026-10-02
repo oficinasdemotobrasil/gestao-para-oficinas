@@ -341,6 +341,12 @@ export const VOCABULARIO: Termo[] = [
     visivel: (p) => p.verCatalogo,
   },
   {
+    termo: 'Peça reservada',
+    explicacao:
+      'A peça que já está prometida para uma OS em aberto. Ela continua na prateleira e só sai do estoque quando a OS for finalizada — mas o catálogo e a busca de peças mostram quanto sobra livre, para o balcão não vender o que está separado para uma moto.',
+    visivel: (p) => p.verCatalogo,
+  },
+  {
     termo: 'Ajuste de estoque',
     explicacao:
       'A correção de quando a prateleira não bate com o sistema. Fica registrada com o motivo, e é o que revela peça sumindo.',

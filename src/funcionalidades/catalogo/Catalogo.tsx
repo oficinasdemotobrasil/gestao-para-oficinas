@@ -18,6 +18,7 @@ import { usePermissoes } from '@/auth/usePermissoes'
 import { listarProdutos } from '@/funcionalidades/produtos/api'
 import { listarServicos } from '@/funcionalidades/servicos/api'
 import { Estoque } from '@/funcionalidades/estoque/paginas/Estoque'
+import { useReservas, reservado } from '@/funcionalidades/estoque/reservas'
 
 type Aba = 'produtos' | 'servicos' | 'estoque'
 
@@ -50,6 +51,9 @@ export function Catalogo() {
     queryFn: () => listarProdutos(buscaAtrasada, p.verCusto),
     enabled: aba === 'produtos',
   })
+
+  // Falhando, a lista segue sem a reserva — ela é informação a mais, não a base.
+  const reservas = useReservas(aba === 'produtos')
 
   const servicos = useQuery({
     queryKey: ['servicos', buscaAtrasada],
@@ -179,7 +183,11 @@ export function Catalogo() {
                           </IconeCirculo>
                         }
                         titulo={produto.nome}
-                        descricao={`${moeda(produto.preco_venda)} · ${quantidade(produto.estoque_atual)} ${produto.unidade}`}
+                        descricao={(() => {
+                          const r = reservado(reservas.data, produto.id)
+                          const base = `${moeda(produto.preco_venda)} · ${quantidade(produto.estoque_atual)} ${produto.unidade}`
+                          return r > 0 ? `${base} · ${quantidade(r)} reservado${r === 1 ? '' : 's'}` : base
+                        })()}
                         // Badge só quando tem o que dizer. "Ativo" em quase toda
                         // linha não informa nada e rouba a largura do nome.
                         fim={
@@ -209,7 +217,21 @@ export function Catalogo() {
                       titulo: 'Em estoque',
                       alinhar: 'direita',
                       largura: 'w-40',
-                      celula: (x) => `${quantidade(x.estoque_atual)} ${x.unidade}`,
+                      celula: (x) => {
+                        const r = reservado(reservas.data, x.id)
+                        return (
+                          <span className="flex flex-col items-end">
+                            <span>{`${quantidade(x.estoque_atual)} ${x.unidade}`}</span>
+                            {r > 0 && (
+                              <span className="text-apoio text-em-superficie-2">
+                                {quantidade(r)} reservado{r === 1 ? '' : 's'} ·{' '}
+                                {quantidade(Math.max(Number(x.estoque_atual) - r, 0))} livre
+                                {Number(x.estoque_atual) - r === 1 ? '' : 's'}
+                              </span>
+                            )}
+                          </span>
+                        )
+                      },
                     },
                     {
                       chave: 'minimo',

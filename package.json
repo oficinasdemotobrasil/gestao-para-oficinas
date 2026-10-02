@@ -32,7 +32,8 @@
     "teste:certificado": "tsx scripts/teste-certificado.ts",
     "teste:servico-antigo": "tsx scripts/teste-servico-antigo.ts",
     "teste:cadastro-publico": "tsx scripts/teste-cadastro-publico.mts",
-    "teste:comissao": "tsx scripts/teste-comissao-do-vendedor.mts"
+    "teste:comissao": "tsx scripts/teste-comissao-do-vendedor.mts",
+    "teste:reserva": "tsx scripts/teste-reserva-de-estoque.mts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

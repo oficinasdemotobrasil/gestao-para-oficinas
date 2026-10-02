@@ -15,6 +15,8 @@ import { Modal } from '@/componentes/ui/Modal'
 import { AreaTexto } from '@/componentes/ui/Campo'
 import { useToast } from '@/componentes/ui/Toast'
 import { traduzirErro } from '@/lib/erros'
+import { quantidade } from '@/lib/formato'
+import { pecasSemSaldoLivre } from '@/funcionalidades/estoque/reservas'
 import { useAuth } from '@/auth/ProvedorAuth'
 import { obterOrdemDoOrcamento } from '@/funcionalidades/ordens/api'
 import { ListaDeColaboradores } from '@/funcionalidades/ordens/EscolherResponsavel'
@@ -117,6 +119,15 @@ export function AcoesDoOrcamento({ orcamento, statusEfetivo, podeAgir }: Props) 
     queryKey: ['ordem-do-orcamento', orcamento.id],
     queryFn: () => obterOrdemDoOrcamento(orcamento.id),
     enabled: orcamento.status === 'aprovado',
+  })
+
+  // Conferido só ao abrir a aprovação: é o momento de prometer prazo ao
+  // cliente, e o estoque de agora é o que vale — não o de quando a tela abriu.
+  const pecasCurtas = useQuery({
+    queryKey: ['pecas-sem-saldo-livre', orcamento.id],
+    queryFn: () => pecasSemSaldoLivre(orcamento.itens),
+    enabled: aprovando,
+    staleTime: 0,
   })
 
   const texto = oficina ? textoDoOrcamento(orcamento, oficina.nome) : ''
@@ -291,9 +302,31 @@ export function AcoesDoOrcamento({ orcamento, statusEfetivo, podeAgir }: Props) 
         }
       >
         <p className="pb-4 text-corpo text-em-superficie-2">
-          A ordem de serviço nasce aberta, com os itens deste orçamento. O estoque
-          só é baixado quando o serviço for executado.
+          A ordem de serviço nasce aberta, com os itens deste orçamento. As peças
+          ficam reservadas para ela e só saem do estoque quando o serviço for
+          finalizado.
         </p>
+
+        {(pecasCurtas.data?.length ?? 0) > 0 && (
+          <div className="mb-4 rounded-controle bg-atencao-fundo px-4 py-3">
+            <p className="text-corpo font-medium text-atencao-forte">
+              Falta peça livre para este serviço
+            </p>
+            <ul className="flex flex-col gap-1 pt-2">
+              {pecasCurtas.data!.map((x) => (
+                <li key={x.nome} className="text-apoio text-em-superficie">
+                  <strong>{x.nome}</strong>: precisa de {quantidade(x.precisa)} {x.unidade}, tem{' '}
+                  {quantidade(x.livre)} livre{x.livre === 1 ? '' : 's'}
+                  {x.reservado > 0 &&
+                    ` (${quantidade(x.emEstoque)} em estoque, ${quantidade(x.reservado)} já reservado${x.reservado === 1 ? '' : 's'} para outras ordens)`}
+                </li>
+              ))}
+            </ul>
+            <p className="pt-2 text-apoio text-em-superficie-2">
+              Dá para aprovar mesmo assim. Combine o prazo com o cliente contando com a compra da peça.
+            </p>
+          </div>
+        )}
 
         {statusEfetivo === 'expirado' && (
           <p className="mb-4 rounded-controle bg-atencao-fundo px-4 py-3 text-corpo text-atencao-forte">
