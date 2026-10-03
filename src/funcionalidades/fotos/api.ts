@@ -183,7 +183,7 @@ export async function fotosParaDocumento(ordemId: string): Promise<FotoDoDocumen
     (data ?? []).map(async (f) => {
       try {
         const reduzida = await fotoParaDocumento(await baixarFoto(f.caminho))
-        return { ...reduzida, legenda: `${ROTULO_DO_MOMENTO[f.momento]} · ${dataHora(f.criado_em)}` }
+        return { ...reduzida, legenda: `${ROTULO_DO_MOMENTO[f.momento]}\n${dataHora(f.criado_em)}` }
       } catch {
         return null
       }

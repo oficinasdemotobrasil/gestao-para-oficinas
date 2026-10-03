@@ -397,22 +397,28 @@ export interface FotoDoDocumento {
 }
 
 /**
- * As fotos, três por linha, cada uma com a legenda embaixo.
+ * As fotos, as cinco numa linha só, cada uma com a legenda embaixo.
  *
- * Três e não duas: com duas, a terceira foto ia sozinha para outra página e
- * deixava meia folha em branco. Menores, as cinco cabem junto do serviço, e o
- * cliente vê tudo numa folha. A foto em tamanho cheio continua no app.
+ * Cinco por linha porque cinco é o máximo da OS: todas ficam lado a lado, na
+ * mesma folha do serviço, e o PDF não ganha uma página só para fotos. São
+ * miniaturas de documento — a foto em tamanho cheio continua no app.
  *
- * A altura é limitada para foto em pé não ocupar a linha inteira; a proporção
- * é mantida, e a foto fica centralizada no espaço dela.
+ * A altura é limitada para foto em pé e foto deitada ficarem do mesmo porte;
+ * a proporção é mantida, e a foto fica centralizada no espaço dela. A
+ * legenda quebra em duas linhas (momento e data) para caber na coluna.
  */
 export function blocoDeFotos(doc: jsPDF, y: number, fotos: FotoDoDocumento[]): number {
   if (fotos.length === 0) return y
   const largura = larguraDe(doc)
-  const espaco = 5
-  const porLinha = 3
+  const espaco = 4
+  const porLinha = 5
   const coluna = (largura - MARGEM * 2 - espaco * (porLinha - 1)) / porLinha
-  const alturaMaxima = 50
+  const alturaMaxima = 38
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(6.5)
+  const legendas = fotos.map((f) => doc.splitTextToSize(paraPdf(f.legenda), coluna) as string[])
+  const linhasDeLegenda = Math.max(...legendas.map((l) => l.length))
 
   y = garantirEspaco(doc, y, 12)
   doc.setFont('helvetica', 'bold')
@@ -425,19 +431,24 @@ export function blocoDeFotos(doc: jsPDF, y: number, fotos: FotoDoDocumento[]): n
     const linha = fotos.slice(i, i + porLinha)
     const alturas = linha.map((f) => Math.min(alturaMaxima, (coluna * f.altura) / f.largura))
     const alturaDaLinha = Math.max(...alturas)
-    y = garantirEspaco(doc, y, alturaDaLinha + 8)
+    const alturaDaLegenda = linhasDeLegenda * 2.8
+    y = garantirEspaco(doc, y, alturaDaLinha + alturaDaLegenda + 4)
 
     linha.forEach((f, j) => {
       const h = alturas[j]
       const w = Math.min(coluna, (h * f.largura) / f.altura)
       const inicio = MARGEM + j * (coluna + espaco)
-      doc.addImage(f.dataUrl, 'JPEG', inicio + (coluna - w) / 2, y, w, h)
+      // Alinhadas pela base: fotos de alturas diferentes ficam na mesma linha
+      // de chão, com as legendas todas na mesma altura.
+      doc.addImage(f.dataUrl, 'JPEG', inicio + (coluna - w) / 2, y + alturaDaLinha - h, w, h)
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(7)
+      doc.setFontSize(6.5)
       doc.setTextColor(...CINZA)
-      doc.text(paraPdf(f.legenda), inicio, y + alturaDaLinha + 3.5)
+      legendas[i + j].forEach((texto, k) => {
+        doc.text(texto, inicio + coluna / 2, y + alturaDaLinha + 3 + k * 2.8, { align: 'center' })
+      })
     })
-    y += alturaDaLinha + 8
+    y += alturaDaLinha + alturaDaLegenda + 5
   }
   return y + 2
 }
