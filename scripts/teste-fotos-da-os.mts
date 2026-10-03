@@ -138,6 +138,22 @@ async function main() {
     .from('os_fotos').select('*', { count: 'exact', head: true }).eq('ordem_servico_id', osDoDono).eq('enviada', false)
   reservasPresas === 0 ? ok('envio recusado não deixa vaga presa') : erro('vaga presa', `${reservasPresas} linha(s) sem arquivo`)
 
+  // Marcar como enviada sem o arquivo ter chegado (0080).
+  {
+    const id = randomUUID()
+    const caminho = `${of.id}/${osDoDono}/${id}.jpg`
+    await dono.c.from('os_fotos').insert({ id, ordem_servico_id: osDoDono, momento: 'servico', caminho, bytes: 10 })
+    const { error } = await dono.c.from('os_fotos').update({ enviada: true }).eq('id', id)
+    error ? ok('foto sem arquivo não vira "enviada"', error.message) : erro('marca sem arquivo', 'aceitou')
+    await dono.c.from('os_fotos').delete().eq('id', id)
+  }
+
+  // Ordem de serviço não se apaga (0081).
+  {
+    const { data: apagadas } = await dono.c.from('ordens_servico').delete().eq('id', osDoDono).select('id')
+    ;(apagadas?.length ?? 0) === 0 ? ok('o dono não apaga a OS (e as fotos junto)') : erro('OS apagada', 'apagou')
+  }
+
   // Mecânico -------------------------------------------------------------------
   const doMecanico = await enviar(mecanico.c, osDoMecanico)
   doMecanico.erro ? erro('o mecânico fotografa a OS dele', doMecanico.erro) : ok('o mecânico fotografa a OS dele')

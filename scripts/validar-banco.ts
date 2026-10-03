@@ -4455,6 +4455,22 @@ async function testarFotosDaOs() {
     `delete from public.os_vistorias where ordem_servico_id = '${doMecanico2}'`,
   )
 
+  // E nem pela porta da OS: apagar a ordem levaria a vistoria e as fotos em
+  // cascata. Ordem de serviço se cancela, não se apaga (0081).
+  await esperaBloqueio(
+    'o dono não apaga uma OS entregue',
+    `delete from public.ordens_servico where id = '${doMecanico2}'`,
+  )
+  await esperaBloqueio(
+    'nem uma OS aberta',
+    `delete from public.ordens_servico where id = '${doDono}'`,
+  )
+  await esperaLinhas(
+    'e a vistoria continua lá',
+    `select count(*) as n from public.os_vistorias where ordem_servico_id = '${doMecanico2}'`,
+    1,
+  )
+
   // Oficina suspensa ------------------------------------------------------------
   await comoAdministradorDoBanco()
   await db.query(`update public.oficinas set status = 'suspensa' where id = '${ID.oficinaA}'`)
