@@ -167,6 +167,55 @@ Deno.serve(async (req: Request) => {
       if (r.error) return responder({ erro: r.error.message }, 500)
     }
 
+    /*
+     * Fotos de OS (0079): quanto cada oficina usa do limite do plano, para o
+     * aviso amarelo e vermelho do painel.
+     *
+     * Opcional de propósito: se esta função for publicada antes da migração,
+     * a chamada falha e a lista sai sem a coluna de fotos — em vez de o painel
+     * inteiro parar por causa dela.
+     */
+    const usoDeFotos = await servico.rpc('plataforma_uso_de_fotos')
+    const fotosPorOficina = new Map<string, { em_uso: number; limite: number | null }>(
+      usoDeFotos.error
+        ? []
+        : (usoDeFotos.data ?? []).map(
+            (u: { oficina_id: string; em_uso: number; limite: number | null }) => [
+              u.oficina_id,
+              { em_uso: u.em_uso, limite: u.limite },
+            ],
+          ),
+    )
+    if (!usoDeFotos.error) {
+      /*
+       * A limpeza das fotos vencidas (garantia, mínimo de 30 dias da entrega)
+       * e dos envios que falharam há mais de um dia.
+       *
+       * Roda a cada abertura do painel, em lotes de 200: sem agendador para
+       * configurar, e a foto vencida já some da tela e dos limites no próprio
+       * banco (0079) — o que esta limpeza faz é parar de pagar pelo arquivo.
+       * O arquivo sai primeiro; a linha, só depois de o arquivo ter saído,
+       * para nunca sobrar arquivo sem dono. Falhando, a próxima abertura
+       * tenta de novo, e a lista sai do mesmo jeito.
+       */
+      try {
+        const { data: vencidas } = await servico.rpc('plataforma_fotos_para_apagar', {
+          p_quantas: 200,
+        })
+        const fotos = (vencidas ?? []) as { id: string; caminho: string }[]
+        if (fotos.length > 0) {
+          const { error: erroDoArquivo } = await servico.storage
+            .from('fotos-os')
+            .remove(fotos.map((f) => f.caminho))
+          if (!erroDoArquivo) {
+            await servico.from('os_fotos').delete().in('id', fotos.map((f) => f.id))
+          }
+        }
+      } catch {
+        // A próxima abertura do painel tenta de novo.
+      }
+    }
+
     const precoDoPlano = new Map((planos.data ?? []).map((p) => [p.id, Number(p.preco_mensal)]))
     const cadastroPorId = new Map((cadastros.data ?? []).map((c) => [c.id, c]))
     const oficinas = (lista.data ?? []).map((o: { id: string; plano: string }) => {
@@ -184,6 +233,7 @@ Deno.serve(async (req: Request) => {
           inicio: contrato.inicio,
           proxima_cobranca: contrato.proxima_cobranca,
         },
+        fotos: fotosPorOficina.get(o.id) ?? null,
       }
     })
 
@@ -630,6 +680,11 @@ Deno.serve(async (req: Request) => {
     if (erroSessao && erroSessao.code !== '23505') {
       return responder({ erro: erroSessao.message }, 500)
     }
+
+    // Todo caminho acima define o endereço ou já devolveu erro; a conferência
+    // é para o tipo saber disso, e para um caminho novo esquecido não gerar
+    // link para ninguém.
+    if (!emailDoSuporte) return responder({ erro: 'Não achei a conta de suporte.' }, 500)
 
     const { data: link, error: erroLink } = await servico.auth.admin.generateLink({
       type: 'magiclink',

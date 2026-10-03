@@ -106,6 +106,22 @@ export const GUIAS: Guia[] = [
 
   // Serviço ------------------------------------------------------------------
   {
+    id: 'fotos-e-vistoria',
+    secao: 'Serviço',
+    titulo: 'Fotos e vistoria da moto',
+    resumo: 'Registre como a moto chegou, o defeito e a peça trocada. Protege a oficina e convence o cliente.',
+    passos: [
+      'Abra a OS e desça até "Fotos". Escolha o momento — Entrada, Serviço ou Entrega — e toque em "Tirar foto".',
+      'Cabem até 5 fotos por OS. Cada uma guarda a data e não pode ser alterada depois.',
+      'Ao tocar em "Iniciar serviço", o app pergunta se você quer fazer a vistoria de entrada. É opcional.',
+      'Na vistoria, marque OK ou Avaria em cada item, o combustível e o que o cliente deixou com a moto.',
+      'As fotos saem no PDF da OS, junto com o serviço executado.',
+    ],
+    atencao:
+      'As fotos ficam guardadas enquanto durar a garantia do serviço, e no mínimo 30 dias depois da entrega. Depois saem sozinhas. Só o dono da oficina apaga uma foto antes disso.',
+    visivel: (p) => p.verOrdensDaOficina || p.ehMecanico,
+  },
+  {
     id: 'andamento-os',
     secao: 'Serviço',
     titulo: 'Tocar a ordem de serviço até o fim',

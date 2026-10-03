@@ -26,6 +26,7 @@ import { config } from 'dotenv'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { apagarFotosDaOficina } from './limpar-teste'
 
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: path.join(raiz, '.env.test.local'), quiet: true })
@@ -91,6 +92,10 @@ const PARA_O_BACKUP = [
   'ordens_servico',
   'os_itens',
   'os_status_historico',
+  // Só as linhas: o arquivo da foto não vai para o backup (são imagens, e a
+  // oficina zerada recomeça sem elas).
+  'os_fotos',
+  'os_vistorias',
   'apontamentos_tempo',
   'contas_receber',
   'contas_pagar',
@@ -222,14 +227,18 @@ while (restantes.length > 0) {
   restantes = teimosas
 }
 
-// 4. O resto.
+// 4. As fotos das OS, antes das ordens: a linha diz onde está cada arquivo, e
+//    some por cascata junto com a ordem.
+problemas.push(...(await apagarFotosDaOficina(admin, oficina.id)))
+
+// 5. O resto.
 for (const tabela of ORDEM) {
   const { error } = await admin.from(tabela).delete().eq('oficina_id', oficina.id)
   if (error) problemas.push(`${tabela}: ${error.message}`)
   else console.log(`apagado: ${tabela}`)
 }
 
-// 5. Os acessos, na oficina e no Auth.
+// 6. Os acessos, na oficina e no Auth.
 for (const u of saem) {
   const { error } = await admin.from('usuarios').delete().eq('id', u.id)
   if (error) {

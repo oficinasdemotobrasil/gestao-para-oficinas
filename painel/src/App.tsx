@@ -24,6 +24,7 @@ import {
   dinheiro,
   ROTULO_CALCULADO,
   TOM_DA_SITUACAO,
+  alertaDeFotos,
   type Indicadores,
   type PainelDoNegocio,
   type OficinaNaLista,
@@ -564,6 +565,17 @@ function Lista({ sessao }: { sessao: Session }) {
                         <span className="block text-xs text-claro-secundario">
                           {o.pessoas} {o.pessoas === 1 ? 'pessoa' : 'pessoas'}
                         </span>
+                        {alertaDeFotos(o) && (
+                          <span
+                            className={`mt-1 inline-block rounded-badge px-2 py-0.5 text-xs font-medium ${
+                              alertaDeFotos(o) === 'limite'
+                                ? 'bg-erro-fundo text-erro-forte'
+                                : 'bg-atencao-fundo text-atencao-forte'
+                            }`}
+                          >
+                            {o.fotos!.em_uso} de {o.fotos!.limite} fotos
+                          </span>
+                        )}
                       </button>
                     </td>
                     <td className="px-4 py-3 text-sm">

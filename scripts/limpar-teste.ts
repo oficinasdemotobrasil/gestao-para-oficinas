@@ -38,6 +38,29 @@ const ORDEM = [
   'usuarios',
 ] as const
 
+/**
+ * Os arquivos das fotos de OS (0079) não caem por cascata: a linha some com a
+ * ordem, e o arquivo ficaria no Storage, sem dono, cobrando espaço. Sai antes
+ * do resto, enquanto as linhas ainda dizem onde cada arquivo está.
+ */
+export async function apagarFotosDaOficina(
+  admin: SupabaseClient,
+  oficinaId: string,
+): Promise<string[]> {
+  const { data, error } = await admin.from('os_fotos').select('caminho').eq('oficina_id', oficinaId)
+  // Sem a tabela (banco anterior à 0079), não há foto nenhuma para apagar.
+  if (error) return []
+  const caminhos = (data ?? []).map((f) => f.caminho as string)
+  const problemas: string[] = []
+  for (let i = 0; i < caminhos.length; i += 100) {
+    const { error: erroDoArquivo } = await admin.storage
+      .from('fotos-os')
+      .remove(caminhos.slice(i, i + 100))
+    if (erroDoArquivo) problemas.push(`fotos: ${erroDoArquivo.message}`)
+  }
+  return problemas
+}
+
 export async function limparOficina(
   admin: SupabaseClient,
   oficinaId: string,
@@ -78,6 +101,8 @@ export async function limparOficina(
     }
     restantes = teimosas
   }
+
+  problemas.push(...(await apagarFotosDaOficina(admin, oficinaId)))
 
   // 2. O resto, filho antes do pai.
   for (const tabela of ORDEM) {

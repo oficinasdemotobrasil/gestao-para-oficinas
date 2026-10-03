@@ -71,6 +71,20 @@ export interface OficinaNaLista {
   responsaveis: { nome: string; email: string; telefone: string | null }[]
   /** O contrato em vigor. Nulo é quem nunca assinou ou já encerrou. */
   assinatura: { plano: Plano; inicio: string; proxima_cobranca: string | null } | null
+  /** Fotos de OS guardadas e o limite do plano (0079). Nulo antes da migração. */
+  fotos: { em_uso: number; limite: number | null } | null
+}
+
+/**
+ * Quanto do limite de fotos a oficina já usa. Amarelo a partir de 80%,
+ * vermelho no limite — é o sinal para conversar sobre o plano maior antes de
+ * ela travar no meio de uma OS.
+ */
+export function alertaDeFotos(o: OficinaNaLista): 'atencao' | 'limite' | null {
+  if (!o.fotos || !o.fotos.limite) return null
+  if (o.fotos.em_uso >= o.fotos.limite) return 'limite'
+  if (o.fotos.em_uso >= o.fotos.limite * 0.8) return 'atencao'
+  return null
 }
 
 export interface PainelDoNegocio {
@@ -173,7 +187,11 @@ export const listarOficinas = async () => {
   // ficha aparece vazia em vez de a lista inteira quebrar.
   return {
     ...r,
-    oficinas: r.oficinas.map((o) => ({ ...o, responsaveis: o.responsaveis ?? [] })),
+    oficinas: r.oficinas.map((o) => ({
+      ...o,
+      responsaveis: o.responsaveis ?? [],
+      fotos: o.fotos ?? null,
+    })),
   }
 }
 

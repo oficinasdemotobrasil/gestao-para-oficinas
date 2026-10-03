@@ -27,6 +27,7 @@ import type { ItemEmEdicao } from '@/funcionalidades/orcamentos/api'
 import { StatusOsBadge, rotuloDoStatusOs } from '../StatusOsBadge'
 import { ListaDeColaboradores } from '../EscolherResponsavel'
 import { AcoesDaOrdem } from '../AcoesDaOrdem'
+import { RegistroDaOrdem } from '@/funcionalidades/fotos/RegistroDaOrdem'
 import { Cronometro } from '../Cronometro'
 import {
   obterOrdemServico,
@@ -316,6 +317,8 @@ export function DetalheOrdemServico() {
           </Botao>
         )}
       </div>
+
+      <RegistroDaOrdem ordemId={ordem.id} status={ordem.status} />
 
       {ordem.observacoes && mostraValores && (
         <>

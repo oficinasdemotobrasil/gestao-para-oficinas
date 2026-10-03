@@ -3753,6 +3753,7 @@ async function main() {
     await testarIndicadores()
     await testarTesteMostraTudo()
     await testarAcessoDeSuporte()
+    await testarFotosDaOs()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
     // impressão de que correu tudo bem — foi o que aconteceu quando a coluna
@@ -4148,3 +4149,315 @@ async function testarAcessoDeSuporte() {
 }
 
 void main()
+
+/**
+ * Fotos e vistoria da OS (0079).
+ *
+ * O que se prova: a linha da foto é a autorização do arquivo (sem linha, o
+ * Storage não grava nem entrega); os limites (5 por ordem, o do plano) valem
+ * no banco; o mecânico só alcança as fotos das ordens dele; a foto não muda
+ * depois de registrada; e a foto vencida some da tela, dos limites e entra na
+ * lista de limpeza.
+ */
+async function testarFotosDaOs() {
+  console.log('\n\x1b[1mFotos e vistoria da OS\x1b[0m')
+
+  await comoAdministradorDoBanco()
+  await db.query(
+    `update public.oficinas
+        set status = 'ativa', plano = 'completo', teste_ate = null, acesso_ate = null
+      where id = '${ID.oficinaA}'`,
+  )
+
+  await logarComo(ID.adminA)
+  async function novaOs(responsavel: string): Promise<string> {
+    const itens = JSON.stringify([
+      { tipo: 'servico', produto_id: null, servico_id: ID.servicoA, descricao: 'Revisão', quantidade: 1, valor_unitario: 60 },
+    ])
+    const orc = await db.query<{ id: string }>(
+      `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', 27000,
+         7, 0, null, 0, null, $1::jsonb) as id`,
+      [itens],
+    )
+    const os = await db.query<{ id: string }>(
+      `select public.aprovar_orcamento('${orc.rows[0].id}', '${responsavel}') as id`,
+    )
+    return os.rows[0].id
+  }
+  const doMecanico = await novaOs(ID.mecanicoA)
+  const doMecanico2 = await novaOs(ID.mecanicoA)
+  const doDono = await novaOs(ID.adminA)
+
+  /** Reserva uma foto pelo caminho certo. Devolve o caminho. */
+  async function reservar(ordem: string, momento = 'entrada'): Promise<string> {
+    const r = await db.query<{ caminho: string }>(
+      `insert into public.os_fotos (id, ordem_servico_id, momento, caminho)
+       select g, $1::uuid, $2, '${ID.oficinaA}/' || $1 || '/' || g || '.jpg'
+       from (select gen_random_uuid() as g) x
+       returning caminho`,
+      [ordem, momento],
+    )
+    return r.rows[0].caminho
+  }
+
+  // O caminho e a linha ---------------------------------------------------------
+  await logarComo(ID.vendedorA)
+  const primeira = await reservar(doMecanico)
+  ok('o balcão reserva uma foto na OS')
+
+  await esperaErro(
+    'a foto não aceita caminho fora do formato',
+    `insert into public.os_fotos (ordem_servico_id, momento, caminho)
+     values ('${doMecanico}', 'entrada', '${ID.oficinaA}/qualquer/coisa.jpg')`,
+  )
+  await esperaErro(
+    'nem momento desconhecido',
+    `insert into public.os_fotos (id, ordem_servico_id, momento, caminho)
+     select g, '${doMecanico}', 'depois', '${ID.oficinaA}/${doMecanico}/' || g || '.jpg'
+     from (select gen_random_uuid() as g) x`,
+  )
+
+  // O arquivo só entra no caminho de uma linha reservada pela própria pessoa.
+  await db.query(
+    `insert into storage.objects (bucket_id, name, owner) values ('fotos-os', $1, auth.uid())`,
+    [primeira],
+  )
+  ok('e grava o arquivo no caminho que reservou')
+  await esperaBloqueio(
+    'arquivo em caminho sem foto reservada não entra',
+    `insert into storage.objects (bucket_id, name) values ('fotos-os', '${ID.oficinaA}/${doMecanico}/solto.jpg')`,
+  )
+
+  await logarComo(ID.mecanicoA)
+  const doOutro = await (async () => {
+    await logarComo(ID.vendedorA)
+    const c = await reservar(doMecanico, 'servico')
+    await logarComo(ID.mecanicoA)
+    return c
+  })()
+  await esperaBloqueio(
+    'nem no caminho que outra pessoa reservou',
+    `insert into storage.objects (bucket_id, name) values ('fotos-os', '${doOutro}')`,
+  )
+
+  await logarComo(ID.vendedorA)
+  await db.query(`update public.os_fotos set enviada = true where caminho = $1`, [primeira])
+  ok('quem enviou marca o envio')
+  await esperaErro(
+    'depois de registrada, a foto não troca de momento',
+    `update public.os_fotos set momento = 'entrega' where caminho = '${primeira}'`,
+  )
+  await esperaErro(
+    'nem volta a "não enviada"',
+    `update public.os_fotos set enviada = false where caminho = '${primeira}'`,
+  )
+
+  // Cinco por ordem -------------------------------------------------------------
+  await reservar(doMecanico)
+  await reservar(doMecanico)
+  await reservar(doMecanico)
+  ok('cinco fotos na mesma OS passam')
+  await esperaErro(
+    'a sexta é recusada',
+    `insert into public.os_fotos (id, ordem_servico_id, momento, caminho)
+     select g, '${doMecanico}', 'entrega', '${ID.oficinaA}/${doMecanico}/' || g || '.jpg'
+     from (select gen_random_uuid() as g) x`,
+  )
+
+  // O mecânico ------------------------------------------------------------------
+  await logarComo(ID.adminA)
+  const fotoDoDono = await reservar(doDono)
+  await db.query(
+    `insert into storage.objects (bucket_id, name) values ('fotos-os', $1)`,
+    [fotoDoDono],
+  )
+  await db.query(`update public.os_fotos set enviada = true where caminho = $1`, [fotoDoDono])
+
+  await logarComo(ID.mecanicoA)
+  await esperaLinhas(
+    'o mecânico vê as fotos da OS dele',
+    `select count(*) as n from public.os_fotos where ordem_servico_id = '${doMecanico}'`,
+    5,
+  )
+  await esperaLinhas(
+    'e não as de uma OS que não é dele',
+    `select count(*) as n from public.os_fotos where ordem_servico_id = '${doDono}'`,
+    0,
+  )
+  await esperaLinhas(
+    'nem o arquivo dela no Storage',
+    `select count(*) as n from storage.objects where name = '${fotoDoDono}'`,
+    0,
+  )
+  await reservar(doMecanico2, 'servico')
+  ok('o mecânico fotografa na OS dele')
+  await esperaBloqueio(
+    'mas não na OS de outro',
+    `insert into public.os_fotos (id, ordem_servico_id, momento, caminho)
+     select g, '${doDono}', 'servico', '${ID.oficinaA}/${doDono}/' || g || '.jpg'
+     from (select gen_random_uuid() as g) x`,
+  )
+
+  // Apagar ----------------------------------------------------------------------
+  await logarComo(ID.vendedorA)
+  await esperaBloqueio(
+    'o balcão não apaga foto enviada',
+    `delete from public.os_fotos where caminho = '${primeira}'`,
+  )
+  await esperaBloqueio(
+    'nem o arquivo dela',
+    `delete from storage.objects where name = '${primeira}'`,
+  )
+  await logarComo(ID.adminA)
+  await db.query(`delete from storage.objects where name = $1`, [primeira])
+  await db.query(`delete from public.os_fotos where caminho = $1`, [primeira])
+  await esperaLinhas(
+    'o dono apaga a foto e o arquivo',
+    `select count(*) as n from public.os_fotos where caminho = '${primeira}'`,
+    0,
+  )
+
+  // A outra oficina -------------------------------------------------------------
+  await logarComo(ID.adminB)
+  await esperaLinhas(
+    'a oficina B não vê as fotos da A',
+    `select count(*) as n from public.os_fotos`,
+    0,
+  )
+  await esperaLinhas(
+    'nem os arquivos',
+    `select count(*) as n from storage.objects where bucket_id = 'fotos-os'`,
+    0,
+  )
+  await esperaBloqueio(
+    'nem apaga um arquivo da A',
+    `delete from storage.objects where name = '${fotoDoDono}'`,
+  )
+
+  // O limite do plano -----------------------------------------------------------
+  await logarComo(ID.adminA)
+  const uso = await db.query<{ r: { em_uso: number; limite: number } }>(
+    `select public.minhas_fotos_em_uso() as r`,
+  )
+  const emUso = uso.rows[0].r.em_uso
+  if (uso.rows[0].r.limite === 2000) ok('o plano Completo guarda até 2.000 fotos', `${emUso} em uso`)
+  else erro('limite do Completo', `veio ${uso.rows[0].r.limite}`)
+
+  await comoAdministradorDoBanco()
+  await db.query(`update public.planos set limite_fotos = $1 where id = 'completo'`, [emUso])
+  await logarComo(ID.adminA)
+  try {
+    await reservar(doDono)
+    erro('chegando no limite do plano, a foto nova é recusada', 'foi aceita')
+  } catch (e) {
+    const msg = (e as Error).message
+    if (msg.includes('guarda até')) ok('chegando no limite do plano, a foto nova é recusada', msg.split('\n')[0])
+    else erro('mensagem do limite do plano', msg)
+  }
+  await comoAdministradorDoBanco()
+  await db.query(`update public.planos set limite_fotos = 2000 where id = 'completo'`)
+
+  // Validade --------------------------------------------------------------------
+  // Entregue há 40 dias, sem garantia: valeu 30 dias, já venceu. A ordem
+  // anda pelo caminho normal — o banco não deixa pular etapa — e só as datas
+  // são recuadas depois.
+  await logarComo(ID.adminA)
+  await db.query(`select public.mudar_status_da_os('${doMecanico}', 'em_andamento')`)
+  await db.query(`select public.finalizar_os('${doMecanico}', false)`)
+  await db.query(`select public.mudar_status_da_os('${doMecanico}', 'entregue')`)
+  await comoAdministradorDoBanco()
+  await db.query(
+    `update public.ordens_servico
+        set data_abertura = now() - interval '50 days',
+            garantia_ate = (now() - interval '50 days')::date,
+            data_conclusao = now() - interval '40 days'
+      where id = '${doMecanico}'`,
+  )
+  await logarComo(ID.vendedorA)
+  await esperaLinhas(
+    'entregue há 40 dias sem garantia: as fotos somem (mínimo de 30 dias passou)',
+    `select count(*) as n from public.os_fotos where ordem_servico_id = '${doMecanico}'`,
+    0,
+  )
+  await comoAdministradorDoBanco()
+  await esperaLinhas(
+    'e entram na lista de limpeza da plataforma',
+    `select count(*) as n from public.plataforma_fotos_para_apagar(500) p
+       join public.os_fotos f on f.id = p.id
+      where f.ordem_servico_id = '${doMecanico}'`,
+    4,
+  )
+  // Com 90 dias de garantia, as mesmas fotos ainda valem.
+  await db.query(
+    `update public.ordens_servico
+        set garantia_ate = (data_abertura + interval '90 days')::date
+      where id = '${doMecanico}'`,
+  )
+  await logarComo(ID.vendedorA)
+  await esperaLinhas(
+    'com 90 dias de garantia contados da entrega, elas continuam',
+    `select count(*) as n from public.os_fotos where ordem_servico_id = '${doMecanico}'`,
+    4,
+  )
+  await esperaErro(
+    'ordem entregue não recebe a vistoria de entrada depois',
+    `insert into public.os_vistorias (ordem_servico_id, itens) values ('${doMecanico}', '{}')`,
+  )
+
+  // Cancelada -------------------------------------------------------------------
+  await logarComo(ID.adminA)
+  const cancelada = await novaOs(ID.adminA)
+  await db.query(`select public.cancelar_os('${cancelada}', 'teste')`)
+  await esperaErro(
+    'OS cancelada não recebe foto',
+    `insert into public.os_fotos (id, ordem_servico_id, momento, caminho)
+     select g, '${cancelada}', 'entrada', '${ID.oficinaA}/${cancelada}/' || g || '.jpg'
+     from (select gen_random_uuid() as g) x`,
+  )
+
+  // Vistoria --------------------------------------------------------------------
+  await logarComo(ID.vendedorA)
+  await db.query(
+    `insert into public.os_vistorias (ordem_servico_id, itens, combustivel, pertences)
+     values ('${doMecanico2}', '{"riscos": "avaria", "retrovisores": "ok"}', '1/2', 'Capacete')`,
+  )
+  ok('o balcão registra a vistoria de entrada')
+  await logarComo(ID.mecanicoA)
+  await esperaLinhas(
+    'o mecânico lê a vistoria da OS dele',
+    `select count(*) as n from public.os_vistorias where ordem_servico_id = '${doMecanico2}'`,
+    1,
+  )
+  await esperaBloqueio(
+    'mas não faz vistoria em OS de outro',
+    `insert into public.os_vistorias (ordem_servico_id, itens) values ('${doDono}', '{}')`,
+  )
+  await esperaErro(
+    'combustível fora da lista é recusado',
+    `update public.os_vistorias set combustivel = 'muito' where ordem_servico_id = '${doMecanico2}'`,
+  )
+
+  // Oficina suspensa ------------------------------------------------------------
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set status = 'suspensa' where id = '${ID.oficinaA}'`)
+  await logarComo(ID.adminA)
+  await esperaErro(
+    'oficina suspensa não registra foto nova',
+    `insert into public.os_fotos (id, ordem_servico_id, momento, caminho)
+     select g, '${doDono}', 'servico', '${ID.oficinaA}/${doDono}/' || g || '.jpg'
+     from (select gen_random_uuid() as g) x`,
+  )
+  await comoAdministradorDoBanco()
+  await db.query(`update public.oficinas set status = 'ativa' where id = '${ID.oficinaA}'`)
+
+  // Funções da plataforma -------------------------------------------------------
+  await logarComo(ID.adminA)
+  await esperaErro(
+    'o uso de fotos de todas as oficinas é só da plataforma',
+    `select * from public.plataforma_uso_de_fotos()`,
+  )
+  await esperaErro(
+    'e a lista de limpeza também',
+    `select * from public.plataforma_fotos_para_apagar(10)`,
+  )
+}

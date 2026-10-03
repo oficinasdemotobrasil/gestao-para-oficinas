@@ -7,7 +7,9 @@ import {
   tabelaDeItens,
   blocoDeTotais,
   blocoDeTexto,
+  blocoDeFotos,
   rodape,
+  type FotoDoDocumento,
 } from '@/lib/pdfDocumento'
 import type { Oficina } from '@/tipos/banco'
 import type { OrdemCompleta } from './api'
@@ -19,7 +21,11 @@ import type { OrdemCompleta } from './api'
  * que o cliente já leu, e no comprovante do serviço ela não diz nada sobre o
  * que foi feito.
  */
-export async function gerarPdfDaOrdem(ordem: OrdemCompleta, oficina: Oficina): Promise<jsPDF> {
+export async function gerarPdfDaOrdem(
+  ordem: OrdemCompleta,
+  oficina: Oficina,
+  fotos: FotoDoDocumento[] = [],
+): Promise<jsPDF> {
   const doc = novoDocumento()
 
   let y = await cabecalho(doc, oficina, {
@@ -56,6 +62,10 @@ export async function gerarPdfDaOrdem(ordem: OrdemCompleta, oficina: Oficina): P
   })
 
   y = blocoDeTexto(doc, y, 'SERVIÇO EXECUTADO', ordem.observacoes_tecnicas ?? '')
+
+  // As fotos vão junto: é o cliente vendo a peça que foi trocada e como a
+  // moto chegou, no mesmo papel que diz quanto custou.
+  y = blocoDeFotos(doc, y, fotos)
 
   const conclusao = ordem.data_conclusao
     ? `Concluída em ${data(ordem.data_conclusao)}`

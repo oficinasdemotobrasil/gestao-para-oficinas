@@ -387,6 +387,54 @@ export function blocoDeTexto(doc: jsPDF, y: number, titulo: string, texto: strin
   return y + 4
 }
 
+export interface FotoDoDocumento {
+  dataUrl: string
+  largura: number
+  altura: number
+  legenda: string
+}
+
+/**
+ * As fotos, duas por linha, cada uma com a legenda embaixo.
+ *
+ * A altura de cada uma é limitada para foto em pé não ocupar a página
+ * inteira; a proporção é mantida, e a foto fica centralizada no espaço dela.
+ */
+export function blocoDeFotos(doc: jsPDF, y: number, fotos: FotoDoDocumento[]): number {
+  if (fotos.length === 0) return y
+  const largura = larguraDe(doc)
+  const espaco = 6
+  const coluna = (largura - MARGEM * 2 - espaco) / 2
+  const alturaMaxima = 62
+
+  y = garantirEspaco(doc, y, 12)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  doc.setTextColor(...CINZA)
+  doc.text('FOTOS', MARGEM, y)
+  y += 4
+
+  for (let i = 0; i < fotos.length; i += 2) {
+    const par = fotos.slice(i, i + 2)
+    const alturas = par.map((f) => Math.min(alturaMaxima, (coluna * f.altura) / f.largura))
+    const alturaDaLinha = Math.max(...alturas)
+    y = garantirEspaco(doc, y, alturaDaLinha + 8)
+
+    par.forEach((f, j) => {
+      const h = alturas[j]
+      const w = Math.min(coluna, (h * f.largura) / f.altura)
+      const x = MARGEM + j * (coluna + espaco) + (coluna - w) / 2
+      doc.addImage(f.dataUrl, 'JPEG', x, y, w, h)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7.5)
+      doc.setTextColor(...CINZA)
+      doc.text(paraPdf(f.legenda), MARGEM + j * (coluna + espaco), y + alturaDaLinha + 4)
+    })
+    y += alturaDaLinha + 9
+  }
+  return y + 2
+}
+
 /** Duas linhas no pé da última página: a primeira em negrito. */
 export function rodape(doc: jsPDF, y: number, destaque: string | null, apoio: string): void {
   const largura = larguraDe(doc)

@@ -15,6 +15,7 @@ import { StatusOsBadge } from '../StatusOsBadge'
 import { Cronometro } from '../Cronometro'
 import { mudarStatusDaOs, tempoDaOs, salvarObservacoesTecnicas } from '../api'
 import { osDoMecanico, marcarItemExecutado } from '../apiDoMecanico'
+import { RegistroDaOrdem } from '@/funcionalidades/fotos/RegistroDaOrdem'
 import type { StatusOS } from '@/tipos/banco'
 
 /**
@@ -256,6 +257,8 @@ export function OrdemDoMecanico() {
           </Botao>
         )}
       </div>
+
+      <RegistroDaOrdem ordemId={ordem.id} status={ordem.status} />
     </Tela>
   )
 }

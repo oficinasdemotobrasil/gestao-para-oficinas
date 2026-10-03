@@ -3,6 +3,7 @@ import {
   dinheiro,
   ROTULO_CALCULADO,
   ROTULO_DO_PLANO,
+  alertaDeFotos,
   type OficinaNaLista,
   type SituacaoCalculada,
 } from './plataforma'
@@ -340,6 +341,18 @@ export function FichaDaOficina({ o }: { o: OficinaNaLista }) {
           {o.mensalidade ? ` · ${dinheiro(o.mensalidade)}/mês` : ''}
         </Linha>
         <Linha rotulo="Situação hoje">{ROTULO_CALCULADO[o.situacao]}</Linha>
+        {o.fotos && (
+          <Linha rotulo="Fotos de OS guardadas">
+            {o.fotos.em_uso}
+            {o.fotos.limite != null ? ` de ${o.fotos.limite}` : ' (sem limite)'}
+            {alertaDeFotos(o) === 'limite' && (
+              <span className="block text-xs text-erro-forte">No limite: oferecer o plano maior.</span>
+            )}
+            {alertaDeFotos(o) === 'atencao' && (
+              <span className="block text-xs text-atencao-forte">Perto do limite.</span>
+            )}
+          </Linha>
+        )}
         {o.assinatura ? (
           <>
             <Linha rotulo="Assinante desde">{data(o.assinatura.inicio)}</Linha>

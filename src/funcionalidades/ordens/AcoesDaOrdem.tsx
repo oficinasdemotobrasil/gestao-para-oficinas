@@ -34,6 +34,7 @@ import {
   FORMAS,
 } from '@/funcionalidades/financeiro/api'
 import { textoDeServicoPronto, enderecoDoWhatsApp } from './textoWhatsApp'
+import { fotosParaDocumento } from '@/funcionalidades/fotos/api'
 import type { FormaPagamento, StatusOS } from '@/tipos/banco'
 
 /**
@@ -76,6 +77,13 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
       vivo = false
     }
   }, [])
+
+  // Preparadas ao abrir a tela — ver fotosParaDocumento. A chave começa com a
+  // das fotos da OS: foto nova ou apagada invalida esta junto.
+  const fotosDoPdf = useQuery({
+    queryKey: ['fotos', ordem.id, 'pdf'],
+    queryFn: () => fotosParaDocumento(ordem.id),
+  })
 
   /**
    * Invalida TODAS as ordens, e não só esta.
@@ -172,7 +180,7 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
   async function comOPdf(acao: 'baixar' | 'compartilhar') {
     if (!oficina || !moduloPdf) return
     try {
-      const doc = await moduloPdf.gerarPdfDaOrdem(ordem, oficina)
+      const doc = await moduloPdf.gerarPdfDaOrdem(ordem, oficina, fotosDoPdf.data ?? [])
       const nome = moduloPdf.nomeDoArquivoDaOrdem(ordem)
       if (acao === 'baixar') {
         doc.save(nome)

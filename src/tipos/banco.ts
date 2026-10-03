@@ -107,6 +107,8 @@ export type Plano = {
   beneficios: string[]
   /** Duração do teste, em dias. Nulo nos planos pagos. */
   dias_de_teste: number | null
+  /** Fotos de OS guardadas ao mesmo tempo (0079). Nulo é sem limite. */
+  limite_fotos: number | null
   atualizado_em: string
 }
 
@@ -539,6 +541,38 @@ type OsStatusHistorico = {
   criado_em: string
 }
 
+export type MomentoDaFoto = 'entrada' | 'servico' | 'entrega'
+
+/** Foto da OS (0079). O arquivo fica no bucket fotos-os, no `caminho`. */
+export type OsFoto = {
+  id: string
+  oficina_id: string
+  ordem_servico_id: string
+  momento: MomentoDaFoto
+  caminho: string
+  bytes: number | null
+  /** A linha nasce antes do arquivo; vira verdadeiro quando ele chegou. */
+  enviada: boolean
+  criado_por: string | null
+  criado_em: string
+}
+
+export type Combustivel = 'reserva' | '1/4' | '1/2' | '3/4' | 'cheio'
+
+/** Vistoria de entrada (0079). Uma por OS, opcional. */
+export type OsVistoria = {
+  ordem_servico_id: string
+  oficina_id: string
+  /** Chave do item (vistoria.ts) → 'ok' ou 'avaria'. */
+  itens: Record<string, 'ok' | 'avaria'>
+  combustivel: Combustivel | null
+  pertences: string | null
+  observacoes: string | null
+  feita_por: string | null
+  feita_em: string
+  atualizado_em: string
+}
+
 /** Campos que o banco preenche sozinho e que nunca são enviados na inserção. */
 type Gerados = 'id' | 'criado_em' | 'atualizado_em'
 
@@ -613,6 +647,35 @@ export type Database = {
       ordens_servico: TabelaNumerada<OrdemServico>
       os_itens: Tabela<OsItem>
       os_status_historico: Tabela<OsStatusHistorico>
+      os_fotos: {
+        Row: OsFoto
+        Insert: {
+          id: string
+          ordem_servico_id: string
+          momento: MomentoDaFoto
+          caminho: string
+          bytes?: number | null
+        }
+        Update: { enviada?: boolean }
+        Relationships: []
+      }
+      os_vistorias: {
+        Row: OsVistoria
+        Insert: {
+          ordem_servico_id: string
+          itens: Record<string, 'ok' | 'avaria'>
+          combustivel: Combustivel | null
+          pertences: string | null
+          observacoes: string | null
+        }
+        Update: Partial<{
+          itens: Record<string, 'ok' | 'avaria'>
+          combustivel: Combustivel | null
+          pertences: string | null
+          observacoes: string | null
+        }>
+        Relationships: []
+      }
       contas_receber: Tabela<ContaReceber>
       contas_pagar: Tabela<ContaPagar>
       /* Catálogo, sem oficina_id: a mesma lista para todo mundo. Só leitura
@@ -1072,6 +1135,10 @@ export type Database = {
       /** A situação de hoje, calculada das datas (migration 0044). */
       minha_situacao: { Args: Record<string, never>; Returns: StatusOficina }
       minha_oficina_tem_financeiro: { Args: Record<string, never>; Returns: boolean }
+      minhas_fotos_em_uso: {
+        Args: Record<string, never>
+        Returns: { em_uso: number; limite: number | null } | null
+      }
       corrigir_recebimento: {
         Args: {
           p_conta_id: string
