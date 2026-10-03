@@ -1,5 +1,5 @@
 import type { jsPDF } from 'jspdf'
-import { data, porcentagem } from '@/lib/formato'
+import { data, dataHora, porcentagem } from '@/lib/formato'
 import {
   novoDocumento,
   cabecalho,
@@ -8,10 +8,12 @@ import {
   blocoDeTotais,
   blocoDeTexto,
   blocoDeFotos,
+  blocoDeVistoria,
   rodape,
   type FotoDoDocumento,
 } from '@/lib/pdfDocumento'
-import type { Oficina } from '@/tipos/banco'
+import { ITENS_DA_VISTORIA, NIVEIS_DE_COMBUSTIVEL } from '@/funcionalidades/fotos/vistoria'
+import type { Oficina, OsVistoria } from '@/tipos/banco'
 import type { OrdemCompleta } from './api'
 
 /**
@@ -24,7 +26,7 @@ import type { OrdemCompleta } from './api'
 export async function gerarPdfDaOrdem(
   ordem: OrdemCompleta,
   oficina: Oficina,
-  fotos: FotoDoDocumento[] = [],
+  registro: { fotos?: FotoDoDocumento[]; vistoria?: OsVistoria | null } = {},
 ): Promise<jsPDF> {
   const doc = novoDocumento()
 
@@ -63,9 +65,23 @@ export async function gerarPdfDaOrdem(
 
   y = blocoDeTexto(doc, y, 'SERVIÇO EXECUTADO', ordem.observacoes_tecnicas ?? '')
 
-  // As fotos vão junto: é o cliente vendo a peça que foi trocada e como a
-  // moto chegou, no mesmo papel que diz quanto custou.
-  y = blocoDeFotos(doc, y, fotos)
+  // Como a moto chegou, e depois as fotos: é o cliente vendo, no mesmo papel
+  // que diz quanto custou, o estado em que deixou a moto e a peça trocada.
+  const vistoria = registro.vistoria
+  if (vistoria) {
+    y = blocoDeVistoria(doc, y, {
+      feitaEm: dataHora(vistoria.feita_em),
+      itens: ITENS_DA_VISTORIA.filter((i) => vistoria.itens[i.chave]).map((i) => ({
+        rotulo: i.rotulo,
+        avaria: vistoria.itens[i.chave] === 'avaria',
+      })),
+      combustivel:
+        NIVEIS_DE_COMBUSTIVEL.find((n) => n.valor === vistoria.combustivel)?.rotulo ?? null,
+      pertences: vistoria.pertences,
+      observacoes: vistoria.observacoes,
+    })
+  }
+  y = blocoDeFotos(doc, y, registro.fotos ?? [])
 
   const conclusao = ordem.data_conclusao
     ? `Concluída em ${data(ordem.data_conclusao)}`

@@ -34,7 +34,7 @@ import {
   FORMAS,
 } from '@/funcionalidades/financeiro/api'
 import { textoDeServicoPronto, enderecoDoWhatsApp } from './textoWhatsApp'
-import { fotosParaDocumento } from '@/funcionalidades/fotos/api'
+import { fotosParaDocumento, obterVistoria } from '@/funcionalidades/fotos/api'
 import type { FormaPagamento, StatusOS } from '@/tipos/banco'
 
 /**
@@ -91,6 +91,12 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
     queryFn: () => fotosParaDocumento(ordem.id),
     enabled: p.gerenciarOrdens && (ordem.status === 'finalizada' || ordem.status === 'entregue'),
     staleTime: Infinity,
+  })
+  // A mesma chave do bloco de vistoria da tela: as duas leituras são uma só.
+  const vistoriaDoPdf = useQuery({
+    queryKey: ['vistoria', ordem.id],
+    queryFn: () => obterVistoria(ordem.id),
+    enabled: p.gerenciarOrdens && (ordem.status === 'finalizada' || ordem.status === 'entregue'),
   })
 
   /**
@@ -188,7 +194,10 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
   async function comOPdf(acao: 'baixar' | 'compartilhar') {
     if (!oficina || !moduloPdf) return
     try {
-      const doc = await moduloPdf.gerarPdfDaOrdem(ordem, oficina, fotosDoPdf.data ?? [])
+      const doc = await moduloPdf.gerarPdfDaOrdem(ordem, oficina, {
+        fotos: fotosDoPdf.data ?? [],
+        vistoria: vistoriaDoPdf.data ?? null,
+      })
       const nome = moduloPdf.nomeDoArquivoDaOrdem(ordem)
       if (acao === 'baixar') {
         doc.save(nome)
@@ -327,7 +336,7 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
           <Botao
             largo
             variante="contorno"
-            carregando={!pdfPronto || fotosDoPdf.isLoading}
+            carregando={!pdfPronto || fotosDoPdf.isLoading || vistoriaDoPdf.isLoading}
             icone={<Download aria-hidden size={20} />}
             onClick={() => comOPdf('baixar')}
           >
@@ -338,7 +347,7 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
             <Botao
               largo
               variante="contorno"
-              carregando={!pdfPronto || fotosDoPdf.isLoading}
+              carregando={!pdfPronto || fotosDoPdf.isLoading || vistoriaDoPdf.isLoading}
               icone={<Share2 aria-hidden size={20} />}
               onClick={() => comOPdf('compartilhar')}
             >

@@ -82,6 +82,8 @@ async function baixarLogo(
 const ESCURO: [number, number, number] = [17, 17, 19]
 const CINZA: [number, number, number] = [107, 107, 112]
 const LINHA: [number, number, number] = [230, 230, 233]
+/** A avaria da vistoria: escura o bastante para sair legível na impressora. */
+const AVARIA: [number, number, number] = [176, 32, 32]
 
 export const MARGEM = 14
 /** Onde o conteúdo tem de parar para não invadir o rodapé. */
@@ -395,17 +397,22 @@ export interface FotoDoDocumento {
 }
 
 /**
- * As fotos, duas por linha, cada uma com a legenda embaixo.
+ * As fotos, três por linha, cada uma com a legenda embaixo.
  *
- * A altura de cada uma é limitada para foto em pé não ocupar a página
- * inteira; a proporção é mantida, e a foto fica centralizada no espaço dela.
+ * Três e não duas: com duas, a terceira foto ia sozinha para outra página e
+ * deixava meia folha em branco. Menores, as cinco cabem junto do serviço, e o
+ * cliente vê tudo numa folha. A foto em tamanho cheio continua no app.
+ *
+ * A altura é limitada para foto em pé não ocupar a linha inteira; a proporção
+ * é mantida, e a foto fica centralizada no espaço dela.
  */
 export function blocoDeFotos(doc: jsPDF, y: number, fotos: FotoDoDocumento[]): number {
   if (fotos.length === 0) return y
   const largura = larguraDe(doc)
-  const espaco = 6
-  const coluna = (largura - MARGEM * 2 - espaco) / 2
-  const alturaMaxima = 62
+  const espaco = 5
+  const porLinha = 3
+  const coluna = (largura - MARGEM * 2 - espaco * (porLinha - 1)) / porLinha
+  const alturaMaxima = 50
 
   y = garantirEspaco(doc, y, 12)
   doc.setFont('helvetica', 'bold')
@@ -414,25 +421,99 @@ export function blocoDeFotos(doc: jsPDF, y: number, fotos: FotoDoDocumento[]): n
   doc.text('FOTOS', MARGEM, y)
   y += 4
 
-  for (let i = 0; i < fotos.length; i += 2) {
-    const par = fotos.slice(i, i + 2)
-    const alturas = par.map((f) => Math.min(alturaMaxima, (coluna * f.altura) / f.largura))
+  for (let i = 0; i < fotos.length; i += porLinha) {
+    const linha = fotos.slice(i, i + porLinha)
+    const alturas = linha.map((f) => Math.min(alturaMaxima, (coluna * f.altura) / f.largura))
     const alturaDaLinha = Math.max(...alturas)
     y = garantirEspaco(doc, y, alturaDaLinha + 8)
 
-    par.forEach((f, j) => {
+    linha.forEach((f, j) => {
       const h = alturas[j]
       const w = Math.min(coluna, (h * f.largura) / f.altura)
-      const x = MARGEM + j * (coluna + espaco) + (coluna - w) / 2
-      doc.addImage(f.dataUrl, 'JPEG', x, y, w, h)
+      const inicio = MARGEM + j * (coluna + espaco)
+      doc.addImage(f.dataUrl, 'JPEG', inicio + (coluna - w) / 2, y, w, h)
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(7.5)
+      doc.setFontSize(7)
       doc.setTextColor(...CINZA)
-      doc.text(paraPdf(f.legenda), MARGEM + j * (coluna + espaco), y + alturaDaLinha + 4)
+      doc.text(paraPdf(f.legenda), inicio, y + alturaDaLinha + 3.5)
     })
-    y += alturaDaLinha + 9
+    y += alturaDaLinha + 8
   }
   return y + 2
+}
+
+export interface VistoriaDoDocumento {
+  feitaEm: string
+  /** Só os itens conferidos, na ordem da tela. */
+  itens: { rotulo: string; avaria: boolean }[]
+  combustivel: string | null
+  pertences: string | null
+  observacoes: string | null
+}
+
+/**
+ * A vistoria de entrada: como a moto chegou.
+ *
+ * Os itens vão em duas colunas, com a avaria em vermelho e negrito — é a
+ * linha que o cliente vai procurar se discordar de alguma coisa, e precisa
+ * aparecer também numa impressão em preto e branco (por isso o negrito).
+ * Item não conferido não aparece: "não olhei" não é "está ok".
+ */
+export function blocoDeVistoria(doc: jsPDF, y: number, v: VistoriaDoDocumento): number {
+  const largura = larguraDe(doc)
+  const espaco = 8
+  const coluna = (largura - MARGEM * 2 - espaco) / 2
+
+  y = garantirEspaco(doc, y, 20)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  doc.setTextColor(...CINZA)
+  doc.text('VISTORIA DE ENTRADA', MARGEM, y)
+  doc.setFont('helvetica', 'normal')
+  doc.text(paraPdf(`Feita em ${v.feitaEm}`), largura - MARGEM, y, { align: 'right' })
+  y += 5.5
+
+  doc.setFontSize(9)
+  const linhasDeItens = Math.ceil(v.itens.length / 2)
+  for (let l = 0; l < linhasDeItens; l++) {
+    y = garantirEspaco(doc, y, 5)
+    for (let c = 0; c < 2; c++) {
+      const item = v.itens[l * 2 + c]
+      if (!item) continue
+      const x = MARGEM + c * (coluna + espaco)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...ESCURO)
+      doc.text(paraPdf(item.rotulo), x, y, { maxWidth: coluna - 18 })
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...(item.avaria ? AVARIA : CINZA))
+      doc.text(item.avaria ? 'AVARIA' : 'OK', x + coluna, y, { align: 'right' })
+    }
+    y += 5
+  }
+
+  const extras: [string, string | null][] = [
+    ['Combustível', v.combustivel],
+    ['O cliente deixou', v.pertences],
+    ['Observações', v.observacoes],
+  ]
+  for (const [rotulo, valor] of extras) {
+    const texto = paraPdf(valor)
+    if (!texto) continue
+    const linhas: string[] = doc.splitTextToSize(texto, largura - MARGEM * 2 - 32)
+    y = garantirEspaco(doc, y, 5 * linhas.length)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(...CINZA)
+    doc.text(paraPdf(rotulo), MARGEM, y)
+    doc.setTextColor(...ESCURO)
+    for (const linha of linhas) {
+      y = garantirEspaco(doc, y, 0)
+      doc.text(linha, MARGEM + 32, y)
+      y += 4.5
+    }
+    y += 0.5
+  }
+  return y + 4
 }
 
 /** Duas linhas no pé da última página: a primeira em negrito. */
