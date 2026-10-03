@@ -29,12 +29,26 @@ interface Props {
 export function Modal({ aberto, aoFechar, titulo, children, rodape, larga = false }: Props) {
   const painel = useRef<HTMLDivElement>(null)
 
+  /*
+   * O fechar fica guardado numa referência, e não na lista do efeito abaixo.
+   *
+   * Quase toda tela passa `aoFechar={() => setAlgo(false)}`: uma função nova a
+   * cada desenho. Na lista do efeito, ela fazia o efeito rodar de novo a cada
+   * letra digitada dentro da janela — e o efeito põe o foco no painel. O
+   * cursor saía do campo depois de cada caractere, e a pessoa tinha de clicar
+   * de novo para digitar o próximo. Foi assim no motivo da recusa, na correção
+   * de recebimento, no lançamento de estoque: em toda janela com campo cujo
+   * texto mora na tela de trás.
+   */
+  const fecharAtual = useRef(aoFechar)
+  fecharAtual.current = aoFechar
+
   useEffect(() => {
     if (!aberto) return
 
     function aoTeclar(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        aoFechar()
+        fecharAtual.current()
         return
       }
 
@@ -69,14 +83,17 @@ export function Modal({ aberto, aoFechar, titulo, children, rodape, larga = fals
     const overflowAnterior = document.body.style.overflow
     document.body.style.overflow = 'hidden'
 
-    // O foco entra na folha para quem navega por teclado ou leitor de tela.
-    painel.current?.focus()
+    // O foco entra na folha para quem navega por teclado ou leitor de tela —
+    // a não ser que um campo lá dentro já o tenha pedido (autoFocus): o campo
+    // monta antes da janela rodar este efeito, e roubar dele aqui fazia o
+    // cadastro rápido de cliente e moto abrir sem o cursor no lugar.
+    if (!painel.current?.contains(document.activeElement)) painel.current?.focus()
 
     return () => {
       document.removeEventListener('keydown', aoTeclar)
       document.body.style.overflow = overflowAnterior
     }
-  }, [aberto, aoFechar])
+  }, [aberto])
 
   if (!aberto) return null
 

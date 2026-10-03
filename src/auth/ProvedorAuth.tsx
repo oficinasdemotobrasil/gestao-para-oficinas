@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
@@ -77,6 +78,20 @@ export function traduzirErroAuth(mensagem: string): string {
   return 'Não foi possível concluir. Tente de novo em instantes.'
 }
 
+/**
+ * Troca o valor só se o conteúdo mudou.
+ *
+ * O cadastro é relido a cada volta para a aba (ver o onAuthStateChange). Cada
+ * leitura traz um objeto novo, mesmo idêntico — e as telas que montam um
+ * formulário a partir da oficina (Configurações) o recarregam quando ela
+ * muda, apagando o que a pessoa estava digitando. Mantendo o mesmo objeto
+ * quando nada mudou, só uma mudança de verdade recarrega o formulário.
+ */
+function seMudou<T>(novo: T | null) {
+  return (anterior: T | null) =>
+    JSON.stringify(anterior) === JSON.stringify(novo) ? anterior : novo
+}
+
 export function ProvedorAuth({ children }: { children: ReactNode }) {
   const [sessao, setSessao] = useState<Session | null>(null)
   const [usuario, setUsuario] = useState<Usuario | null>(null)
@@ -86,9 +101,12 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
   const [carregando, setCarregando] = useState(true)
   const [semVinculo, setSemVinculo] = useState(false)
   const [perfilCarregado, setPerfilCarregado] = useState(false)
+  /** De quem é o cadastro que está carregado agora. Ver o onAuthStateChange. */
+  const perfilDe = useRef<string | null>(null)
 
   /** Tudo o que veio do cadastro sai junto. Um lugar só, para não esquecer um. */
   const limparPerfil = useCallback(() => {
+    perfilDe.current = null
     setUsuario(null)
     setOficina(null)
     setTemFinanceiro(false)
@@ -120,8 +138,9 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
       )
     }
 
-    setUsuario(linhaUsuario)
+    setUsuario(seMudou<Usuario>(linhaUsuario))
     setSemVinculo(false)
+    perfilDe.current = idUsuario
 
     const { data: linhaOficina } = await supabase
       .from('oficinas')
@@ -129,7 +148,7 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
       .eq('id', linhaUsuario.oficina_id)
       .maybeSingle()
 
-    setOficina(linhaOficina ?? null)
+    setOficina(seMudou<Oficina>(linhaOficina ?? null))
 
     // A situação vem do banco calculada, e não da coluna: quem só olhasse
     // `status` veria 'ativa' numa oficina cujo prazo venceu ontem.
@@ -204,7 +223,19 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
            * Exatamente no momento em que a pessoa ia salvar, que é a razão de
            * aquele efeito existir.
            */
-          if (evento === 'SIGNED_IN') setPerfilCarregado(false)
+          /*
+           * E "login de verdade" quer dizer pessoa nova, não evento com esse nome.
+           *
+           * O Supabase também manda SIGNED_IN toda vez que a aba volta a ficar
+           * visível, e toda vez que o app é aberto em OUTRA aba (ela avisa as
+           * demais). Com a mesma pessoa já carregada, tratar isso como login
+           * desmontava a tela — e o orçamento ou o cadastro pela metade sumia
+           * só porque a pessoa foi olhar outra aba. Agora a mesma pessoa só
+           * tem o cadastro relido por trás, sem trocar a tela.
+           */
+          if (evento === 'SIGNED_IN' && perfilDe.current !== novaSessao.user.id) {
+            setPerfilCarregado(false)
+          }
           await carregarPerfil(novaSessao.user.id).catch(() => undefined)
           if (ativo) setPerfilCarregado(true)
         } else {
