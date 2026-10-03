@@ -43,7 +43,16 @@ export function RegistroDaOrdem({ ordemId, status }: { ordemId: string; status: 
   const cache = useQueryClient()
   const navegar = useNavigate()
 
-  const fotos = useQuery({ queryKey: ['fotos', ordemId], queryFn: () => listarFotos(ordemId) })
+  /*
+   * Cinco minutos de validade, e não os 30 segundos do app: cada leitura gera
+   * endereços temporários novos, e endereço novo faz o navegador baixar as
+   * miniaturas de novo. Foto enviada ou apagada nesta tela invalida na hora.
+   */
+  const fotos = useQuery({
+    queryKey: ['fotos', ordemId],
+    queryFn: () => listarFotos(ordemId),
+    staleTime: 5 * 60_000,
+  })
   const vistoria = useQuery({ queryKey: ['vistoria', ordemId], queryFn: () => obterVistoria(ordemId) })
   const uso = useQuery({ queryKey: ['uso-de-fotos'], queryFn: usoDeFotos })
 

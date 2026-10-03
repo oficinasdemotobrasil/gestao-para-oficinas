@@ -117,11 +117,23 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
    * a oficina certa — não passamos nenhum filtro de tenant daqui.
    */
   const carregarPerfil = useCallback(async (idUsuario: string) => {
+    /*
+     * Releitura da mesma pessoa: a que acontece por trás a cada volta para a
+     * aba. Nela, falha de REDE não apaga nada — o celular voltando do bolso é
+     * exatamente quando a conexão ainda não voltou, e limpar o perfil ali
+     * trocava a tela e perdia o formulário, o defeito que a releitura
+     * silenciosa existe para evitar. Resposta de verdade do banco ("não há
+     * mais este usuário", "foi desativado") continua valendo.
+     */
+    const releitura = perfilDe.current === idUsuario
+
     const { data: linhaUsuario, error } = await supabase
       .from('usuarios')
       .select('*')
       .eq('id', idUsuario)
       .maybeSingle()
+
+    if (error && releitura) return
 
     if (error || !linhaUsuario) {
       limparPerfil()
@@ -142,18 +154,21 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
     setSemVinculo(false)
     perfilDe.current = idUsuario
 
-    const { data: linhaOficina } = await supabase
+    const { data: linhaOficina, error: erroDaOficina } = await supabase
       .from('oficinas')
       .select('*')
       .eq('id', linhaUsuario.oficina_id)
       .maybeSingle()
 
+    if (erroDaOficina && releitura) return
     setOficina(seMudou<Oficina>(linhaOficina ?? null))
 
     // A situação vem do banco calculada, e não da coluna: quem só olhasse
     // `status` veria 'ativa' numa oficina cujo prazo venceu ontem.
-    const { data: situacaoAtual } = await supabase.rpc('minha_situacao')
-    setSituacao((situacaoAtual as StatusOficina | null) ?? null)
+    const { data: situacaoAtual, error: erroDaSituacao } = await supabase.rpc('minha_situacao')
+    if (!(erroDaSituacao && releitura)) {
+      setSituacao((situacaoAtual as StatusOficina | null) ?? null)
+    }
 
     /*
      * E no mesmo lugar, pela mesma razão: quem responde se o financeiro está
@@ -169,6 +184,8 @@ export function ProvedorAuth({ children }: { children: ReactNode }) {
     const { data: financeiroAberto, error: erroDoFinanceiro } = await supabase.rpc(
       'minha_oficina_tem_financeiro',
     )
+    // Na releitura, o palpite abaixo não é preciso: o valor de antes vale mais.
+    if (erroDoFinanceiro && releitura) return
     setTemFinanceiro(
       erroDoFinanceiro
         ? linhaOficina?.plano === 'completo' || situacaoAtual === 'teste'

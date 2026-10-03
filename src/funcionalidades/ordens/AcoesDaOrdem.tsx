@@ -78,11 +78,19 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
     }
   }, [])
 
-  // Preparadas ao abrir a tela — ver fotosParaDocumento. A chave começa com a
-  // das fotos da OS: foto nova ou apagada invalida esta junto.
+  /*
+   * Preparadas ao abrir a tela — ver fotosParaDocumento — e só quando o PDF
+   * existe (ordem finalizada ou entregue): baixar cinco fotos em toda OS
+   * aberta seria peso à toa na internet da oficina.
+   *
+   * Sem prazo de validade: a chave começa com a das fotos da OS, então foto
+   * nova ou apagada invalida esta junto. Voltar para a aba não baixa de novo.
+   */
   const fotosDoPdf = useQuery({
     queryKey: ['fotos', ordem.id, 'pdf'],
     queryFn: () => fotosParaDocumento(ordem.id),
+    enabled: p.gerenciarOrdens && (ordem.status === 'finalizada' || ordem.status === 'entregue'),
+    staleTime: Infinity,
   })
 
   /**
@@ -319,7 +327,7 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
           <Botao
             largo
             variante="contorno"
-            carregando={!pdfPronto}
+            carregando={!pdfPronto || fotosDoPdf.isLoading}
             icone={<Download aria-hidden size={20} />}
             onClick={() => comOPdf('baixar')}
           >
@@ -330,7 +338,7 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
             <Botao
               largo
               variante="contorno"
-              carregando={!pdfPronto}
+              carregando={!pdfPronto || fotosDoPdf.isLoading}
               icone={<Share2 aria-hidden size={20} />}
               onClick={() => comOPdf('compartilhar')}
             >
