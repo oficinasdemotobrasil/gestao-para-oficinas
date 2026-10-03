@@ -9,7 +9,7 @@
  * de cobrar o cliente é ensinar um caminho que a tela dele não tem.
  */
 import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronUp, TriangleAlert, BookOpen } from 'lucide-react'
+import { ChevronDown, ChevronUp, TriangleAlert, BookOpen, Volume2, Square } from 'lucide-react'
 import { Tela, CabecalhoTela, TituloSecao } from '@/componentes/layout/Tela'
 import { CampoBusca } from '@/componentes/ui/CampoBusca'
 import { Abas } from '@/componentes/ui/Abas'
@@ -17,6 +17,8 @@ import { Card } from '@/componentes/ui/Card'
 import { Badge } from '@/componentes/ui/Badge'
 import { EstadoVazio } from '@/componentes/ui/EstadoVazio'
 import { usePermissoes } from '@/auth/usePermissoes'
+import { Botao } from '@/componentes/ui/Botao'
+import { falar, pararDeFalar, useLeitura } from '@/lib/falar'
 import { GUIAS, VOCABULARIO, type Guia, type Secao } from './conteudo'
 
 const SECOES: Array<{ id: Secao | 'todos'; rotulo: string }> = [
@@ -138,6 +140,22 @@ export function Ajuda({ mostrarTudo = false }: { mostrarTudo?: boolean }) {
 
 function CartaoDoGuia({ guia, abertoPorPadrao }: { guia: Guia; abertoPorPadrao: boolean }) {
   const [aberto, setAberto] = useState(abertoPorPadrao)
+  const leitura = useLeitura()
+  const falandoEste = leitura.falando === guia.id
+
+  // O que se ouve é o que se lê: o título, cada passo com o número dele, e o
+  // cuidado no fim.
+  function ouvir() {
+    if (falandoEste) {
+      pararDeFalar()
+      return
+    }
+    falar(guia.id, [
+      guia.titulo,
+      ...guia.passos.map((passo, i) => `Passo ${i + 1}. ${passo}`),
+      ...(guia.atencao ? [`Atenção. ${guia.atencao}`] : []),
+    ])
+  }
 
   return (
     <Card>
@@ -165,6 +183,22 @@ function CartaoDoGuia({ guia, abertoPorPadrao }: { guia: Guia; abertoPorPadrao: 
 
       {aberto && (
         <div className="pt-4">
+          {/* Só aparece se o aparelho sabe falar — quase todos sabem. */}
+          {leitura.suportado && (
+            <Botao
+              variante="contorno-no-card"
+              compactoNoDesktop
+              className="mb-4"
+              icone={
+                falandoEste ? <Square aria-hidden size={18} /> : <Volume2 aria-hidden size={20} />
+              }
+              aria-pressed={falandoEste}
+              onClick={ouvir}
+            >
+              {falandoEste ? 'Parar' : 'Ouvir o passo a passo'}
+            </Botao>
+          )}
+
           {/* Numerada de propósito: é uma sequência, e a ordem importa. */}
           <ol className="flex flex-col gap-3">
             {guia.passos.map((passo, i) => (

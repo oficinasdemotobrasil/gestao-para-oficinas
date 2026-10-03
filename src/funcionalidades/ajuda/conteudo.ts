@@ -68,7 +68,7 @@ export const GUIAS: Guia[] = [
       'Confira a quilometragem: ela atualiza o cadastro da moto.',
       'Adicione os itens. "Peça" e "Serviço" vêm do catálogo; "Avulso" é para o que não está lá.',
       'Se precisar, aplique desconto em reais ou em porcento.',
-      'Toque em "Criar orçamento" e depois em "Enviar no WhatsApp".',
+      'Toque em "Criar orçamento" e depois em "Enviar pelo WhatsApp".',
     ],
     atencao:
       'Enquanto não for aprovado, o orçamento pode ser editado. Depois de aprovado, não — porque a ordem de serviço já nasceu dele.',
@@ -78,14 +78,15 @@ export const GUIAS: Guia[] = [
     id: 'aprovar',
     secao: 'Atendimento',
     titulo: 'O cliente aprovou: virar ordem de serviço',
-    resumo: 'Aprovar cria a OS com os mesmos itens e reserva o serviço para um responsável.',
+    resumo: 'Aprovar cria a OS com os mesmos itens, separa as peças e passa o serviço para um responsável.',
     passos: [
-      'Abra o orçamento e toque em "Aprovar".',
-      'Escolha quem vai executar o serviço.',
+      'Abra o orçamento e toque em "O cliente aprovou".',
+      'Escolha quem vai executar o serviço e toque em "Aprovar e abrir a ordem".',
       'A ordem de serviço nasce aberta, com os itens do orçamento e o valor aprovado.',
+      'As peças do orçamento ficam reservadas para essa OS: continuam na prateleira, mas o catálogo mostra que já estão prometidas.',
     ],
     atencao:
-      'Se o orçamento tiver um indicador, a comissão dele nasce agora. Cancelar a ordem depois cancela a comissão.',
+      'Se faltar peça livre para o serviço, o app avisa na hora de aprovar — dá para aprovar mesmo assim, contando com a compra. Se o orçamento tiver um indicador, a comissão dele nasce agora; cancelar a ordem depois cancela a comissão.',
     visivel: (p) => p.editarOrcamentos,
   },
   {
@@ -115,7 +116,7 @@ export const GUIAS: Guia[] = [
       'Cabem até 5 fotos por OS. Cada uma guarda a data e não pode ser alterada depois.',
       'Ao tocar em "Iniciar serviço", o app pergunta se você quer fazer a vistoria de entrada. É opcional.',
       'Na vistoria, marque OK ou Avaria em cada item, o combustível e o que o cliente deixou com a moto.',
-      'As fotos saem no PDF da OS, junto com o serviço executado.',
+      'A vistoria e as fotos saem no PDF da OS, junto com o serviço executado.',
     ],
     atencao:
       'As fotos ficam guardadas enquanto durar a garantia do serviço, e no mínimo 30 dias depois da entrega. Depois saem sozinhas. Só o dono da oficina apaga uma foto antes disso.',
@@ -127,16 +128,46 @@ export const GUIAS: Guia[] = [
     titulo: 'Tocar a ordem de serviço até o fim',
     resumo: 'Cada passo fica registrado com quem deu e quando — inclusive o tempo na bancada.',
     passos: [
-      'Abra a OS e toque em "Começar" quando o serviço entrar na bancada. O relógio começa a contar.',
+      'Abra a OS e toque em "Iniciar serviço" quando a moto entrar na bancada. O relógio começa a contar.',
       '"Pausar" para quando parar, "Retomar" para voltar.',
       'O mecânico marca cada item como feito enquanto trabalha.',
-      'Quando terminar, ele toca em "Pronta para conferência".',
-      'Quem confere toca em "Finalizar" — é aqui que as peças saem do estoque.',
-      'Ao entregar a moto, toque em "Entregar".',
+      'Quando terminar, ele toca em "Terminei o serviço".',
+      'Quem confere toca em "Conferi: finalizar serviço" — é aqui que as peças saem do estoque. Se faltou algo, "Faltou algo: voltar ao serviço".',
+      'Quando o cliente buscar a moto, toque em "Cliente retirou a moto".',
     ],
     atencao:
       'Finalizar e cancelar são de quem atende, não do mecânico: é o passo que mexe no estoque e no dinheiro.',
     visivel: (p) => p.verOrdensDaOficina || p.ehMecanico,
+  },
+  {
+    id: 'avisar-cliente',
+    secao: 'Serviço',
+    titulo: 'Avisar o cliente e mandar o comprovante',
+    resumo: 'Com a OS finalizada, a mensagem de "está pronta" e o PDF saem com um toque.',
+    passos: [
+      'Abra a OS finalizada e toque em "Avisar que está pronta". O WhatsApp abre com a mensagem escrita.',
+      'Para o comprovante, toque em "Baixar PDF da ordem" ou "Compartilhar PDF".',
+      'O PDF leva os itens, o valor, o serviço executado, a vistoria de entrada e as fotos.',
+      'Quando o cliente buscar a moto, toque em "Cliente retirou a moto".',
+    ],
+    atencao:
+      'O que sai no PDF como "serviço executado" é a observação técnica da OS — o que o mecânico escreveu. Revise antes de mandar.',
+    visivel: (p) => p.gerenciarOrdens,
+  },
+  {
+    id: 'cancelar-os',
+    secao: 'Serviço',
+    titulo: 'O cliente desistiu: cancelar a ordem',
+    resumo: 'A ordem não se apaga: ela é cancelada, e o histórico fica.',
+    passos: [
+      'Abra a OS e toque em "Cancelar ordem". Dá para cancelar até o cliente retirar a moto.',
+      'Escreva o motivo: ele fica no histórico da OS.',
+      'Se a OS já estava finalizada, as peças voltam para o estoque sozinhas.',
+      'Para refazer o serviço com outros itens, abra o orçamento original, toque em "Duplicar", ajuste a cópia e aprove de novo.',
+    ],
+    atencao:
+      'Se já havia cobrança lançada para essa OS, ajuste em Financeiro. A comissão do indicador, se houver, é cancelada junto.',
+    visivel: (p) => p.gerenciarOrdens,
   },
   {
     id: 'falta-peca',
@@ -176,11 +207,26 @@ export const GUIAS: Guia[] = [
     resumo: 'O ajuste corrige a quantidade e deixa registrado o porquê.',
     passos: [
       'Menu → Catálogo → abra a peça.',
-      'Toque em "Ajustar estoque".',
+      'Toque em "Ajuste".',
       'Informe a quantidade que EXISTE de verdade na prateleira e o motivo.',
     ],
     atencao:
       'O extrato guarda todo ajuste. É por ele que se descobre se a peça está sumindo, e quando começou.',
+    visivel: (p) => p.verCatalogo,
+  },
+
+  {
+    id: 'peca-reservada',
+    secao: 'Estoque',
+    titulo: 'Saber quanto da peça está livre',
+    resumo: 'A peça prometida para uma OS continua na prateleira, mas não está livre para vender.',
+    passos: [
+      'Menu → Catálogo: ao lado do estoque aparece quanto está reservado. Ex.: "5 L · 2 reservados".',
+      'Abra a peça para ver para quais OS ela está reservada, com o link de cada uma.',
+      'Ao escolher peça num orçamento, numa OS ou numa venda, a lista mostra quantas estão livres.',
+    ],
+    atencao:
+      'A reserva some sozinha quando a OS é finalizada (aí a peça sai do estoque) ou cancelada (aí ela volta a ficar livre). Ninguém precisa mexer.',
     visivel: (p) => p.verCatalogo,
   },
 
@@ -193,11 +239,53 @@ export const GUIAS: Guia[] = [
     passos: [
       'Na OS finalizada, toque em "Lançar cobrança".',
       'Escolha em quantas vezes e a data do primeiro vencimento.',
-      'Quando o cliente pagar, abra Financeiro e toque em "Receber".',
+      'Quando o cliente pagar, abra Financeiro, toque na conta e em "Marcar como recebida".',
       'Se ele pagou só uma parte, informe o valor: a conta continua aberta pelo resto.',
     ],
     atencao:
       'Conta vencida aparece como "atrasada" sozinha, pela data. Ninguém precisa marcar nada.',
+    visivel: (p) => p.verFinanceiro,
+  },
+  {
+    id: 'pix',
+    secao: 'Dinheiro',
+    titulo: 'Cobrar por PIX',
+    resumo: 'O QR code e o "copia e cola" saem prontos, com o valor da conta.',
+    passos: [
+      'Antes da primeira vez: Configurações → Recebimento por PIX → escolha o tipo e digite a chave da oficina.',
+      'Abra Financeiro, aba "A receber", toque na conta e em "Cobrar por PIX".',
+      'Mostre o QR code ao cliente ou mande o código "copia e cola" pelo WhatsApp.',
+      'Quando o dinheiro cair, volte na conta e toque em "Marcar como recebida".',
+    ],
+    atencao:
+      'O app não vê o seu banco: ele monta a cobrança, mas quem confirma que o dinheiro entrou é você.',
+    visivel: (p) => p.verFinanceiro,
+  },
+  {
+    id: 'corrigir-lancamento',
+    secao: 'Dinheiro',
+    titulo: 'Lancei um recebimento ou pagamento errado',
+    resumo: 'Valor, data ou forma de pagamento errados se corrigem, e a correção fica registrada.',
+    passos: [
+      'Abra Financeiro e encontre a conta (filtro "Pagas").',
+      'Toque em "Corrigir recebimento" (ou "Corrigir pagamento", nas contas a pagar).',
+      'Informe o valor, a data e a forma certos, e escreva o motivo da correção.',
+    ],
+    atencao:
+      'O lançamento antigo não é apagado: a conta mostra o histórico com o que era, o que ficou e quem corrigiu.',
+    visivel: (p) => p.verFinanceiro,
+  },
+  {
+    id: 'despesa',
+    secao: 'Dinheiro',
+    titulo: 'Lançar uma despesa',
+    resumo: 'Aluguel, luz, fornecedor: o que a oficina tem para pagar, com vencimento.',
+    passos: [
+      'Abra Financeiro e toque em "Lançar despesa".',
+      'Preencha descrição, fornecedor, categoria, valor e vencimento.',
+      'Se ela se repete todo mês, como o aluguel, informe em "Repetir por quantos meses".',
+      'Quando pagar, abra a conta na aba "A pagar" e toque em "Paguei".',
+    ],
     visivel: (p) => p.verFinanceiro,
   },
   {
@@ -243,6 +331,19 @@ export const GUIAS: Guia[] = [
     visivel: (p) => p.verPainel,
   },
 
+  {
+    id: 'quem-sumiu',
+    secao: 'Atendimento',
+    titulo: 'Chamar de volta o cliente que sumiu',
+    resumo: 'A lista de quem não volta há tempo, com a mensagem pronta para o WhatsApp.',
+    passos: [
+      'Menu → Clientes → "Quem sumiu".',
+      'Aparecem os clientes sem serviço concluído há 30 dias ou mais. Em "A partir de quantos dias" dá para mudar o prazo.',
+      'Toque em "Chamar no WhatsApp" e mande a mensagem — dá para ajustar o texto antes.',
+    ],
+    visivel: (p) => p.editarClientes,
+  },
+
   // Cadastros ----------------------------------------------------------------
   {
     id: 'cadastrar-moto',
@@ -265,7 +366,7 @@ export const GUIAS: Guia[] = [
     titulo: 'Montar o catálogo de peças e serviços',
     resumo: 'O que está no catálogo entra no orçamento com dois toques.',
     passos: [
-      'Menu → Catálogo → "Nova peça" ou "Novo serviço".',
+      'Menu → Catálogo → "Novo produto" (peça) ou, na aba Serviços, "Novo serviço".',
       'Na peça, informe preço de custo, preço de venda e o estoque mínimo.',
       'No serviço, informe o preço e o tempo estimado.',
       'Um item avulso pode virar serviço do catálogo: marque a chave ao criá-lo no orçamento.',
@@ -282,11 +383,51 @@ export const GUIAS: Guia[] = [
     passos: [
       'Menu → Colaboradores → "Novo colaborador".',
       'Escolha o perfil: administrador vê tudo; vendedor não mexe no catálogo; mecânico vê só as ordens dele.',
-      'A pessoa recebe um e-mail para criar a senha.',
+      'Informe o e-mail e uma senha inicial, e passe os dois para a pessoa. Ela pode trocar a senha depois.',
     ],
     atencao:
       'O mecânico não vê dinheiro em lugar nenhum do app. É de propósito.',
     visivel: (p) => p.editarColaboradores,
+  },
+
+  {
+    id: 'marca',
+    secao: 'Cadastros',
+    titulo: 'Colocar o logo e a cor da oficina',
+    resumo: 'O logo e a cor aparecem no app, no orçamento e no PDF da OS.',
+    passos: [
+      'Menu → Configurações → "A marca da oficina".',
+      'Escolha o arquivo do logo (PNG ou JPG, até 2 MB).',
+      'Escolha a cor. O app confere se o texto continua legível sobre ela.',
+    ],
+    visivel: (p) => p.verConfiguracoes,
+  },
+  {
+    id: 'plano',
+    secao: 'Cadastros',
+    titulo: 'Assinar ou trocar de plano',
+    resumo: 'A assinatura é feita no próprio app, por PIX ou cartão.',
+    passos: [
+      'Menu → Configurações → desça até "Sua conta" e os planos.',
+      'Toque em "Assinar" no plano que você quer.',
+      'Escolha PIX ou cartão e toque em "Gerar a cobrança". A cobrança chega no seu e-mail.',
+    ],
+    atencao:
+      'Não trabalhamos com boleto: ele leva até dois dias para compensar, e isso deixaria a oficina em atraso sem ter culpa.',
+    visivel: (p) => p.verConfiguracoes,
+  },
+  {
+    id: 'baixar-dados',
+    secao: 'Cadastros',
+    titulo: 'Baixar todos os dados da oficina',
+    resumo: 'Os dados são seus: clientes, motos, serviços, estoque e financeiro, em planilha.',
+    passos: [
+      'Menu → Configurações → "Sua conta".',
+      'Toque em "Baixar meus dados".',
+      'Chega uma pasta de planilhas que abre no Excel ou no Google Planilhas.',
+    ],
+    atencao: 'Funciona em qualquer situação da conta, inclusive encerrada. As fotos das OS não vão nas planilhas.',
+    visivel: (p) => p.verConfiguracoes,
   },
 
   // Fiscal -------------------------------------------------------------------
@@ -329,7 +470,7 @@ export const VOCABULARIO: Termo[] = [
   {
     termo: 'Entregar',
     explicacao:
-      'A moto saiu da oficina. É o fim do caminho da OS, e a partir daí ela não muda mais.',
+      'A moto saiu da oficina — o botão é "Cliente retirou a moto". É o fim do caminho da OS, e a partir daí ela não muda mais. É também da entrega que conta o prazo das fotos.',
     visivel: todos,
   },
   {
@@ -361,6 +502,12 @@ export const VOCABULARIO: Termo[] = [
     explicacao:
       'A peça que já está prometida para uma OS em aberto. Ela continua na prateleira e só sai do estoque quando a OS for finalizada — mas o catálogo e a busca de peças mostram quanto sobra livre, para o balcão não vender o que está separado para uma moto.',
     visivel: (p) => p.verCatalogo,
+  },
+  {
+    termo: 'Vistoria de entrada',
+    explicacao:
+      'O registro de como a moto chegou: o que estava OK, o que tinha avaria, o combustível e o que o cliente deixou. É opcional, e sai no PDF da OS.',
+    visivel: (p) => p.verOrdensDaOficina || p.ehMecanico,
   },
   {
     termo: 'Ajuste de estoque',
