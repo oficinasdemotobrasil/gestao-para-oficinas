@@ -4241,6 +4241,10 @@ async function testarFotosDaOs() {
   )
 
   await logarComo(ID.vendedorA)
+  await esperaErro(
+    'não dá para marcar como enviada a foto cujo arquivo não chegou (0080)',
+    `update public.os_fotos set enviada = true where caminho = '${doOutro}'`,
+  )
   await db.query(`update public.os_fotos set enviada = true where caminho = $1`, [primeira])
   ok('quem enviou marca o envio')
   await esperaErro(
@@ -4435,6 +4439,20 @@ async function testarFotosDaOs() {
   await esperaErro(
     'combustível fora da lista é recusado',
     `update public.os_vistorias set combustivel = 'muito' where ordem_servico_id = '${doMecanico2}'`,
+  )
+
+  // Depois da entrega, a vistoria é prova: nem editar, nem apagar (0080).
+  await logarComo(ID.adminA)
+  await db.query(`select public.mudar_status_da_os('${doMecanico2}', 'em_andamento')`)
+  await db.query(`select public.finalizar_os('${doMecanico2}', false)`)
+  await db.query(`select public.mudar_status_da_os('${doMecanico2}', 'entregue')`)
+  await esperaErro(
+    'depois da entrega, a vistoria não muda',
+    `update public.os_vistorias set pertences = 'nada' where ordem_servico_id = '${doMecanico2}'`,
+  )
+  await esperaErro(
+    'nem é apagada, nem pelo dono',
+    `delete from public.os_vistorias where ordem_servico_id = '${doMecanico2}'`,
   )
 
   // Oficina suspensa ------------------------------------------------------------
