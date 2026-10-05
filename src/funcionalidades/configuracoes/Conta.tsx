@@ -19,6 +19,7 @@ import { data as formatarData, moeda, diasAte } from '@/lib/formato'
 import { planilhaDaExportacao, nomeDoArquivoDaExportacao } from '@/lib/planilha'
 import type { StatusOficina } from '@/tipos/banco'
 import { Assinatura } from './Assinatura'
+import { ROTULO_DO_PERIODO, SUFIXO_DO_PERIODO } from './precos'
 
 const NOME_DA_SITUACAO: Record<StatusOficina, string> = {
   teste: 'Período de teste',
@@ -66,6 +67,29 @@ export function Conta() {
         .select('*')
         .eq('id', oficina!.plano)
         .maybeSingle()
+      if (error) throw error
+      return data
+    },
+  })
+
+  // Como a oficina paga hoje. As chaves são as mesmas da tela de assinatura,
+  // então as duas leituras são uma só.
+  const vitalicia = useQuery({
+    queryKey: ['vitalicia', oficina?.id],
+    enabled: Boolean(oficina),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('minha_oficina_e_vitalicia')
+      if (error) throw error
+      return Boolean(data)
+    },
+  })
+  const contrato = useQuery({
+    queryKey: ['assinatura', oficina?.id],
+    enabled: Boolean(oficina),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('assinaturas').select('*').eq('situacao', 'ativa')
+        .order('criado_em', { ascending: false }).limit(1).maybeSingle()
       if (error) throw error
       return data
     },
@@ -169,9 +193,13 @@ export function Conta() {
 
         <dl className="grid gap-4 pt-5 tablet:grid-cols-3">
           <div>
-            <dt className="text-apoio text-em-superficie-2">Mensalidade</dt>
+            <dt className="text-apoio text-em-superficie-2">Pagamento</dt>
             <dd className="text-corpo text-em-superficie">
-              {plano.data ? moeda(Number(plano.data.preco_mensal)) : '—'}
+              {vitalicia.data
+                ? 'Vitalício — sem mensalidade'
+                : contrato.data?.valor
+                  ? `${ROTULO_DO_PERIODO[contrato.data.periodo]} · ${moeda(Number(contrato.data.valor))} ${SUFIXO_DO_PERIODO[contrato.data.periodo]}`
+                  : 'Sem assinatura'}
             </dd>
           </div>
           <div>

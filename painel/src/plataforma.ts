@@ -70,7 +70,17 @@ export interface OficinaNaLista {
   /** Administradores ativos, sem a conta de suporte. O primeiro é o mais antigo. */
   responsaveis: { nome: string; email: string; telefone: string | null }[]
   /** O contrato em vigor. Nulo é quem nunca assinou ou já encerrou. */
-  assinatura: { plano: Plano; inicio: string; proxima_cobranca: string | null } | null
+  assinatura: {
+    plano: Plano
+    inicio: string
+    proxima_cobranca: string | null
+    /** Desde a 0082. Ausente antes dela: conta como mensal. */
+    periodo?: 'mensal' | 'trimestral' | 'anual'
+    valor?: number | null
+    parcelas?: number
+  } | null
+  /** Ocupa uma das 30 vagas vitalícias (0082). */
+  vitalicia?: boolean
   /** Fotos de OS guardadas e o limite do plano (0079). Nulo antes da migração. */
   fotos: { em_uso: number; limite: number | null } | null
 }
@@ -191,6 +201,7 @@ export const listarOficinas = async () => {
       ...o,
       responsaveis: o.responsaveis ?? [],
       fotos: o.fotos ?? null,
+      vitalicia: o.vitalicia ?? false,
     })),
   }
 }
@@ -304,3 +315,36 @@ export const TOM_DA_SITUACAO: Record<SituacaoCalculada, string> = {
 
 export const dinheiro = (valor: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor)
+
+// As vagas vitalícias (0082) -------------------------------------------------------
+
+export interface Vitalicio {
+  id: string
+  oficina_id: string | null
+  comprador: string
+  email: string | null
+  valor: number
+  origem: 'fora_do_app' | 'app'
+  situacao: 'reservada' | 'paga'
+  reservada_ate: string | null
+  observacao: string | null
+  vendido_em: string
+  oficinas: { nome: string } | null
+}
+
+export const listarVitalicios = () =>
+  chamar<{ vitalicios: Vitalicio[]; restantes: number; total: number }>({ acao: 'vitalicios' })
+
+/** Venda paga por fora, antes de a pessoa ter oficina no GIRO. Ocupa uma vaga. */
+export const registrarVitalicio = (comprador: string, email: string | null, valor: number) =>
+  chamar<{ ok: true; id: string }>({ acao: 'vitalicio_registrar', comprador, email, valor })
+
+/** Liga a vaga à oficina: acesso sem prazo, e a mensalidade antiga cancelada. */
+export const homologarVitalicio = (vitalicio_id: string, oficina_id: string) =>
+  chamar<{ ok: true; aviso: string | null }>({ acao: 'vitalicio_homologar', vitalicio_id, oficina_id })
+
+export const ROTULO_DO_PERIODO: Record<string, string> = {
+  mensal: 'Mensal',
+  trimestral: 'Trimestral',
+  anual: 'Anual',
+}

@@ -83,7 +83,15 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
    */
   const [parametros, definirParametros] = useSearchParams()
   const planoNaUrl = parametros.get('plano')
-  const escolhido = (planos ?? []).find((p) => p.id === planoNaUrl) ?? null
+  /*
+   * Com um plano só à venda (0082), não há o que escolher: a pessoa vai
+   * direto para o cadastro, e o período (mensal, anual…) ela escolhe no fim
+   * do teste. O passo de escolha continua aqui para o dia em que voltar a
+   * haver mais de um plano.
+   */
+  const pagos = (planos ?? []).filter((p) => Number(p.preco_mensal) > 0)
+  const planoUnico = pagos.length === 1 ? pagos[0] : null
+  const escolhido = (planos ?? []).find((p) => p.id === planoNaUrl) ?? planoUnico
 
   /*
    * O e-mail digitado na página do produto chega pelo endereço e já preenche o
@@ -262,19 +270,23 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
   // Passo 2: a conta ---------------------------------------------------------
   return (
     <MolduraDeEntrada>
-      <button
-        type="button"
-        onClick={() => definirParametros(emailNaUrl ? { email: emailNaUrl } : {})}
-        className="flex min-h-toque items-center gap-1.5 text-corpo text-em-fundo-2"
-      >
-        <ArrowLeft aria-hidden size={18} />
-        Trocar de plano
-      </button>
+      {!planoUnico && (
+        <button
+          type="button"
+          onClick={() => definirParametros(emailNaUrl ? { email: emailNaUrl } : {})}
+          className="flex min-h-toque items-center gap-1.5 text-corpo text-em-fundo-2"
+        >
+          <ArrowLeft aria-hidden size={18} />
+          Trocar de plano
+        </button>
+      )}
 
       <div className="pb-6 pt-2">
         <h1 className="text-secao text-em-fundo">Criar a conta da oficina</h1>
         <p className="pt-1 text-corpo text-em-fundo-2">
-          Plano {escolhido.nome} · 7 dias de teste com tudo liberado, sem cartão.
+          {planoUnico
+            ? '7 dias de teste com tudo liberado, sem cartão. Só paga se decidir ficar.'
+            : `Plano ${escolhido.nome} · 7 dias de teste com tudo liberado, sem cartão.`}
         </p>
       </div>
 

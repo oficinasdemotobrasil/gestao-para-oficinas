@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { Negocio } from './Negocio'
+import { Vitalicios } from './Vitalicios'
 import {
   FichaDaOficina,
   data,
@@ -24,6 +25,7 @@ import {
   dinheiro,
   ROTULO_CALCULADO,
   TOM_DA_SITUACAO,
+  ROTULO_DO_PERIODO,
   alertaDeFotos,
   type Indicadores,
   type PainelDoNegocio,
@@ -186,7 +188,7 @@ function NovaOficina({ aoCriar }: { aoCriar: () => void }) {
           onChange={(e) => setPlano(e.target.value as Plano)}
           className="h-11 rounded-controle border border-borda-clara px-3 text-claro"
         >
-          {PLANOS.map((p) => (
+          {PLANOS.filter((p) => p !== 'essencial').map((p) => (
             <option key={p} value={p}>
               {ROTULO_DO_PLANO[p]}
             </option>
@@ -305,7 +307,7 @@ function Lista({ sessao }: { sessao: Session }) {
   const [oficinas, setOficinas] = useState<OficinaNaLista[] | null>(null)
   const [indicadores, setIndicadores] = useState<Indicadores | null>(null)
   const [negocio, setNegocio] = useState<PainelDoNegocio | null>(null)
-  const [aba, setAba] = useState<'negocio' | 'oficinas'>('negocio')
+  const [aba, setAba] = useState<'negocio' | 'oficinas' | 'vitalicios'>('negocio')
   const [erro, setErro] = useState('')
   const [mexendo, setMexendo] = useState<string | null>(null)
 
@@ -412,6 +414,7 @@ function Lista({ sessao }: { sessao: Session }) {
         {([
           ['negocio', 'O negócio'],
           ['oficinas', 'As oficinas'],
+          ['vitalicios', 'Vitalícios'],
         ] as const).map(([valor, rotulo]) => (
           <button
             key={valor}
@@ -431,6 +434,8 @@ function Lista({ sessao }: { sessao: Session }) {
       </div>
 
       {aba === 'negocio' && negocio && <Negocio painel={negocio} />}
+
+      {aba === 'vitalicios' && <Vitalicios oficinas={oficinas ?? []} aoMudar={() => void carregar()} />}
 
       {/* Os números do negócio ------------------------------------------------ */}
       {aba === 'oficinas' && indicadores && (
@@ -487,7 +492,7 @@ function Lista({ sessao }: { sessao: Session }) {
           className="h-11 rounded-controle border border-borda-escura bg-transparent px-3 text-sm text-escuro"
         >
           <option value="">Todos os planos</option>
-          {PLANOS.map((p) => (
+          {PLANOS.filter((p) => p !== 'essencial').map((p) => (
             <option key={p} value={p}>
               {ROTULO_DO_PLANO[p]}
             </option>
@@ -602,12 +607,22 @@ function Lista({ sessao }: { sessao: Session }) {
                         }
                         className="h-9 rounded-controle border border-borda-clara px-2 text-sm text-claro"
                       >
-                        {PLANOS.map((p) => (
+                        {/* O Essencial saiu de venda (0082): só aparece para quem
+                            ainda está nele, para o seletor não mostrar outra coisa. */}
+                        {PLANOS.filter((p) => p !== 'essencial' || o.plano === 'essencial').map((p) => (
                           <option key={p} value={p}>
                             {ROTULO_DO_PLANO[p]}
                           </option>
                         ))}
                       </select>
+                      {/* Como paga, além de qual plano (0082). */}
+                      <span className="block pt-1 text-xs text-claro-secundario">
+                        {o.vitalicia
+                          ? '♾ Vitalícia'
+                          : o.assinatura
+                            ? `${ROTULO_DO_PERIODO[o.assinatura.periodo ?? 'mensal']}${(o.assinatura.parcelas ?? 1) > 1 ? ` em ${o.assinatura.parcelas}x` : ''}`
+                            : 'Sem assinatura'}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       {/* O selo é o atalho da conversa que a situação pede. */}

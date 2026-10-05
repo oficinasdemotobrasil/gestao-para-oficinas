@@ -3,6 +3,7 @@ import {
   dinheiro,
   ROTULO_CALCULADO,
   ROTULO_DO_PLANO,
+  ROTULO_DO_PERIODO,
   alertaDeFotos,
   type OficinaNaLista,
   type SituacaoCalculada,
@@ -341,6 +342,14 @@ export function FichaDaOficina({ o }: { o: OficinaNaLista }) {
           {o.mensalidade ? ` · ${dinheiro(o.mensalidade)}/mês` : ''}
         </Linha>
         <Linha rotulo="Situação hoje">{ROTULO_CALCULADO[o.situacao]}</Linha>
+        {o.vitalicia && <Linha rotulo="Pagamento">Vitalícia — sem mensalidade</Linha>}
+        {!o.vitalicia && o.assinatura?.periodo && (
+          <Linha rotulo="Pagamento">
+            {ROTULO_DO_PERIODO[o.assinatura.periodo]}
+            {o.assinatura.valor ? ` · ${dinheiro(Number(o.assinatura.valor))}` : ''}
+            {(o.assinatura.parcelas ?? 1) > 1 ? ` em ${o.assinatura.parcelas}x no cartão` : ''}
+          </Linha>
+        )}
         {o.fotos && (
           <Linha rotulo="Fotos de OS guardadas">
             {o.fotos.em_uso}

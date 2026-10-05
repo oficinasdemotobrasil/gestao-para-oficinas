@@ -1,30 +1,47 @@
 /**
- * Onde a oficina escolhe o plano e assina.
+ * Onde a oficina escolhe como pagar e assina.
  *
- * É a tela em que alguém decide gastar dinheiro, então ela diz três coisas que
- * normalmente ficam escondidas no rodapé:
+ * Desde a 0082 o GIRO tem um plano só, com tudo. A pergunta deixou de ser
+ * "qual plano?" e virou "por quanto tempo?": mensal, trimestral, anual ou
+ * vitalício. O anual vem em destaque, porque é a melhor oferta recorrente —
+ * cada cartão mostra quanto sai por mês e quanto economiza, para a conta já
+ * estar feita.
  *
- *   • o que muda de um plano para o outro, sem eufemismo;
+ * É a tela em que alguém decide gastar dinheiro, então ela diz o que
+ * normalmente fica escondido no rodapé:
+ *
+ *   • o total do parcelado, com a taxa do cartão, ANTES de pagar — a lei
+ *     permite repassar a taxa só se o valor final aparecer antes;
  *   • que assinar não cobra na hora — gera a fatura, e o acesso só se estende
  *     quando o pagamento é identificado;
  *   • que cancelar não corta nada antes do fim do período já pago.
  *
  * Boleto ficou de fora de propósito: ele leva até dois dias para compensar, e
- * numa mensalidade barata isso vira a oficina entrando em carência todo mês
- * sem ter culpa. Débito não entra porque o provedor não oferece débito em
- * assinatura recorrente — conferido na documentação dele, não suposto.
+ * isso vira a oficina entrando em carência sem ter culpa.
  */
-import { useEffect, useState } from 'react'
-import { Check, Copy, CreditCard, Loader2, QrCode } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, Copy, CreditCard, Infinity as Infinito, Loader2, QrCode } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Botao } from '@/componentes/ui/Botao'
 import { Modal } from '@/componentes/ui/Modal'
+import { Selecao } from '@/componentes/ui/Campo'
 import { useToast } from '@/componentes/ui/Toast'
 import { useAuth } from '@/auth/ProvedorAuth'
 import { supabase } from '@/lib/supabase'
 import { traduzirErro } from '@/lib/erros'
 import { moeda, data as formatarData } from '@/lib/formato'
-import type { Plano, PlanoOficina } from '@/tipos/banco'
+import { cn } from '@/lib/cn'
+import type { PeriodoDePagamento, Plano, Preco } from '@/tipos/banco'
+import {
+  PERIODO_EM_DESTAQUE,
+  ROTULO_DO_PERIODO,
+  SUFIXO_DO_PERIODO,
+  economia,
+  porMes,
+  useParcelas,
+  usePrecos,
+  useVagasVitalicias,
+} from './precos'
 
 type Forma = 'PIX' | 'CREDIT_CARD'
 
@@ -34,55 +51,53 @@ interface Pix {
   expira_em: string | null
 }
 
-const FORMAS: { valor: Forma; rotulo: string; detalhe: string; Icone: typeof QrCode }[] = [
-  {
-    valor: 'PIX',
-    rotulo: 'PIX',
-    detalhe: 'Cai na hora. Todo mês chega um código novo para pagar.',
-    Icone: QrCode,
-  },
-  {
-    valor: 'CREDIT_CARD',
-    rotulo: 'Cartão de crédito',
-    detalhe: 'Cobrado sozinho todo mês, sem você precisar lembrar.',
-    Icone: CreditCard,
-  },
-]
+/** O que cada forma quer dizer, conforme o período. */
+function detalheDaForma(forma: Forma, periodo: PeriodoDePagamento, parcelado: boolean): string {
+  if (forma === 'PIX') {
+    if (periodo === 'vitalicio') return 'Cai na hora. Um pagamento só, para sempre.'
+    if (periodo === 'mensal') return 'Cai na hora. Todo mês chega um código novo para pagar.'
+    return `Cai na hora. A cada ${periodo === 'anual' ? 'ano' : 'três meses'} chega um código novo.`
+  }
+  if (periodo === 'vitalicio') return 'À vista ou parcelado na fatura do seu cartão.'
+  if (parcelado) return 'Parcelado na fatura do seu cartão.'
+  return 'Cobrado sozinho a cada período, sem você precisar lembrar.'
+}
 
 export function Assinatura() {
   const { oficina, recarregarUsuario } = useAuth()
   const toast = useToast()
   const fila = useQueryClient()
 
-  const [escolhido, setEscolhido] = useState<PlanoOficina | null>(null)
+  const [periodo, setPeriodo] = useState<PeriodoDePagamento | null>(null)
   const [forma, setForma] = useState<Forma>('PIX')
+  const [parcelas, setParcelas] = useState(1)
   const [enviando, setEnviando] = useState(false)
   const [fatura, setFatura] = useState<string | null>(null)
   const [pix, setPix] = useState<Pix | null>(null)
   const [copiado, setCopiado] = useState(false)
   const [confirmado, setConfirmado] = useState(false)
-  // A escolha consciente do downgrade. Volta a falso a cada plano escolhido:
-  // quem aceitou perder o financeiro num plano não aceitou no outro.
-  const [downgradeAceito, setDowngradeAceito] = useState(false)
 
-  const planos = useQuery({
-    queryKey: ['planos'],
+  const precos = usePrecos()
+  const vagas = useVagasVitalicias()
+  const opcoesDeParcela = useParcelas(periodo && forma === 'CREDIT_CARD' ? periodo : null)
+
+  const plano = useQuery({
+    queryKey: ['plano-completo'],
+    staleTime: 10 * 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('planos').select('*').eq('ativo', true).order('ordem')
+      const { data, error } = await supabase.from('planos').select('*').eq('id', 'completo').maybeSingle()
       if (error) throw error
-      return data as Plano[]
+      return data as Plano | null
     },
   })
 
-  const pessoas = useQuery({
-    queryKey: ['pessoas-ativas', oficina?.id],
+  const vitalicia = useQuery({
+    queryKey: ['vitalicia', oficina?.id],
     enabled: Boolean(oficina),
     queryFn: async () => {
-      const { count, error } = await supabase
-        .from('usuarios').select('*', { count: 'exact', head: true }).eq('ativo', true)
+      const { data, error } = await supabase.rpc('minha_oficina_e_vitalicia')
       if (error) throw error
-      return count ?? 0
+      return Boolean(data)
     },
   })
 
@@ -98,129 +113,75 @@ export function Assinatura() {
     },
   })
 
-  /**
-   * Enquanto o código está na tela, perguntamos de tempos em tempos se o
+  /*
+   * Enquanto o código PIX está na tela, perguntamos de tempos em tempos se o
    * pagamento caiu.
    *
    * Quem paga PIX paga pelo aplicativo do banco, no mesmo celular, e volta
-   * para cá esperando ver alguma coisa mudar. Mandar recarregar a página seria
-   * transferir para a pessoa um trabalho que é nosso.
+   * para cá esperando ver alguma coisa mudar. A prova de que o dinheiro entrou
+   * é o prazo de acesso mudar — inclusive para "sem prazo", no vitalício.
    */
+  const prazoAntes = useRef<string | null | undefined>(undefined)
   useEffect(() => {
     if (!pix || confirmado) return
-    const relogio = setInterval(() => {
-      void (async () => {
-        await recarregarUsuario()
-        const { data } = await supabase
-          .from('assinaturas').select('proxima_cobranca')
-          .eq('situacao', 'ativa').limit(1).maybeSingle()
-        // O acesso passou a valer além do teste: o dinheiro entrou.
-        if (data && oficina?.acesso_ate && data.proxima_cobranca === oficina.acesso_ate) {
-          setConfirmado(true)
-        }
-      })()
-    }, 6000)
+    if (prazoAntes.current === undefined) prazoAntes.current = oficina?.acesso_ate ?? null
+    const relogio = setInterval(() => void recarregarUsuario(), 6000)
     return () => clearInterval(relogio)
   }, [pix, confirmado, oficina?.acesso_ate, recarregarUsuario])
 
+  useEffect(() => {
+    if (!pix || confirmado || prazoAntes.current === undefined) return
+    if ((oficina?.acesso_ate ?? null) !== prazoAntes.current) {
+      setConfirmado(true)
+      void fila.invalidateQueries({ queryKey: ['vitalicia'] })
+      void fila.invalidateQueries({ queryKey: ['assinatura'] })
+    }
+  }, [pix, confirmado, oficina?.acesso_ate, fila])
+
+  // Trocar de período ou de forma volta para 1x: a escolha de parcelas era
+  // de outra combinação.
+  useEffect(() => setParcelas(1), [periodo, forma])
+
   if (!oficina) return null
-  const temAssinatura = Boolean(assinatura.data)
 
-  /**
-   * O que a oficina perde ao escolher este plano.
-   *
-   * Dito ANTES de confirmar, não depois. Descobrir que o financeiro sumiu
-   * porque você economizou vinte reais é o tipo de surpresa que faz cancelar.
-   */
-  const planoAtual = planos.data?.find((p) => p.id === oficina.plano)
-  const planoEscolhido = planos.data?.find((p) => p.id === escolhido)
-
-  function perdasAoTrocar(candidato: Plano | undefined): string[] {
-    const lista: string[] = []
-    if (!planoAtual || !candidato) return lista
-    if (planoAtual.tem_financeiro && !candidato.tem_financeiro) {
-      lista.push('Você perde o módulo financeiro: contas a receber, contas a pagar e cobrança por PIX.')
-    }
-    const limite = candidato.limite_colaboradores
-    const quantas = pessoas.data ?? 0
-    if (limite != null && quantas > limite) {
-      lista.push(
-        `A sua oficina tem ${quantas} pessoas com acesso e este plano permite ${limite}. ` +
-          'Ninguém é desativado, mas você não consegue cadastrar mais ninguém até liberar vagas.',
-      )
-    }
-    return lista
-  }
-
-  const perdas = perdasAoTrocar(planoEscolhido)
-
-  /*
-   * O plano mais barato que não tira nada de quem está aqui hoje.
-   *
-   * Descoberto pela mesma conta das perdas, e não pelo nome: quando um plano
-   * novo entrar na tabela, esta tela acerta sozinha. É o "seguir com o plano
-   * maior" que a pessoa precisa ter na mão na hora de decidir — sem ele,
-   * recusar o downgrade seria fechar a janela e procurar o outro cartão.
-   */
-  const semPerdas = (planos.data ?? [])
-    .filter(
-      (p) =>
-        Number(p.preco_mensal) > 0 && p.id !== escolhido && perdasAoTrocar(p).length === 0,
-    )
-    .sort((a, b) => Number(a.preco_mensal) - Number(b.preco_mensal))[0]
-
-  // Enquanto a pessoa não decide, a tela de pagamento não aparece.
-  const decidindo = perdas.length > 0 && !downgradeAceito
-
-  function escolherPlano(id: PlanoOficina) {
-    setDowngradeAceito(false)
-    setEscolhido(id)
-  }
-
-  function fecharEscolha() {
-    setDowngradeAceito(false)
-    setEscolhido(null)
-  }
+  const lista = precos.data ?? []
+  const mensal = lista.find((p) => p.periodo === 'mensal')
+  const escolhido = lista.find((p) => p.periodo === periodo)
+  const opcaoEscolhida = opcoesDeParcela.data?.find((o) => o.parcelas === parcelas)
+  const restam = vagas.data ?? 0
 
   async function assinar() {
-    if (!escolhido) return
+    if (!periodo) return
     setEnviando(true)
     try {
       const { data, error } = await supabase.functions.invoke('assinatura', {
-        body: { acao: 'assinar', plano: escolhido, forma },
+        body: { acao: 'assinar', periodo, forma, parcelas },
       })
       if (error) {
         // A função explica no corpo; o erro do invoke só diz o número.
         const resposta = (error as { context?: Response }).context
         const corpo = resposta ? await resposta.json().catch(() => null) : null
-        throw new Error(corpo?.erro ?? 'Não foi possível criar a assinatura.')
+        if (corpo?.esgotado) void fila.invalidateQueries({ queryKey: ['vagas-vitalicias'] })
+        throw new Error(corpo?.erro ?? 'Não foi possível criar a cobrança.')
       }
       if (data?.erro) throw new Error(data.erro)
 
-      await Promise.all([
-        recarregarUsuario(),
-        fila.invalidateQueries({ queryKey: ['assinatura'] }),
-      ])
-      setEscolhido(null)
-      setDowngradeAceito(false)
+      await fila.invalidateQueries({ queryKey: ['assinatura'] })
+      setPeriodo(null)
 
       // No PIX a pessoa NÃO sai do aplicativo: o código aparece aqui mesmo.
-      // Sair para pagar é onde se perde gente — muda de contexto, não entende
-      // de quem é a tela, desiste.
       if (data.pix) {
+        prazoAntes.current = oficina?.acesso_ate ?? null
         setPix(data.pix as Pix)
         return
       }
-
-      // No cartão, o provedor precisa receber os dados dele, e isso não passa
-      // por nós de propósito: dado de cartão que não toca no nosso sistema é
-      // dado de cartão que não temos como vazar.
+      // No cartão, os dados vão direto para o provedor, e isso não passa por
+      // nós de propósito: dado de cartão que não toca no nosso sistema é dado
+      // de cartão que não temos como vazar.
       if (data.link_da_fatura) {
         window.location.href = data.link_da_fatura as string
         return
       }
-
-      // Sem QR e sem link, a cobrança existe e chega por e-mail.
       setFatura('sem-link')
     } catch (e) {
       toast.erro(traduzirErro(e))
@@ -237,10 +198,7 @@ export function Assinatura() {
       })
       if (error) throw error
       if (data?.erro) throw new Error(data.erro)
-      await Promise.all([
-        recarregarUsuario(),
-        fila.invalidateQueries({ queryKey: ['assinatura'] }),
-      ])
+      await Promise.all([recarregarUsuario(), fila.invalidateQueries({ queryKey: ['assinatura'] })])
       toast.sucesso('Assinatura cancelada. Seu acesso segue até o fim do período pago.')
     } catch (e) {
       toast.erro(traduzirErro(e))
@@ -249,241 +207,197 @@ export function Assinatura() {
     }
   }
 
+  // Vitalícia: não há o que assinar --------------------------------------------
+  if (vitalicia.data) {
+    return (
+      <div className="flex items-start gap-3 rounded-card bg-superficie p-4 tablet:p-6">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-acento-suave">
+          <Infinito aria-hidden size={22} className="text-em-superficie" />
+        </span>
+        <div>
+          <p className="text-secao text-em-superficie">Sua oficina é vitalícia</p>
+          <p className="pt-1 text-corpo text-em-superficie-2">
+            Acesso a tudo o que o GIRO tem, para sempre, sem mensalidade. Obrigado por acreditar
+            desde o começo.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const contrato = assinatura.data
+  const parcelado = Boolean(contrato && contrato.parcelas > 1)
+  const diasParaVencer = oficina.acesso_ate
+    ? Math.round((new Date(`${oficina.acesso_ate}T12:00:00`).getTime() - Date.now()) / 86_400_000)
+    : null
+  // O anual parcelado não renova sozinho: perto do fim, a oficina assina de novo.
+  const podeRenovar = parcelado && diasParaVencer !== null && diasParaVencer <= 30
+
   return (
     <div className="rounded-card bg-superficie p-4 tablet:p-6">
-      {temAssinatura ? (
+      {contrato && !podeRenovar ? (
         <>
           <p className="text-corpo text-em-superficie">
-            Assinatura ativa no plano{' '}
-            <strong>{planos.data?.find((p) => p.id === assinatura.data!.plano)?.nome}</strong>.
+            Assinatura <strong>{ROTULO_DO_PERIODO[contrato.periodo].toLowerCase()}</strong>
+            {contrato.valor ? (
+              <>
+                {' '}· {moeda(Number(contrato.valor))} {SUFIXO_DO_PERIODO[contrato.periodo]}
+                {parcelado && ` (em ${contrato.parcelas}x no cartão)`}
+              </>
+            ) : null}
+            .
           </p>
-
-          {/* Enquanto o pagamento não é identificado, o plano que vale ainda é
-              o antigo. Mostrar os dois números sem explicar foi o que fez
-              alguém pagar 29,99, ver 49,99 na tela e não saber qual valia. */}
-          {assinatura.data!.plano !== oficina.plano && (
-            <p className="mt-2 rounded-controle bg-atencao-fundo px-4 py-3 text-apoio text-em-superficie">
-              Você assinou o{' '}
-              <strong>
-                {planos.data?.find((p) => p.id === assinatura.data!.plano)?.nome}
-              </strong>
-              , e hoje ainda está valendo o{' '}
-              <strong>{planos.data?.find((p) => p.id === oficina.plano)?.nome}</strong>. A
-              troca acontece quando o pagamento for identificado.
-            </p>
+          <p className="pt-1 text-apoio text-em-superficie-2">
+            {parcelado
+              ? `Vale até ${oficina.acesso_ate ? formatarData(oficina.acesso_ate) : '—'}. Um mês antes, aparece aqui o botão para renovar.`
+              : `Próxima cobrança em ${contrato.proxima_cobranca ? formatarData(contrato.proxima_cobranca) : 'a definir'}. Cancelar não corta nada antes do fim do período já pago.`}
+          </p>
+          {!parcelado && (
+            <div className="pt-4">
+              <Botao type="button" variante="perigo" carregando={enviando} onClick={() => void cancelar()}>
+                Cancelar assinatura
+              </Botao>
+            </div>
           )}
 
-          <p className="pt-1 text-apoio text-em-superficie-2">
-            Próxima cobrança em{' '}
-            {assinatura.data!.proxima_cobranca
-              ? formatarData(assinatura.data!.proxima_cobranca)
-              : 'a definir'}
-            . Cancelar não corta nada antes do fim do período já pago.
-          </p>
-          <div className="pt-4">
-            <Botao
-              type="button"
-              variante="perigo"
-              carregando={enviando}
-              onClick={() => void cancelar()}
-            >
-              Cancelar assinatura
-            </Botao>
-          </div>
+          {/* Quem já assina também pode virar vitalício: paga uma vez, e a
+              mensalidade para sozinha quando o pagamento cair. */}
+          {restam > 0 && (
+            <div className="mt-5 rounded-controle border border-borda-em-superficie p-4">
+              <p className="text-corpo font-semibold text-em-superficie">
+                Pagar uma vez só e nunca mais
+              </p>
+              <p className="pt-1 text-apoio text-em-superficie-2">
+                Vitalício por {moeda(Number(lista.find((p) => p.periodo === 'vitalicio')?.valor ?? 0))}
+                {' '}— restam {restam} {restam === 1 ? 'vaga' : 'vagas'}. A assinatura atual é cancelada
+                quando o pagamento cair.
+              </p>
+              <div className="pt-3">
+                <Botao type="button" variante="contorno-no-card" compactoNoDesktop onClick={() => setPeriodo('vitalicio')}>
+                  Quero o vitalício
+                </Botao>
+              </div>
+            </div>
+          )}
         </>
       ) : (
         <>
-          <p className="text-secao text-em-superficie">Escolha o plano ideal para sua oficina</p>
+          <p className="text-secao text-em-superficie">
+            {podeRenovar ? 'Hora de renovar' : 'Escolha como quer pagar'}
+          </p>
           <p className="pt-1 text-apoio text-em-superficie-2">
-            Sem surpresas: ao clicar em “Assinar”, você vai direto para o
-            pagamento seguro. O plano de teste é liberado na hora por 7 dias.
+            {podeRenovar
+              ? `Seu anual vale até ${formatarData(oficina.acesso_ate!)}. Renove para não parar no meio de um atendimento.`
+              : 'Um plano só, com tudo liberado. Quanto mais tempo, menos você paga por mês.'}
           </p>
 
-          <div className="grid gap-3 pt-4 tablet:grid-cols-3">
-            {(planos.data ?? []).map((p) => {
-              const atual = p.id === oficina.plano
-              const gratuito = Number(p.preco_mensal) === 0
-              return (
-                <div
-                  key={p.id}
-                  className={[
-                    'flex flex-col rounded-controle border p-4',
-                    atual ? 'border-acento' : 'border-borda-em-superficie',
-                  ].join(' ')}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-secao text-em-superficie">{p.nome}</p>
-                    {atual && (
-                      <span className="rounded-badge bg-acento-suave px-2 py-0.5 text-micro text-em-superficie">
-                        Atual
-                      </span>
-                    )}
-                  </div>
-                  <p className="pt-1 text-destaque text-em-superficie">
-                    {gratuito ? 'Grátis' : moeda(Number(p.preco_mensal))}
-                    {!gratuito && (
-                      <span className="text-apoio text-em-superficie-2"> /mês</span>
-                    )}
-                  </p>
+          {(plano.data?.beneficios ?? []).length > 0 && (
+            <ul className="grid gap-1 pt-3 tablet:grid-cols-2">
+              {plano.data!.beneficios.map((b) => (
+                <li key={b} className="flex gap-2 text-apoio text-em-superficie-2">
+                  <Check aria-hidden size={16} className="mt-0.5 shrink-0 text-sucesso-forte" />
+                  {b}
+                </li>
+              ))}
+            </ul>
+          )}
 
-                  {/* Os benefícios vêm da tabela de planos: texto de venda muda
-                      com frequência, e ter preço em SQL e frase em deploy seria
-                      dois lugares para a mesma decisão. A frase que fala do que
-                      o plano NÃO tem entra com o tique apagado. */}
-                  <ul className="flex-1 space-y-1 pt-3">
-                    {p.beneficios.map((beneficio) => {
-                      const ausencia = /\(sem /i.test(beneficio)
-                      return (
-                        <li
-                          key={beneficio}
-                          className="flex gap-2 text-apoio text-em-superficie-2"
-                        >
-                          <Check
-                            aria-hidden
-                            size={16}
-                            className={`mt-0.5 shrink-0 ${ausencia ? 'text-em-superficie-2 opacity-40' : 'text-sucesso-forte'}`}
-                          />
-                          {beneficio}
-                        </li>
-                      )
-                    })}
-                  </ul>
-
-                  {!gratuito && (
-                    <div className="pt-4">
-                      <Botao
-                        type="button"
-                        largo
-                        variante={atual ? 'contorno-no-card' : 'principal'}
-                        onClick={() => escolherPlano(p.id)}
-                      >
-                        Assinar
-                      </Botao>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+          <div className="grid gap-3 pt-4 tablet:grid-cols-2 desktop:grid-cols-4">
+            {lista.map((p) => (
+              <CartaoDoPeriodo
+                key={p.periodo}
+                preco={p}
+                mensal={mensal}
+                restam={restam}
+                aoEscolher={() => setPeriodo(p.periodo)}
+              />
+            ))}
           </div>
         </>
       )}
 
-      {/* Escolha da forma de pagamento --------------------------------------- */}
+      {/* Como pagar ------------------------------------------------------------ */}
       <Modal
-        aberto={escolhido !== null}
-        aoFechar={fecharEscolha}
-        titulo={decidindo ? 'Confira o que muda' : 'Como você prefere pagar?'}
+        aberto={periodo !== null}
+        aoFechar={() => setPeriodo(null)}
+        titulo="Como você prefere pagar?"
       >
-        {decidindo ? (
-          /*
-           * A perda é uma decisão, não um aviso.
-           *
-           * Quem passou os sete dias com o sistema inteiro aberto se acostumou
-           * com ele. Deixar essa pessoa clicar em "pagar" e descobrir depois
-           * que o financeiro sumiu é o caminho mais curto para o cancelamento —
-           * e a culpa seria nossa, não dela. Então ela escolhe, com os dois
-           * caminhos na mesma tela.
-           */
+        {escolhido && (
           <div className="space-y-4">
-            <div
-              role="alert"
-              className="rounded-controle bg-atencao-fundo px-4 py-3 text-apoio text-em-superficie"
-            >
-              <p className="font-semibold">
-                O plano {planoEscolhido?.nome} não tem tudo o que você está usando
+            <div className="rounded-controle bg-acento-suave px-4 py-3">
+              <p className="text-corpo font-semibold text-em-superficie">
+                {ROTULO_DO_PERIODO[escolhido.periodo]} · {moeda(Number(escolhido.valor))}{' '}
+                <span className="font-normal">{SUFIXO_DO_PERIODO[escolhido.periodo]}</span>
               </p>
-              <ul className="list-disc pt-1 pl-5">
-                {perdas.map((perda) => (
-                  <li key={perda}>{perda}</li>
+              <p className="text-apoio text-em-superficie-2">
+                {escolhido.periodo === 'vitalicio'
+                  ? 'Pagamento único. Acesso a tudo, para sempre.'
+                  : 'Cancelamento a qualquer momento; o acesso vale até o fim do período pago.'}
+              </p>
+            </div>
+
+            {(['PIX', 'CREDIT_CARD'] as const).map((valor) => {
+              const Icone = valor === 'PIX' ? QrCode : CreditCard
+              return (
+                <button
+                  key={valor}
+                  type="button"
+                  onClick={() => setForma(valor)}
+                  aria-pressed={forma === valor}
+                  className={cn(
+                    'flex w-full items-start gap-3 rounded-controle border p-4 text-left',
+                    forma === valor ? 'border-acento bg-acento-suave' : 'border-borda-em-superficie',
+                  )}
+                >
+                  <Icone aria-hidden size={22} className="mt-0.5 shrink-0 text-em-superficie" />
+                  <span>
+                    <span className="block text-corpo font-semibold text-em-superficie">
+                      {valor === 'PIX' ? 'PIX' : 'Cartão de crédito'}
+                    </span>
+                    <span className="block text-apoio text-em-superficie-2">
+                      {detalheDaForma(valor, escolhido.periodo, parcelas > 1)}
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
+
+            {/* As parcelas: o total de cada opção aparece ANTES de pagar. */}
+            {forma === 'CREDIT_CARD' && escolhido.parcelas_max > 1 && (
+              <Selecao
+                rotulo="Em quantas vezes"
+                value={parcelas}
+                onChange={(e) => setParcelas(Number(e.target.value))}
+                dica={
+                  parcelas > 1 && opcaoEscolhida
+                    ? `O total inclui a taxa do parcelamento no cartão (${moeda(opcaoEscolhida.total - Number(escolhido.valor))}). À vista, você paga ${moeda(Number(escolhido.valor))}.`
+                    : undefined
+                }
+              >
+                {(opcoesDeParcela.data ?? [{ parcelas: 1, total: Number(escolhido.valor), valorParcela: Number(escolhido.valor) }]).map((o) => (
+                  <option key={o.parcelas} value={o.parcelas}>
+                    {o.parcelas === 1
+                      ? `À vista: ${moeda(o.total)}`
+                      : `${o.parcelas}x de ${moeda(o.valorParcela)} (total ${moeda(o.total)})`}
+                  </option>
                 ))}
-              </ul>
-              <p className="pt-2">
-                Nada é apagado — os dados continuam guardados e voltam a
-                aparecer se você subir de plano de novo.
-              </p>
-            </div>
+              </Selecao>
+            )}
 
-            <div className="flex flex-col gap-3 pt-2">
-              {semPerdas && (
-                <Botao type="button" largo onClick={() => escolherPlano(semPerdas.id)}>
-                  Seguir com o {semPerdas.nome} ({moeda(Number(semPerdas.preco_mensal))}/mês)
-                </Botao>
-              )}
-              <Botao
-                type="button"
-                largo
-                variante="contorno-no-card"
-                onClick={() => setDowngradeAceito(true)}
-              >
-                Entendi, quero o {planoEscolhido?.nome} mesmo
-              </Botao>
-              <button
-                type="button"
-                onClick={fecharEscolha}
-                className="min-h-toque text-apoio text-em-superficie-2 underline"
-              >
-                Decidir depois
-              </button>
-            </div>
-          </div>
-        ) : (
-        <div className="space-y-4">
-          {/* Qual plano está sendo pago.
-              Sem isto, as duas telas de pagamento são idênticas — e quem acabou
-              de trocar de plano na tela anterior não tem como conferir. Pior: o
-              cartão que fica atrás do modal continua sendo o do plano recusado. */}
-          <div className="rounded-controle bg-acento-suave px-4 py-3">
-            <p className="text-corpo font-semibold text-em-superficie">
-              {planoEscolhido?.nome}
-            </p>
             <p className="text-apoio text-em-superficie-2">
-              {moeda(Number(planoEscolhido?.preco_mensal ?? 0))} por mês, com cancelamento a
-              qualquer momento.
+              Não trabalhamos com boleto: ele leva até dois dias para compensar, e isso deixaria a
+              oficina em atraso sem ter culpa.
             </p>
-          </div>
-          {FORMAS.map(({ valor, rotulo, detalhe, Icone }) => (
-            <button
-              key={valor}
-              type="button"
-              onClick={() => setForma(valor)}
-              aria-pressed={forma === valor}
-              className={[
-                'flex w-full items-start gap-3 rounded-controle border p-4 text-left',
-                forma === valor ? 'border-acento bg-acento-suave' : 'border-borda-em-superficie',
-              ].join(' ')}
-            >
-              <Icone aria-hidden size={22} className="mt-0.5 shrink-0 text-em-superficie" />
-              <span>
-                <span className="block text-corpo font-semibold text-em-superficie">{rotulo}</span>
-                <span className="block text-apoio text-em-superficie-2">{detalhe}</span>
-              </span>
-            </button>
-          ))}
 
-          <p className="text-apoio text-em-superficie-2">
-            Não trabalhamos com boleto: ele leva até dois dias para compensar, e
-            isso faria a oficina entrar em atraso todo mês sem ter culpa.
-          </p>
-
-          <div className="flex flex-col gap-3 pt-2 tablet:flex-row tablet:justify-end">
-            <Botao
-              type="button"
-              variante="contorno-no-card"
-              compactoNoDesktop
-              onClick={fecharEscolha}
-            >
-              Voltar
-            </Botao>
-            <Botao
-              type="button"
-              compactoNoDesktop
-              carregando={enviando}
-              onClick={() => void assinar()}
-            >
-              Gerar a cobrança
-            </Botao>
+            <div className="flex flex-col gap-3 pt-2 tablet:flex-row tablet:justify-end">
+              <Botao type="button" variante="contorno-no-card" compactoNoDesktop onClick={() => setPeriodo(null)}>
+                Voltar
+              </Botao>
+              <Botao type="button" compactoNoDesktop carregando={enviando} onClick={() => void assinar()}>
+                Gerar a cobrança
+              </Botao>
+            </div>
           </div>
-        </div>
         )}
       </Modal>
 
@@ -493,6 +407,7 @@ export function Assinatura() {
         aoFechar={() => {
           setPix(null)
           setConfirmado(false)
+          prazoAntes.current = undefined
         }}
         titulo={confirmado ? 'Pagamento confirmado' : 'Pague com PIX'}
       >
@@ -503,11 +418,14 @@ export function Assinatura() {
             </span>
             <p className="text-secao text-em-superficie">Tudo certo!</p>
             <p className="text-corpo text-em-superficie-2">
-              Seu plano está ativo e o acesso vale até{' '}
-              <strong>
-                {oficina.acesso_ate ? formatarData(oficina.acesso_ate) : 'a próxima cobrança'}
-              </strong>
-              . Não precisa fazer mais nada.
+              {oficina.acesso_ate ? (
+                <>
+                  Seu acesso vale até <strong>{formatarData(oficina.acesso_ate)}</strong>. Não precisa
+                  fazer mais nada.
+                </>
+              ) : (
+                'Seu acesso agora é para sempre. Não precisa fazer mais nada.'
+              )}
             </p>
             <div className="pt-2">
               <Botao
@@ -515,6 +433,7 @@ export function Assinatura() {
                 onClick={() => {
                   setPix(null)
                   setConfirmado(false)
+                  prazoAntes.current = undefined
                 }}
               >
                 Voltar para a oficina
@@ -530,14 +449,12 @@ export function Assinatura() {
                 className="mx-auto h-56 w-56 rounded-controle bg-superficie"
               />
             )}
-
             <div>
               <p className="pb-1 text-rotulo text-em-superficie-2">PIX copia e cola</p>
               <p className="max-h-24 overflow-y-auto break-all rounded-controle bg-borda-em-superficie/40 p-3 text-apoio text-em-superficie">
                 {pix?.copia_e_cola}
               </p>
             </div>
-
             <Botao
               type="button"
               largo
@@ -551,38 +468,99 @@ export function Assinatura() {
             >
               {copiado ? 'Copiado!' : 'Copiar o código'}
             </Botao>
-
             {/* A espera é nossa, não da pessoa: ela paga pelo banco e volta
                 para cá; a tela é que tem de perceber. */}
             <p className="flex items-center justify-center gap-2 text-apoio text-em-superficie-2">
               <Loader2 aria-hidden size={16} className="animate-spin" />
               Esperando o pagamento. Pode pagar pelo seu banco e voltar aqui.
             </p>
-            <p className="text-apoio text-em-superficie-2">
-              Assim que o pagamento for identificado, esta tela muda sozinha e o
-              seu plano passa a valer.
-            </p>
           </div>
         )}
       </Modal>
 
       {/* Só quando o provedor não devolveu o link ------------------------------ */}
-      <Modal
-        aberto={fatura !== null}
-        aoFechar={() => setFatura(null)}
-        titulo="Sua cobrança está pronta"
-      >
+      <Modal aberto={fatura !== null} aoFechar={() => setFatura(null)} titulo="Sua cobrança está pronta">
         <div className="space-y-4">
           <p className="text-corpo text-em-superficie">
-            A assinatura foi criada e a cobrança chega no seu e-mail em alguns
-            minutos.
+            A cobrança foi criada e chega no seu e-mail em alguns minutos.
           </p>
           <p className="text-apoio text-em-superficie-2">
             Assim que o pagamento for identificado, o acesso se estende sozinho.
-            Até lá, nada muda por aqui.
           </p>
         </div>
       </Modal>
+    </div>
+  )
+}
+
+/**
+ * Um período, como cartão de escolha. O anual vem em destaque; o vitalício
+ * mostra as vagas que restam — o número real, urgência que não é inventada.
+ */
+function CartaoDoPeriodo({
+  preco,
+  mensal,
+  restam,
+  aoEscolher,
+}: {
+  preco: Preco
+  mensal: Preco | undefined
+  restam: number
+  aoEscolher: () => void
+}) {
+  const destaque = preco.periodo === PERIODO_EM_DESTAQUE
+  const vitalicio = preco.periodo === 'vitalicio'
+  const esgotado = vitalicio && restam <= 0
+  const mes = porMes(preco)
+  const economiza = economia(preco, mensal)
+
+  return (
+    <div
+      className={cn(
+        'flex flex-col rounded-controle border p-4',
+        destaque ? 'border-acento ring-1 ring-acento' : 'border-borda-em-superficie',
+        esgotado && 'opacity-60',
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-secao text-em-superficie">{ROTULO_DO_PERIODO[preco.periodo]}</p>
+        {destaque && (
+          <span className="rounded-badge bg-acento px-2 py-0.5 text-micro font-semibold text-em-superficie">
+            Mais escolhido
+          </span>
+        )}
+      </div>
+      <p className="pt-1 text-destaque text-em-superficie">{moeda(Number(preco.valor))}</p>
+      <p className="text-apoio text-em-superficie-2">{SUFIXO_DO_PERIODO[preco.periodo]}</p>
+
+      <div className="flex-1 space-y-1 pt-3">
+        {mes !== null && preco.periodo !== 'mensal' && (
+          <p className="text-apoio font-medium text-em-superficie">Sai por {moeda(mes)} por mês</p>
+        )}
+        {economiza > 0 && (
+          <p className="text-apoio font-semibold text-sucesso-forte">Economize {moeda(economiza)}</p>
+        )}
+        {preco.parcelas_max > 1 && (
+          <p className="text-apoio text-em-superficie-2">Ou em até {preco.parcelas_max}x no cartão</p>
+        )}
+        {vitalicio && (
+          <p className="text-apoio font-semibold text-atencao-forte">
+            {esgotado ? 'Vagas esgotadas' : `Restam ${restam} de 30 vagas`}
+          </p>
+        )}
+      </div>
+
+      <div className="pt-4">
+        <Botao
+          type="button"
+          largo
+          disabled={esgotado}
+          variante={destaque ? 'principal' : 'contorno-no-card'}
+          onClick={aoEscolher}
+        >
+          {vitalicio ? 'Quero o vitalício' : 'Assinar'}
+        </Botao>
+      </div>
     </div>
   )
 }

@@ -405,15 +405,16 @@ export const GUIAS: Guia[] = [
   {
     id: 'plano',
     secao: 'Cadastros',
-    titulo: 'Assinar ou trocar de plano',
-    resumo: 'A assinatura é feita no próprio app, por PIX ou cartão.',
+    titulo: 'Assinar o GIRO',
+    resumo: 'Um plano só, com tudo. Você escolhe por quanto tempo: mensal, trimestral, anual ou vitalício.',
     passos: [
-      'Menu → Configurações → desça até "Sua conta" e os planos.',
-      'Toque em "Assinar" no plano que você quer.',
-      'Escolha PIX ou cartão e toque em "Gerar a cobrança". A cobrança chega no seu e-mail.',
+      'Menu → Configurações → desça até "Sua conta".',
+      'Escolha o período. O anual sai mais barato por mês; cada opção mostra quanto você economiza.',
+      'Escolha PIX ou cartão. No cartão, o anual e o vitalício podem ser parcelados em até 12x — o total com a taxa aparece antes de pagar.',
+      'Toque em "Gerar a cobrança". No PIX, o código aparece na hora; no cartão, abre a página segura de pagamento.',
     ],
     atencao:
-      'Não trabalhamos com boleto: ele leva até dois dias para compensar, e isso deixaria a oficina em atraso sem ter culpa.',
+      'O anual parcelado não renova sozinho: um mês antes de vencer, aparece o botão para renovar. Não trabalhamos com boleto: ele leva até dois dias para compensar.',
     visivel: (p) => p.verConfiguracoes,
   },
   {

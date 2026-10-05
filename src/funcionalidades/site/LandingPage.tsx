@@ -40,6 +40,16 @@ import {
 } from 'lucide-react'
 import { Logotipo, Simbolo } from '@/componentes/marca/Logotipo'
 import { supabase } from '@/lib/supabase'
+import {
+  PERIODO_EM_DESTAQUE,
+  ROTULO_DO_PERIODO,
+  SUFIXO_DO_PERIODO,
+  economia,
+  porMes,
+  useParcelas,
+  usePrecos,
+  useVagasVitalicias,
+} from '@/funcionalidades/configuracoes/precos'
 import { moeda } from '@/lib/formato'
 import {
   Celular,
@@ -533,51 +543,123 @@ function NoComputador() {
   )
 }
 
+/**
+ * Os preços, como período e não como plano (0082): um plano só, com tudo, e a
+ * escolha é por quanto tempo. O anual em destaque, cada um dizendo quanto sai
+ * por mês e quanto economiza, e o vitalício com as vagas que restam — o
+ * número real, do banco.
+ *
+ * Antes da 0082 no banco, a tabela de preços não existe e a seção mostra os
+ * planos como antes: a página nunca fica sem preço.
+ */
 function Precos({ planos }: { planos: PlanoNaPagina[] }) {
+  const precos = usePrecos()
+  const vagas = useVagasVitalicias()
+  const anual12 = useParcelas('anual')
+  const lista = precos.isError ? [] : (precos.data ?? [])
+  const mensal = lista.find((p) => p.periodo === 'mensal')
+  const beneficios = planos[planos.length - 1]?.beneficios ?? []
+  const restam = vagas.data ?? 0
+  const doze = anual12.data?.find((o) => o.parcelas === 12)
+
   return (
     <section className="bg-fundo-2 px-5 py-16 desktop:px-8 desktop:py-24">
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-5xl">
         <h2 className="text-balance text-center text-[1.75rem] font-bold leading-tight text-em-fundo desktop:text-[2.5rem]">
           Custa menos que uma troca de óleo por mês
         </h2>
         <p className="mx-auto max-w-xl pt-4 text-center text-corpo text-em-fundo-2">
-          Comece pelos sete dias com tudo aberto. Só depois você escolhe — e paga
-          só se decidir ficar.
+          Um plano só, com tudo liberado. Comece pelos sete dias de teste — e
+          pague só se decidir ficar.
         </p>
 
-        <div className="grid gap-4 pt-10 tablet:grid-cols-2">
-          {planos.map((p, i) => (
-            <div
-              key={p.id}
-              className={[
-                'flex flex-col rounded-card border bg-fundo p-6',
-                i === planos.length - 1 ? 'border-acento' : 'border-borda-em-fundo',
-              ].join(' ')}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-secao font-semibold text-em-fundo">{p.nome}</p>
-                {i === planos.length - 1 && (
-                  <span className="rounded-badge bg-acento px-2 py-0.5 text-micro font-semibold text-em-superficie">
-                    Mais completo
-                  </span>
-                )}
-              </div>
-              <p className="pt-1 text-apoio text-em-fundo-2">{p.descricao}</p>
-              <p className="pt-4 text-[2rem] font-bold text-em-fundo">
-                {moeda(Number(p.preco_mensal))}
-                <span className="text-corpo font-normal text-em-fundo-2"> /mês</span>
-              </p>
-              <ul className="flex-1 space-y-2 pt-5">
-                {p.beneficios.map((b) => (
+        {lista.length > 0 ? (
+          <>
+            {beneficios.length > 0 && (
+              <ul className="mx-auto grid max-w-3xl gap-2 pt-8 tablet:grid-cols-2">
+                {beneficios.map((b) => (
                   <li key={b} className="flex gap-2 text-apoio text-em-fundo-2">
                     <Check aria-hidden size={16} className="mt-0.5 shrink-0 text-acento" />
                     {b}
                   </li>
                 ))}
               </ul>
+            )}
+            <div className="grid gap-4 pt-10 tablet:grid-cols-2 desktop:grid-cols-4">
+              {lista.map((p) => {
+                const destaque = p.periodo === PERIODO_EM_DESTAQUE
+                const vitalicio = p.periodo === 'vitalicio'
+                const mes = porMes(p)
+                const economiza = economia(p, mensal)
+                return (
+                  <div
+                    key={p.periodo}
+                    className={[
+                      'flex flex-col rounded-card border bg-fundo p-6',
+                      destaque ? 'border-acento' : 'border-borda-em-fundo',
+                    ].join(' ')}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-secao font-semibold text-em-fundo">{ROTULO_DO_PERIODO[p.periodo]}</p>
+                      {destaque && (
+                        <span className="rounded-badge bg-acento px-2 py-0.5 text-micro font-semibold text-em-superficie">
+                          Mais escolhido
+                        </span>
+                      )}
+                    </div>
+                    <p className="pt-3 text-[1.75rem] font-bold text-em-fundo">{moeda(Number(p.valor))}</p>
+                    <p className="text-apoio text-em-fundo-2">{SUFIXO_DO_PERIODO[p.periodo]}</p>
+                    <div className="flex-1 space-y-1 pt-4">
+                      {mes !== null && p.periodo !== 'mensal' && (
+                        <p className="text-apoio font-medium text-em-fundo">Sai por {moeda(mes)} por mês</p>
+                      )}
+                      {economiza > 0 && (
+                        <p className="text-apoio font-semibold text-acento">Economize {moeda(economiza)}</p>
+                      )}
+                      {destaque && doze && (
+                        <p className="text-apoio text-em-fundo-2">
+                          Ou 12x de {moeda(doze.valorParcela)} no cartão
+                        </p>
+                      )}
+                      {vitalicio && (
+                        <p className="text-apoio font-semibold text-acento">
+                          {restam > 0 ? `Restam ${restam} de 30 vagas` : 'Vagas esgotadas'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-          ))}
-        </div>
+          </>
+        ) : (
+          <div className="grid gap-4 pt-10 tablet:grid-cols-2">
+            {planos.map((p, i) => (
+              <div
+                key={p.id}
+                className={[
+                  'flex flex-col rounded-card border bg-fundo p-6',
+                  i === planos.length - 1 ? 'border-acento' : 'border-borda-em-fundo',
+                ].join(' ')}
+              >
+                <p className="text-secao font-semibold text-em-fundo">{p.nome}</p>
+                <p className="pt-1 text-apoio text-em-fundo-2">{p.descricao}</p>
+                <p className="pt-4 text-[2rem] font-bold text-em-fundo">
+                  {moeda(Number(p.preco_mensal))}
+                  <span className="text-corpo font-normal text-em-fundo-2"> /mês</span>
+                </p>
+                <ul className="flex-1 space-y-2 pt-5">
+                  {p.beneficios.map((b) => (
+                    <li key={b} className="flex gap-2 text-apoio text-em-fundo-2">
+                      <Check aria-hidden size={16} className="mt-0.5 shrink-0 text-acento" />
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="pt-8">
           <BotaoDeTeste largo />

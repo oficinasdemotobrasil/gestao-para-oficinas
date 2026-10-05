@@ -125,8 +125,29 @@ export type Assinatura = {
   motivo_detalhe: string | null
   id_externo_cliente: string | null
   id_externo_assinatura: string | null
+  /** O período contratado (0082). */
+  periodo: 'mensal' | 'trimestral' | 'anual'
+  /** O valor contratado no período — o preço travado de quem assinou. */
+  valor: number | null
+  /** Mais de 1 é o anual parcelado no cartão, que não renova sozinho. */
+  parcelas: number
+  id_externo_parcelamento: string | null
   criado_em: string
   atualizado_em: string
+}
+
+export type PeriodoDePagamento = 'mensal' | 'trimestral' | 'anual' | 'vitalicio'
+
+/** O preço de cada período (0082). Público: a página de vendas lê. */
+export type Preco = {
+  periodo: PeriodoDePagamento
+  plano: PlanoOficina
+  valor: number
+  /** Quantos meses o pagamento compra. Nulo é para sempre. */
+  meses: number | null
+  parcelas_max: number
+  ordem: number
+  ativo: boolean
 }
 
 type Usuario = {
@@ -681,6 +702,7 @@ export type Database = {
       /* Catálogo, sem oficina_id: a mesma lista para todo mundo. Só leitura
          pelo app — mudar plano é operação de plataforma. */
       planos: { Row: Plano; Insert: never; Update: never; Relationships: [] }
+      precos: { Row: Preco; Insert: never; Update: never; Relationships: [] }
       assinaturas: { Row: Assinatura; Insert: never; Update: never; Relationships: [] }
     }
     Views: {
@@ -1135,6 +1157,12 @@ export type Database = {
       /** A situação de hoje, calculada das datas (migration 0044). */
       minha_situacao: { Args: Record<string, never>; Returns: StatusOficina }
       minha_oficina_tem_financeiro: { Args: Record<string, never>; Returns: boolean }
+      minha_oficina_e_vitalicia: { Args: Record<string, never>; Returns: boolean }
+      vagas_vitalicias_restantes: { Args: Record<string, never>; Returns: number }
+      simular_parcelas: {
+        Args: { p_periodo: PeriodoDePagamento }
+        Returns: { parcelas: number; total: number; valor_parcela: number }[]
+      }
       minhas_fotos_em_uso: {
         Args: Record<string, never>
         Returns: { em_uso: number; limite: number | null } | null
