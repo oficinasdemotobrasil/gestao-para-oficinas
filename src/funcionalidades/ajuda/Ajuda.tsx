@@ -9,7 +9,7 @@
  * de cobrar o cliente é ensinar um caminho que a tela dele não tem.
  */
 import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronUp, TriangleAlert, BookOpen, Volume2, Square } from 'lucide-react'
+import { ChevronDown, ChevronUp, TriangleAlert, BookOpen, Volume2, Square, LifeBuoy } from 'lucide-react'
 import { Tela, CabecalhoTela, TituloSecao } from '@/componentes/layout/Tela'
 import { CampoBusca } from '@/componentes/ui/CampoBusca'
 import { Abas } from '@/componentes/ui/Abas'
@@ -19,6 +19,8 @@ import { EstadoVazio } from '@/componentes/ui/EstadoVazio'
 import { usePermissoes } from '@/auth/usePermissoes'
 import { Botao } from '@/componentes/ui/Botao'
 import { falar, pararDeFalar, useLeitura } from '@/lib/falar'
+import { useAuth } from '@/auth/ProvedorAuth'
+import { CONTATO } from '@/funcionalidades/legal/documentos'
 import { GUIAS, VOCABULARIO, type Guia, type Secao } from './conteudo'
 
 const SECOES: Array<{ id: Secao | 'todos'; rotulo: string }> = [
@@ -130,11 +132,49 @@ export function Ajuda({ mostrarTudo = false }: { mostrarTudo?: boolean }) {
         </div>
       )}
 
-      <p className="px-1 pt-8 text-apoio text-em-fundo-2">
-        Faltou alguma coisa aqui? Fale com quem cuida do sistema — a ajuda é escrita a partir do
-        que a oficina pergunta.
-      </p>
+      <PedirSuporte />
     </Tela>
+  )
+}
+
+/**
+ * O pedido de suporte.
+ *
+ * É por aqui (ou por e-mail direto) que a oficina pede ajuda — e é esse pedido
+ * que autoriza a equipe a entrar na conta, como dizem os Termos e a Política
+ * de Privacidade. O e-mail já sai com o nome da oficina, para ninguém ter de
+ * perguntar de onde veio.
+ */
+function PedirSuporte() {
+  const { oficina, usuario } = useAuth()
+  const assunto = `Suporte GIRO — ${oficina?.nome ?? 'minha oficina'}`
+  const corpo =
+    `Olá! Preciso de ajuda com o GIRO.\n\n` +
+    `Oficina: ${oficina?.nome ?? ''}\n` +
+    `Quem pede: ${usuario?.nome ?? ''}\n\n` +
+    `O que aconteceu:\n\n`
+  const endereco = `mailto:${CONTATO}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`
+
+  return (
+    <Card className="mt-8">
+      <div className="flex items-start gap-3">
+        <LifeBuoy aria-hidden size={22} className="mt-0.5 shrink-0 text-em-superficie" />
+        <div className="min-w-0">
+          <p className="text-corpo font-semibold text-em-superficie">Não achou o que precisava?</p>
+          <p className="pt-1 text-apoio text-em-superficie-2">
+            Conte o que aconteceu. Se for preciso, nossa equipe entra na sua conta para ver de perto
+            — com o motivo registrado e por no máximo 30 minutos.
+          </p>
+          <a
+            href={endereco}
+            className="mt-3 inline-flex h-botao items-center rounded-controle bg-acento px-5 text-corpo font-semibold text-em-superficie active:bg-acento-pressionado"
+          >
+            Pedir ajuda ao suporte
+          </a>
+          <p className="pt-2 text-apoio text-em-superficie-2">Ou escreva para {CONTATO}.</p>
+        </div>
+      </div>
+    </Card>
   )
 }
 
