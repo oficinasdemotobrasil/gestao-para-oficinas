@@ -56,15 +56,15 @@ create policy "precos sao publicos"
 grant select on public.precos to anon, authenticated;
 
 -- A fechadura (0042) passa a conhecer a tabela de preços: ela é catálogo,
--- igual à de planos, e não pertence a oficina nenhuma. Copiada da 0042;
--- a única mudança é 'precos' na lista.
+-- igual à de planos, e não pertence a oficina nenhuma; a de taxas do cartão
+-- também. Copiada da 0042; a única mudança são as duas na lista.
 create or replace function public.conferir_fechadura()
 returns void
 language plpgsql
 as $$
 declare
   pendentes text;
-  fora_do_tenant text[] := array['oficinas', 'admins_plataforma', 'planos', 'precos'];
+  fora_do_tenant text[] := array['oficinas', 'admins_plataforma', 'planos', 'precos', 'taxas_cartao'];
 begin
   select string_agg(c.relname, ', ' order by c.relname) into pendentes
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -93,6 +93,78 @@ begin
     raise exception 'Tabelas sem coluna oficina_id: %', pendentes;
   end if;
 end;
+$$;
+
+-- O parcelamento no cartão, com a taxa por conta de quem parcela ------------------
+--
+-- Decisão do negócio: o anual e o vitalício podem ser pagos em até 12x, e a
+-- taxa do parcelamento é do cliente. O provedor não calcula isso sozinho — a
+-- taxa dele sai do valor da oficina —, então a conta é feita aqui: o total
+-- cobrado é o que faz sobrar, depois da taxa, exatamente o preço.
+--
+--   total = (preço + fixo) / (1 - percentual)
+--
+-- As taxas são as NORMAIS da conta no provedor (2,99% / 3,49% / 3,99% +
+-- R$ 0,49), e não as promocionais de 3 meses: assim o preço que o cliente vê
+-- não muda quando a promoção acaba. Considera receber mês a mês, sem
+-- antecipação; antecipar é mudar o percentual aqui.
+--
+-- À vista (1x) não repassa nada: o preço anunciado é o preço pago.
+create table if not exists public.taxas_cartao (
+  parcelas_de integer primary key check (parcelas_de between 1 and 12),
+  parcelas_ate integer not null check (parcelas_ate between 1 and 12),
+  percentual numeric(5, 2) not null check (percentual >= 0 and percentual < 100),
+  fixo numeric(8, 2) not null default 0 check (fixo >= 0),
+  check (parcelas_ate >= parcelas_de)
+);
+
+insert into public.taxas_cartao (parcelas_de, parcelas_ate, percentual, fixo) values
+  (2, 6, 3.49, 0.49),
+  (7, 12, 3.99, 0.49)
+on conflict (parcelas_de) do nothing;
+
+alter table public.taxas_cartao enable row level security;
+drop policy if exists "taxas sao publicas" on public.taxas_cartao;
+create policy "taxas sao publicas"
+  on public.taxas_cartao for select to anon, authenticated
+  using (true);
+grant select on public.taxas_cartao to anon, authenticated;
+
+/*
+ * Quanto se cobra para o preço chegar inteiro, em N parcelas.
+ * Sem faixa de taxa para N (1x, por exemplo), o total é o próprio preço.
+ */
+create or replace function public.valor_parcelado(p_valor numeric, p_parcelas integer)
+returns numeric
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select round((p_valor + t.fixo) / (1 - t.percentual / 100), 2)
+       from public.taxas_cartao t
+      where p_parcelas between t.parcelas_de and t.parcelas_ate),
+    p_valor
+  );
+$$;
+
+/*
+ * As opções de parcelamento de um período, prontas para a tela: "12x de
+ * R$ 41,60 (total R$ 499,21)". A tela não calcula nada; o servidor cobra
+ * pelo mesmo número.
+ */
+create or replace function public.simular_parcelas(p_periodo text)
+returns table (parcelas integer, total numeric, valor_parcela numeric)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select n, public.valor_parcelado(p.valor, n), round(public.valor_parcelado(p.valor, n) / n, 2)
+  from public.precos p, generate_series(1, p.parcelas_max) n
+  where p.periodo = p_periodo and p.ativo
+  order by n;
 $$;
 
 -- Um plano só ----------------------------------------------------------------------
@@ -150,6 +222,43 @@ drop trigger if exists assinaturas_com_valor on public.assinaturas;
 create trigger assinaturas_com_valor
   before insert on public.assinaturas
   for each row execute function public.assinatura_com_valor();
+
+/*
+ * Até quando o acesso vale depois de um pagamento. Antes, era "30 dias depois
+ * do vencimento", escrito em código em dois lugares (o aviso do provedor e o
+ * reprocessar do painel). Com os períodos, a conta depende da assinatura — e
+ * fica aqui, num lugar só, onde dá para provar com teste:
+ *
+ *   recorrente (mensal, trimestral, anual à vista): o vencimento pago + os
+ *     meses do período. Contado do vencimento, e não de hoje: quem paga com
+ *     três dias de atraso não perde três dias.
+ *   anual parcelado: o início da assinatura + 12 meses. Cada parcela chega
+ *     como um pagamento, com vencimentos de meses diferentes; contar de cada
+ *     uma faria a 12ª parcela estender o acesso para quase dois anos.
+ *
+ * Sem assinatura ativa (cobrança avulsa antiga), vale um mês, como antes.
+ */
+create or replace function public.acesso_depois_do_pagamento(p_oficina uuid, p_vencimento date)
+returns date
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select case
+              when a.parcelas > 1
+                then (a.inicio + make_interval(months => coalesce(pr.meses, 12)))::date
+              else (p_vencimento + make_interval(months => coalesce(pr.meses, 1)))::date
+            end
+       from public.assinaturas a
+       left join public.precos pr on pr.periodo = a.periodo
+      where a.oficina_id = p_oficina and a.situacao = 'ativa'
+      order by a.criado_em desc
+      limit 1),
+    (p_vencimento + interval '1 month')::date
+  );
+$$;
 
 /*
  * Quanto a assinatura vale por mês — para somar receita sem que um anual pago
@@ -373,6 +482,47 @@ begin
 
   perform set_config('app.vitalicio_ja_pago', '', true);
   return public.vitalicio_na_oficina(v_id, p_oficina);
+end;
+$$;
+
+/*
+ * O registro de pagamento (0050), copiado por programa, com uma trava a mais:
+ * oficina vitalícia não volta a ter prazo.
+ */
+create or replace function public.registrar_pagamento(
+  p_oficina uuid,
+  p_acesso_ate date,
+  p_plano public.plano_oficina default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  -- 0082: oficina vitalícia não tem prazo, e pagamento nenhum devolve um. Um
+  -- pagamento atrasado da assinatura mensal que ela tinha antes de virar
+  -- vitalícia chegaria aqui e escreveria uma data — o acesso para sempre
+  -- viraria acesso até o mês que vem.
+  if exists (
+    select 1 from public.vitalicios v where v.oficina_id = p_oficina and v.situacao = 'paga'
+  ) then
+    return;
+  end if;
+
+  update public.oficinas
+    set acesso_ate = p_acesso_ate,
+        plano = coalesce(p_plano, plano),
+        -- Um pagamento reabre uma conta bloqueada, mas não ressuscita uma que
+        -- foi suspensa ou encerrada à mão: essas são decisão de gente.
+        status = case when status in ('suspensa', 'cancelada') then status else 'ativa' end
+  where id = p_oficina;
+
+  update public.assinaturas
+    set proxima_cobranca = p_acesso_ate,
+        situacao = 'ativa',
+        atualizado_em = now()
+  where oficina_id = p_oficina and situacao = 'ativa';
 end;
 $$;
 
@@ -620,6 +770,10 @@ $$;
 -- de public não fecha nada.
 revoke all on function public.vitalicios_ocupados() from public, anon, authenticated;
 revoke all on function public.assinatura_com_valor() from public, anon, authenticated;
+revoke all on function public.registrar_pagamento(uuid, date, public.plano_oficina) from public, anon, authenticated;
+revoke all on function public.acesso_depois_do_pagamento(uuid, date) from public, anon, authenticated;
+revoke all on function public.valor_parcelado(numeric, integer) from public;
+revoke all on function public.simular_parcelas(text) from public;
 revoke all on function public.conferir_vaga_vitalicia() from public, anon, authenticated;
 revoke all on function public.vitalicio_na_oficina(uuid, uuid) from public, anon, authenticated;
 revoke all on function public.reservar_vitalicio(uuid, text, text, text, integer) from public, anon, authenticated;
@@ -632,5 +786,8 @@ revoke all on function public.vagas_vitalicias_restantes() from public;
 grant execute on function public.minha_oficina_e_vitalicia() to authenticated;
 -- A página de vendas mostra quantas vagas restam para quem nem entrou.
 grant execute on function public.vagas_vitalicias_restantes() to anon, authenticated;
+-- As opções de parcelamento também: a página de vendas mostra "12x de".
+grant execute on function public.valor_parcelado(numeric, integer) to anon, authenticated;
+grant execute on function public.simular_parcelas(text) to anon, authenticated;
 
 select public.conferir_fechadura();

@@ -4626,6 +4626,14 @@ async function testarPlanoUnicoEVitalicio() {
     1,
   )
 
+  // Pagamento atrasado da assinatura antiga não devolve prazo à vitalícia.
+  await db.query(`select public.registrar_pagamento('${ID.oficinaA}', current_date + 30, 'completo')`)
+  await esperaLinhas(
+    'um pagamento atrasado da assinatura antiga não devolve prazo a quem é vitalício',
+    `select count(*) as n from public.oficinas where id = '${ID.oficinaA}' and acesso_ate is null`,
+    1,
+  )
+
   // PIX que caiu depois de esgotar: registra e marca para conferir.
   await db.query(`select public.registrar_vitalicio_pago('pay_tardio', '${ID.oficinaB}', 'Tardio', null, 2000)`)
   await esperaLinhas(
@@ -4652,6 +4660,63 @@ async function testarPlanoUnicoEVitalicio() {
   await esperaErro(
     'nem a reserva',
     `select public.reservar_vitalicio('${ID.oficinaA}', 'Eu', null, 'pay_falso2')`,
+  )
+
+  // O parcelamento, com a taxa do cliente ------------------------------------------
+  await db.exec('reset role;')
+  await db.exec('set role anon;')
+  const anual = await db.query<{ parcelas: number; total: string; valor_parcela: string }>(
+    `select * from public.simular_parcelas('anual')`,
+  )
+  const a1 = anual.rows.find((r) => r.parcelas === 1)
+  const a12 = anual.rows.find((r) => r.parcelas === 12)
+  anual.rows.length === 12 && Number(a1?.total) === 478.8 && Number(a12?.total) === 499.21 && Number(a12?.valor_parcela) === 41.6
+    ? ok('o anual: à vista R$ 478,80; em 12x, R$ 41,60 (total R$ 499,21)', 'a taxa do cartão vai para quem parcela')
+    : erro('parcelas do anual', JSON.stringify(anual.rows.filter((r) => [1, 12].includes(r.parcelas))))
+  const vit = await db.query<{ parcelas: number; total: string; valor_parcela: string }>(
+    `select * from public.simular_parcelas('vitalicio') where parcelas in (1, 12)`,
+  )
+  Number(vit.rows[0]?.total) === 2000 && Number(vit.rows[1]?.total) === 2083.63 && Number(vit.rows[1]?.valor_parcela) === 173.64
+    ? ok('o vitalício: à vista R$ 2.000; em 12x, R$ 173,64 (total R$ 2.083,63)')
+    : erro('parcelas do vitalício', JSON.stringify(vit.rows))
+  const mensal = await db.query<{ n: number }>(`select count(*) as n from public.simular_parcelas('mensal')`)
+  Number(mensal.rows[0].n) === 1
+    ? ok('o mensal não parcela')
+    : erro('mensal parcelado', String(mensal.rows[0].n))
+
+  // Até quando vale o acesso, por período ------------------------------------------
+  await comoAdministradorDoBanco()
+  const ate = async (periodo: string, parcelas: number, vencimento: string) => {
+    await db.query(`delete from public.assinaturas where oficina_id = '${ID.oficinaB}'`)
+    await db.query(
+      `insert into public.assinaturas (oficina_id, plano, situacao, periodo, parcelas, inicio)
+       values ('${ID.oficinaB}', 'completo', 'ativa', $1, $2, '2026-10-05')`,
+      [periodo, parcelas],
+    )
+    const r = await db.query<{ d: string }>(
+      `select public.acesso_depois_do_pagamento('${ID.oficinaB}', $1::date)::text as d`,
+      [vencimento],
+    )
+    return r.rows[0].d
+  }
+  const prazos = [
+    ['mensal', 1, '2026-10-10', '2026-11-10'],
+    ['trimestral', 1, '2026-10-10', '2027-01-10'],
+    ['anual', 1, '2026-10-10', '2027-10-10'],
+    // A 12ª parcela vence em setembro de 2027; o acesso continua contado do
+    // início, e não dela.
+    ['anual', 12, '2027-09-05', '2027-10-05'],
+  ] as const
+  for (const [periodo, parcelas, venc, esperado] of prazos) {
+    const veio = await ate(periodo, parcelas, venc)
+    veio === esperado
+      ? ok(`${periodo}${parcelas > 1 ? ` em ${parcelas}x` : ''}: pago o vencimento ${venc}, o acesso vai até ${esperado}`)
+      : erro(`prazo ${periodo} ${parcelas}x`, `esperava ${esperado}, veio ${veio}`)
+  }
+  await logarComo(ID.adminA)
+  await esperaErro(
+    'o app não calcula prazo de acesso por conta própria',
+    `select public.acesso_depois_do_pagamento('${ID.oficinaA}', current_date)`,
   )
 
   // Limpeza -----------------------------------------------------------------------

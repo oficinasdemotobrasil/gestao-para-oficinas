@@ -116,20 +116,6 @@ function responder(corpo: unknown, status = 200): Response {
   })
 }
 
-/**
- * Até quando o acesso passa a valer depois deste pagamento.
- *
- * Preferimos a data que o provedor manda para a próxima cobrança. Sem ela,
- * trinta dias a partir do vencimento pago — e não a partir de hoje: quem paga
- * com três dias de atraso não pode perder três dias.
- */
-function ateQuando(pagamento: Record<string, unknown>): string {
-  const proxima = pagamento.nextDueDate ?? pagamento.dueDate
-  const base = typeof proxima === 'string' ? new Date(`${proxima}T12:00:00Z`) : new Date()
-  if (!pagamento.nextDueDate) base.setDate(base.getDate() + 30)
-  return base.toISOString().slice(0, 10)
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return responder({ erro: 'Método não permitido.' }, 405)
 
@@ -173,6 +159,15 @@ Deno.serve(async (req: Request) => {
     const { data } = await servico
       .from('assinaturas').select('oficina_id')
       .eq('id_externo_assinatura', idAssinatura).limit(1).maybeSingle()
+    oficinaId = data?.oficina_id ?? null
+  }
+  // A compra do vitalício não cria assinatura: a oficina está na reserva da
+  // vaga, pela cobrança (ou pelo parcelamento, quando foi no cartão em vezes).
+  const idsDaCompra = [pagamento.id, pagamento.installment].filter(Boolean).map(String)
+  if (!oficinaId && idsDaCompra.length > 0) {
+    const { data } = await servico
+      .from('vitalicios').select('oficina_id')
+      .in('id_externo_cobranca', idsDaCompra).limit(1).maybeSingle()
     oficinaId = data?.oficina_id ?? null
   }
 
@@ -229,7 +224,60 @@ Deno.serve(async (req: Request) => {
         return responder({ ok: false, tipo, aplicado: false, observacao }, 502)
       }
 
-      const ate = ateQuando(conferido)
+      // É a compra do vitalício? Pela cobrança ou pelo parcelamento, vindos do
+      // provedor (conferido), e não do POST.
+      const idsConferidos = [conferido.id, conferido.installment].filter(Boolean).map(String)
+      const { data: vaga } = await servico
+        .from('vitalicios')
+        .select('id_externo_cobranca, oficina_id, comprador, email, valor, situacao')
+        .in('id_externo_cobranca', idsConferidos)
+        .maybeSingle()
+
+      if (vaga) {
+        if (vaga.situacao === 'paga') {
+          // As outras parcelas do mesmo cartão: a vaga já é dela.
+          aplicado = true
+          observacao = 'parcela do vitalício já registrado'
+        } else {
+          const { data: assinaturaAntiga, error } = await servico.rpc('registrar_vitalicio_pago', {
+            p_cobranca: vaga.id_externo_cobranca,
+            p_oficina: vaga.oficina_id ?? oficinaId,
+            p_comprador: vaga.comprador,
+            p_email: vaga.email,
+            p_valor: vaga.valor,
+          })
+          if (error) throw error
+          // A mensalidade que ela pagava antes não pode continuar sendo
+          // cobrada de quem agora é vitalício.
+          let cancelouAntiga = ''
+          if (assinaturaAntiga) {
+            const chave = Deno.env.get('ASAAS_API_KEY')
+            const r = await fetch(`${baseDoProvedor()}/subscriptions/${assinaturaAntiga}`, {
+              method: 'DELETE',
+              headers: { access_token: chave ?? '' },
+            }).catch(() => null)
+            cancelouAntiga = r?.ok
+              ? '; assinatura antiga cancelada no provedor'
+              : `; CANCELAR À MÃO no provedor a assinatura ${assinaturaAntiga}`
+          }
+          aplicado = true
+          observacao = `conferido no provedor; vitalício${cancelouAntiga}`
+        }
+        await servico
+          .from('eventos_asaas')
+          .update({ aplicado, observacao })
+          .eq('evento_id', eventoId)
+        return responder({ ok: true, tipo, aplicado, observacao })
+      }
+
+      // Até quando o acesso vale: a conta é do banco, pelo período da
+      // assinatura (0082) — mensal, trimestral, anual, ou anual parcelado.
+      const vencimento = String(conferido.dueDate ?? new Date().toISOString().slice(0, 10))
+      const { data: ate, error: erroPrazo } = await servico.rpc('acesso_depois_do_pagamento', {
+        p_oficina: oficinaId,
+        p_vencimento: vencimento,
+      })
+      if (erroPrazo) throw erroPrazo
 
       // A oficina passa a ter o plano que ela está PAGANDO.
       //

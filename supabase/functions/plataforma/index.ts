@@ -36,7 +36,12 @@ interface Corpo {
     | 'listar' | 'criar' | 'plano' | 'situacao' | 'prazo' | 'reprocessar'
     | 'estornos' | 'marcar_estorno' | 'desmarcar_estorno'
     | 'suporte_entrar' | 'suporte_sair' | 'suporte_sessoes'
+    | 'vitalicios' | 'vitalicio_registrar' | 'vitalicio_homologar'
   oficina_id?: string
+  /** Vitalícios (0082): a vaga a homologar, e os dados de uma venda feita fora do app. */
+  vitalicio_id?: string
+  comprador?: string
+  email?: string
   plano?: Plano
   situacao?: Situacao
   motivo?: string
@@ -48,6 +53,7 @@ interface Corpo {
   acesso_ate?: string | null
   // Só para 'marcar_estorno'.
   cobranca_id?: string
+  /** Para 'marcar_estorno', e para 'vitalicio_registrar' (padrão R$ 2.000). */
   valor?: number
   estorno?: 'feito' | 'dispensado'
   observacao?: string
@@ -146,7 +152,7 @@ Deno.serve(async (req: Request) => {
      * Os responsáveis são os administradores ativos, sem a conta de suporte:
      * é com o dono que se fala sobre pagamento, não com o mecânico.
      */
-    const [cadastros, responsaveis, contratos, planos] = await Promise.all([
+    const [cadastros, responsaveis, contratos, planos, vitalicios] = await Promise.all([
       servico
         .from('oficinas')
         .select('id, telefone, endereco, cnpj, teste_ate, exclusao_pedida_em, motivo_da_saida, termos_aceitos_em'),
@@ -159,13 +165,18 @@ Deno.serve(async (req: Request) => {
         .order('criado_em'),
       servico
         .from('assinaturas')
-        .select('oficina_id, plano, inicio, proxima_cobranca')
+        .select('oficina_id, plano, inicio, proxima_cobranca, periodo, valor, parcelas')
         .eq('situacao', 'ativa'),
       servico.from('planos').select('id, preco_mensal'),
+      // Opcional como as fotos: sem a 0082, a lista sai sem a marca.
+      servico.from('vitalicios').select('oficina_id').eq('situacao', 'paga'),
     ])
     for (const r of [cadastros, responsaveis, contratos, planos]) {
       if (r.error) return responder({ erro: r.error.message }, 500)
     }
+    const oficinasVitalicias = new Set(
+      vitalicios.error ? [] : (vitalicios.data ?? []).map((v) => v.oficina_id).filter(Boolean),
+    )
 
     /*
      * Fotos de OS (0079): quanto cada oficina usa do limite do plano, para o
@@ -232,7 +243,11 @@ Deno.serve(async (req: Request) => {
           plano: contrato.plano,
           inicio: contrato.inicio,
           proxima_cobranca: contrato.proxima_cobranca,
+          periodo: contrato.periodo ?? 'mensal',
+          valor: contrato.valor,
+          parcelas: contrato.parcelas ?? 1,
         },
+        vitalicia: oficinasVitalicias.has(o.id),
         fotos: fotosPorOficina.get(o.id) ?? null,
       }
     })
@@ -242,6 +257,77 @@ Deno.serve(async (req: Request) => {
       indicadores: indicadores.data ?? {},
       painel: painel.data ?? {},
     })
+  }
+
+  // As vagas vitalícias (0082) -------------------------------------------------------
+  //
+  // A plataforma registra as vendas feitas fora do app (pagas por fora, antes
+  // de a pessoa ter oficina no GIRO) e homologa a vaga quando a oficina se
+  // cadastra. A trava das 30 vagas vale aqui também: é o banco que a aplica.
+  if (corpo.acao === 'vitalicios') {
+    const [lista, restam] = await Promise.all([
+      servico
+        .from('vitalicios')
+        .select('id, oficina_id, comprador, email, valor, origem, situacao, reservada_ate, observacao, vendido_em, oficinas(nome)')
+        .order('vendido_em'),
+      servico.rpc('vagas_vitalicias_restantes'),
+    ])
+    if (lista.error) return responder({ erro: lista.error.message }, 500)
+    return responder({ vitalicios: lista.data ?? [], restantes: Number(restam.data ?? 0), total: 30 })
+  }
+
+  if (corpo.acao === 'vitalicio_registrar') {
+    const comprador = String(corpo.comprador ?? '').trim()
+    if (comprador.length < 2) return responder({ erro: 'Informe o nome de quem comprou.' }, 400)
+    const { data, error } = await servico
+      .from('vitalicios')
+      .insert({
+        comprador,
+        email: corpo.email ? String(corpo.email).trim() : null,
+        valor: Number(corpo.valor ?? 2000),
+        origem: 'fora_do_app',
+        situacao: 'paga',
+        observacao: `registrada por ${sessao.user.email}`,
+      })
+      .select('id')
+      .single()
+    if (error) return responder({ erro: error.message }, 400)
+    return responder({ ok: true, id: data.id })
+  }
+
+  if (corpo.acao === 'vitalicio_homologar') {
+    if (!corpo.vitalicio_id || !corpo.oficina_id) {
+      return responder({ erro: 'Escolha a vaga e a oficina.' }, 400)
+    }
+    const { data: jaTem } = await servico
+      .from('vitalicios').select('id').eq('oficina_id', corpo.oficina_id).maybeSingle()
+    if (jaTem) return responder({ erro: 'Esta oficina já é vitalícia.' }, 409)
+
+    const { data: vaga } = await servico
+      .from('vitalicios').select('oficina_id, situacao').eq('id', corpo.vitalicio_id).maybeSingle()
+    if (!vaga) return responder({ erro: 'Vaga não encontrada.' }, 404)
+    if (vaga.oficina_id) return responder({ erro: 'Esta vaga já está ligada a outra oficina.' }, 409)
+    if (vaga.situacao !== 'paga') return responder({ erro: 'Esta vaga ainda não foi paga.' }, 409)
+
+    const { data: assinaturaAntiga, error } = await servico.rpc('vitalicio_na_oficina', {
+      p_vitalicio: corpo.vitalicio_id,
+      p_oficina: corpo.oficina_id,
+    })
+    if (error) return responder({ erro: error.message }, 400)
+
+    // A mensalidade que a oficina pagava antes não pode continuar sendo cobrada.
+    let aviso: string | null = null
+    if (assinaturaAntiga) {
+      const provedor = configuracaoDoAsaas()
+      const r = provedor
+        ? await fetch(`${provedor.base}/subscriptions/${assinaturaAntiga}`, {
+            method: 'DELETE',
+            headers: { access_token: provedor.chave },
+          }).catch(() => null)
+        : null
+      if (!r?.ok) aviso = `Cancele à mão no Asaas a assinatura ${assinaturaAntiga}.`
+    }
+    return responder({ ok: true, aviso })
   }
 
   // Reprocessar um pagamento que o sistema não soube ------------------------------
@@ -291,13 +377,14 @@ Deno.serve(async (req: Request) => {
       return responder({ erro: 'Nenhuma cobrança paga encontrada nesta assinatura.' }, 404)
     }
 
-    // Mesma conta do webhook: a próxima data que o provedor informa, ou trinta
-    // dias a partir do vencimento PAGO — nunca a partir de hoje, senão quem
-    // paga atrasado perde os dias de atraso.
-    const proxima = paga.nextDueDate ?? paga.dueDate
-    const ate = new Date(`${String(proxima)}T12:00:00Z`)
-    if (!paga.nextDueDate) ate.setDate(ate.getDate() + 30)
-    const acessoAte = ate.toISOString().slice(0, 10)
+    // Mesma conta do webhook, que agora mora no banco (0082): o vencimento
+    // PAGO mais os meses do período da assinatura — nunca a partir de hoje,
+    // senão quem paga atrasado perde os dias de atraso.
+    const { data: acessoAte, error: erroPrazo } = await servico.rpc('acesso_depois_do_pagamento', {
+      p_oficina: corpo.oficina_id,
+      p_vencimento: String(paga.dueDate),
+    })
+    if (erroPrazo) return responder({ erro: erroPrazo.message }, 500)
 
     const { error: erroAplicar } = await servico.rpc('registrar_pagamento', {
       p_oficina: corpo.oficina_id,
