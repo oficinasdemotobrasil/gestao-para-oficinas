@@ -107,6 +107,38 @@ export default {
         padrao: '160ms',
         folha: '200ms',
       },
+      /*
+       * O movimento da página de vendas (src/funcionalidades/site/efeitos.tsx).
+       * Lento e pequeno de propósito: é para dar vida, não para disputar a
+       * atenção com o texto. Tudo é usado com `motion-safe:`, então some para
+       * quem pediu menos movimento no aparelho.
+       */
+      keyframes: {
+        flutuar: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+        'zoom-lento': {
+          from: { transform: 'scale(1.08)' },
+          to: { transform: 'scale(1)' },
+        },
+        // O brilho que atravessa o selo: passa rápido e descansa o resto do ciclo.
+        brilho: {
+          '0%': { transform: 'translateX(-120%) skewX(-20deg)' },
+          '25%, 100%': { transform: 'translateX(220%) skewX(-20deg)' },
+        },
+        'pulso-ponto': {
+          '0%': { transform: 'scale(1)', opacity: '0.7' },
+          '100%': { transform: 'scale(2.6)', opacity: '0' },
+        },
+      },
+      animation: {
+        flutuar: 'flutuar 6s ease-in-out infinite',
+        'zoom-lento': 'zoom-lento 14s ease-out both',
+        'girar-lento': 'spin 90s linear infinite',
+        brilho: 'brilho 4.5s ease-in-out infinite',
+        'pulso-ponto': 'pulso-ponto 1.6s ease-out infinite',
+      },
     },
   },
   plugins: [],

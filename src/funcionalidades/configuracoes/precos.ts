@@ -25,6 +25,15 @@ export const SUFIXO_DO_PERIODO: Record<PeriodoDePagamento, string> = {
   vitalicio: 'uma vez só',
 }
 
+/**
+ * O período que chega pelo endereço (`?periodo=anual`, `?assinar=anual`),
+ * vindo do botão de compra da página de vendas. Qualquer outra coisa vira
+ * nulo: endereço é texto que qualquer um digita.
+ */
+export function periodoDoEndereco(valor: string | null): PeriodoDePagamento | null {
+  return valor && valor in ROTULO_DO_PERIODO ? (valor as PeriodoDePagamento) : null
+}
+
 /** O período em destaque: é a melhor oferta recorrente, e é a que se quer vender. */
 export const PERIODO_EM_DESTAQUE: PeriodoDePagamento = 'anual'
 
@@ -87,3 +96,60 @@ export function useParcelas(periodo: PeriodoDePagamento | null) {
     },
   })
 }
+
+/**
+ * Tudo o que o plano inclui, em grupos — o que a página de vendas e a tela de
+ * assinatura mostram.
+ *
+ * Fica no código, e não na coluna `beneficios` dos planos, porque descreve o
+ * que o SISTEMA faz: acompanha a versão. Um recurso que sai ou muda de nome
+ * muda aqui, no mesmo commit em que mudou na tela. Os textos dizem só o que
+ * existe hoje — nada de "em breve".
+ */
+export const RECURSOS_DO_PLANO: { grupo: string; itens: string[] }[] = [
+  {
+    grupo: 'Atendimento',
+    itens: [
+      'Orçamento no celular, enviado pelo WhatsApp ou em PDF',
+      'Texto do orçamento escrito pela inteligência artificial',
+      'Busca por placa, cliente ou número da OS',
+      'Ficha da moto com tudo o que já foi feito e a garantia',
+    ],
+  },
+  {
+    grupo: 'Oficina',
+    itens: [
+      'Ordem de serviço do orçamento à entrega, com responsável',
+      'Relógio de tempo do mecânico em cada serviço',
+      'Fotos e vistoria de entrada da moto',
+      'PDF da OS com vistoria e fotos para o cliente',
+    ],
+  },
+  {
+    grupo: 'Estoque',
+    itens: [
+      'Catálogo de peças e serviços com preço e margem',
+      'Entrada de nota fiscal pelo XML ou pelo QR code',
+      'Peça reservada para a OS e aviso de repor',
+    ],
+  },
+  {
+    grupo: 'Dinheiro',
+    itens: [
+      'Contas a receber e a pagar, com parcelamento',
+      'Cobrança por PIX com QR code e copia e cola',
+      'Quem está devendo e quem sumiu, com mensagem pronta',
+      'Painel com faturamento, conversão e ticket médio',
+      'Comissão de quem indica cliente',
+    ],
+  },
+  {
+    grupo: 'Equipe e segurança',
+    itens: [
+      'Até 5 acessos: dono, balcão e mecânico',
+      'O mecânico não vê preço nem dinheiro',
+      'Funciona no celular e instala como aplicativo',
+      'Todos os seus dados em planilha, quando quiser',
+    ],
+  },
+]

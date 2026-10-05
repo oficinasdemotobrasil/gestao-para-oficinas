@@ -13,9 +13,10 @@
  *    cadastro e, sete dias depois, no sistema — se a página parecer outra
  *    empresa, a primeira tela vira uma pequena decepção.
  *
- * 2. Preço e benefícios NÃO estão escritos aqui: vêm da tabela `planos`, a
- *    mesma que a tela de assinatura lê. Texto de venda em dois lugares é
- *    promessa que um dia diverge do que o sistema cobra.
+ * 2. Preço e lista de funções NÃO estão escritos aqui: o preço vem da tabela
+ *    `precos` e a lista de `RECURSOS_DO_PLANO`, os mesmos que a tela de
+ *    assinatura lê. Texto de venda em dois lugares é promessa que um dia
+ *    diverge do que o sistema entrega.
  *
  * 3. Nada de emissão de nota fiscal. A entrada por XML do fornecedor existe e
  *    está descrita; emitir NF-e depende de serviço fiscal ainda não contratado,
@@ -43,6 +44,7 @@ import { supabase } from '@/lib/supabase'
 import { LinkLegal } from '@/funcionalidades/legal/PaginaLegal'
 import {
   PERIODO_EM_DESTAQUE,
+  RECURSOS_DO_PLANO,
   ROTULO_DO_PERIODO,
   SUFIXO_DO_PERIODO,
   economia,
@@ -60,6 +62,7 @@ import {
   TelaOrdem,
   TelaPainel,
 } from './TelasDoProduto'
+import { Brilho, CartaoComLuz, Contador, ProgressoDaLeitura, Revelar } from './efeitos'
 
 interface PlanoNaPagina {
   id: string
@@ -171,7 +174,7 @@ const PERGUNTAS = [
   {
     pergunta: 'Quantas pessoas podem usar?',
     resposta:
-      'Depende do plano: são dois ou cinco acessos, cada um com a sua senha. Durante o teste valem cinco, para a equipe inteira experimentar junto.',
+      'Até cinco acessos, cada um com a sua senha: o dono, o balcão e os mecânicos. Vale o mesmo no teste, para a equipe inteira experimentar junto.',
   },
   {
     pergunta: 'Meus dados ficam seguros?',
@@ -247,6 +250,7 @@ export function LandingPage() {
 
   return (
     <div className="min-h-dvh bg-fundo pb-24 desktop:pb-0">
+      <ProgressoDaLeitura />
       <Cabecalho />
       <Dobra />
       <FaixaDeConfianca />
@@ -337,12 +341,12 @@ function Dobra() {
         src="/site/oficina-panoramica.webp"
         alt=""
         fetchPriority="high"
-        className="absolute inset-0 h-full w-full object-cover object-center desktop:object-left"
+        className="absolute inset-0 h-full w-full object-cover object-center motion-safe:animate-zoom-lento desktop:object-left"
       />
       <span aria-hidden className="absolute inset-0 bg-fundo/85" />
       <Simbolo
         tamanho="80%"
-        className="pointer-events-none absolute -right-[18%] -top-[26%] hidden text-[#17171A] desktop:block"
+        className="pointer-events-none absolute -right-[18%] -top-[26%] hidden text-[#17171A] motion-safe:animate-girar-lento desktop:block"
       />
       <div className="relative mx-auto grid max-w-6xl gap-12 px-5 py-12 desktop:grid-cols-[1.1fr_auto] desktop:items-center desktop:px-8 desktop:py-20">
         <div>
@@ -394,7 +398,7 @@ function Dobra() {
           </ul>
         </div>
 
-        <div className="hidden desktop:block">
+        <div className="hidden motion-safe:animate-flutuar desktop:block">
           <Celular>
             <TelaOrcamento />
           </Celular>
@@ -438,12 +442,12 @@ function Dor() {
           lugar:
         </p>
         <div className="grid gap-4 pt-10 tablet:grid-cols-2 desktop:grid-cols-4">
-          {DORES.map(({ icone: Icone, titulo, texto }) => (
-            <div key={titulo} className="rounded-card border border-borda-em-fundo bg-fundo-2 p-6">
+          {DORES.map(({ icone: Icone, titulo, texto }, i) => (
+            <Revelar key={titulo} atraso={i * 90} className="rounded-card border border-borda-em-fundo bg-fundo-2 p-6">
               <Icone aria-hidden size={24} className="text-acento" />
               <p className="pt-4 text-corpo font-semibold text-em-fundo">{titulo}</p>
               <p className="pt-2 text-apoio leading-relaxed text-em-fundo-2">{texto}</p>
-            </div>
+            </Revelar>
           ))}
         </div>
       </div>
@@ -474,7 +478,7 @@ function Recursos() {
                 i % 2 === 1 ? 'desktop:[&>*:first-child]:order-2' : '',
               ].join(' ')}
             >
-              <div>
+              <Revelar de={i % 2 === 1 ? 'direita' : 'esquerda'}>
                 <p className="text-apoio font-semibold uppercase tracking-wide text-acento-forte">
                   {r.etiqueta}
                 </p>
@@ -490,8 +494,8 @@ function Recursos() {
                     </li>
                   ))}
                 </ul>
-              </div>
-              <div className="relative overflow-hidden rounded-card p-8">
+              </Revelar>
+              <Revelar atraso={120} className="relative overflow-hidden rounded-card p-8">
                 <img
                   src={r.foto}
                   alt=""
@@ -502,7 +506,7 @@ function Recursos() {
                 <div className="relative">
                   <Celular>{r.tela}</Celular>
                 </div>
-              </div>
+              </Revelar>
             </div>
           ))}
         </div>
@@ -559,7 +563,6 @@ function Precos({ planos }: { planos: PlanoNaPagina[] }) {
   const anual12 = useParcelas('anual')
   const lista = precos.isError ? [] : (precos.data ?? [])
   const mensal = lista.find((p) => p.periodo === 'mensal')
-  const beneficios = planos[planos.length - 1]?.beneficios ?? []
   const restam = vagas.data ?? 0
   const doze = anual12.data?.find((o) => o.parcelas === 12)
 
@@ -576,61 +579,102 @@ function Precos({ planos }: { planos: PlanoNaPagina[] }) {
 
         {lista.length > 0 ? (
           <>
-            {beneficios.length > 0 && (
-              <ul className="mx-auto grid max-w-3xl gap-2 pt-8 tablet:grid-cols-2">
-                {beneficios.map((b) => (
-                  <li key={b} className="flex gap-2 text-apoio text-em-fundo-2">
-                    <Check aria-hidden size={16} className="mt-0.5 shrink-0 text-acento" />
-                    {b}
-                  </li>
-                ))}
-              </ul>
-            )}
             <div className="grid gap-4 pt-10 tablet:grid-cols-2 desktop:grid-cols-4">
-              {lista.map((p) => {
+              {lista.map((p, i) => {
                 const destaque = p.periodo === PERIODO_EM_DESTAQUE
                 const vitalicio = p.periodo === 'vitalicio'
+                const esgotado = vitalicio && restam <= 0
                 const mes = porMes(p)
                 const economiza = economia(p, mensal)
                 return (
-                  <div
-                    key={p.periodo}
-                    className={[
-                      'flex flex-col rounded-card border bg-fundo p-6',
-                      destaque ? 'border-acento' : 'border-borda-em-fundo',
-                    ].join(' ')}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-secao font-semibold text-em-fundo">{ROTULO_DO_PERIODO[p.periodo]}</p>
-                      {destaque && (
-                        <span className="rounded-badge bg-acento px-2 py-0.5 text-micro font-semibold text-em-superficie">
-                          Mais escolhido
+                  <Revelar key={p.periodo} atraso={i * 90} className="flex">
+                    <CartaoComLuz
+                      destaque={destaque}
+                      className={[
+                        'flex w-full flex-col rounded-card border bg-fundo p-6',
+                        destaque ? 'border-acento' : 'border-borda-em-fundo',
+                      ].join(' ')}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-secao font-semibold text-em-fundo">{ROTULO_DO_PERIODO[p.periodo]}</p>
+                        {destaque && (
+                          <span className="relative rounded-badge bg-acento px-2 py-0.5 text-micro font-semibold text-em-superficie">
+                            Mais escolhido
+                            <Brilho />
+                          </span>
+                        )}
+                      </div>
+                      <p className="pt-3 text-[1.75rem] font-bold tabular-nums text-em-fundo">
+                        <Contador valor={Number(p.valor)} formatar={moeda} />
+                      </p>
+                      <p className="text-apoio text-em-fundo-2">{SUFIXO_DO_PERIODO[p.periodo]}</p>
+                      <div className="flex-1 space-y-1 pt-4">
+                        {mes !== null && p.periodo !== 'mensal' && (
+                          <p className="text-apoio font-medium text-em-fundo">Sai por {moeda(mes)} por mês</p>
+                        )}
+                        {economiza > 0 && (
+                          <p className="text-apoio font-semibold text-acento">Economize {moeda(economiza)}</p>
+                        )}
+                        {destaque && doze && (
+                          <p className="text-apoio text-em-fundo-2">
+                            Ou 12x de {moeda(doze.valorParcela)} no cartão
+                          </p>
+                        )}
+                        {vitalicio && (
+                          <p className="flex items-center gap-2 text-apoio font-semibold text-acento">
+                            {!esgotado && (
+                              <span aria-hidden className="relative flex h-2 w-2">
+                                <span className="absolute inline-flex h-full w-full rounded-full bg-acento motion-safe:animate-pulso-ponto" />
+                                <span className="relative inline-flex h-2 w-2 rounded-full bg-acento" />
+                              </span>
+                            )}
+                            {esgotado ? 'Vagas esgotadas' : `Restam ${restam} de 30 vagas`}
+                          </p>
+                        )}
+                      </div>
+                      {/* Comprar direto, sem passar pelo teste: o cadastro leva o
+                          período escolhido e termina na tela de pagamento. */}
+                      {esgotado ? (
+                        <span className="mt-5 inline-flex min-h-toque items-center justify-center rounded-controle border border-borda-em-fundo px-4 text-apoio font-semibold text-em-fundo-2">
+                          Esgotado
                         </span>
+                      ) : (
+                        <Link
+                          to={`/criar-conta?periodo=${p.periodo}`}
+                          className={[
+                            'mt-5 inline-flex min-h-toque items-center justify-center gap-2 rounded-controle px-4 text-apoio font-semibold transition-colors',
+                            destaque
+                              ? 'bg-acento text-em-superficie hover:bg-acento-pressionado'
+                              : 'border border-acento text-em-fundo hover:bg-acento hover:text-em-superficie',
+                          ].join(' ')}
+                        >
+                          {vitalicio ? 'Garantir minha vaga' : `Assinar o ${ROTULO_DO_PERIODO[p.periodo].toLowerCase()}`}
+                          <ArrowRight aria-hidden size={16} />
+                        </Link>
                       )}
-                    </div>
-                    <p className="pt-3 text-[1.75rem] font-bold text-em-fundo">{moeda(Number(p.valor))}</p>
-                    <p className="text-apoio text-em-fundo-2">{SUFIXO_DO_PERIODO[p.periodo]}</p>
-                    <div className="flex-1 space-y-1 pt-4">
-                      {mes !== null && p.periodo !== 'mensal' && (
-                        <p className="text-apoio font-medium text-em-fundo">Sai por {moeda(mes)} por mês</p>
-                      )}
-                      {economiza > 0 && (
-                        <p className="text-apoio font-semibold text-acento">Economize {moeda(economiza)}</p>
-                      )}
-                      {destaque && doze && (
-                        <p className="text-apoio text-em-fundo-2">
-                          Ou 12x de {moeda(doze.valorParcela)} no cartão
-                        </p>
-                      )}
-                      {vitalicio && (
-                        <p className="text-apoio font-semibold text-acento">
-                          {restam > 0 ? `Restam ${restam} de 30 vagas` : 'Vagas esgotadas'}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                    </CartaoComLuz>
+                  </Revelar>
                 )
               })}
+            </div>
+
+            <div className="pt-12">
+              <p className="text-center text-secao font-semibold text-em-fundo">Tudo isso em qualquer período</p>
+              <div className="grid gap-6 pt-6 tablet:grid-cols-2 desktop:grid-cols-5">
+                {RECURSOS_DO_PLANO.map((g, i) => (
+                  <Revelar key={g.grupo} atraso={i * 70}>
+                    <p className="text-apoio font-semibold uppercase tracking-wide text-acento">{g.grupo}</p>
+                    <ul className="space-y-2 pt-3">
+                      {g.itens.map((item) => (
+                        <li key={item} className="flex gap-2 text-apoio text-em-fundo-2">
+                          <Check aria-hidden size={16} className="mt-0.5 shrink-0 text-acento" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </Revelar>
+                ))}
+              </div>
             </div>
           </>
         ) : (
@@ -662,8 +706,8 @@ function Precos({ planos }: { planos: PlanoNaPagina[] }) {
           </div>
         )}
 
-        <div className="pt-8">
-          <BotaoDeTeste largo />
+        <div className="pt-10">
+          <BotaoDeTeste largo rotulo="Prefiro testar grátis por 7 dias antes" />
         </div>
       </div>
     </section>
