@@ -2654,7 +2654,9 @@ async function testarPainelDoNegocio() {
 
   // A oficina B está com acesso aberto e SEM contrato — é a cortesia, o
   // piloto. Se ela entrasse na conta, a receita seria inventada.
-  Number(painel.dinheiro.receita_recorrente) === 49.99
+  // 49,90: a assinatura nasce com o preço do período (0082), e não com o do
+  // plano antigo.
+  Number(painel.dinheiro.receita_recorrente) === 49.9
     ? ok('a receita conta quem tem contrato, não quem tem acesso', 'a cortesia não vira receita')
     : erro('receita recorrente', String(painel.dinheiro.receita_recorrente))
 
@@ -2676,8 +2678,8 @@ async function testarPainelDoNegocio() {
     ? ok('a oficina atrasada entra na lista de atenção', alerta.motivo)
     : erro('lista de atenção', JSON.stringify(comAtraso.atencao))
 
-  Number(comAtraso.dinheiro.em_risco) === 49.99 && Number(comAtraso.dinheiro.receita_recorrente) === 0
-    ? ok('o dinheiro sai da receita e entra no "em risco"', 'R$ 49,99 deixaram de ser receita')
+  Number(comAtraso.dinheiro.em_risco) === 49.9 && Number(comAtraso.dinheiro.receita_recorrente) === 0
+    ? ok('o dinheiro sai da receita e entra no "em risco"', 'R$ 49,90 deixaram de ser receita')
     : erro('em risco', JSON.stringify(comAtraso.dinheiro))
 
   await logarComo(ID.adminA)
@@ -3754,6 +3756,7 @@ async function main() {
     await testarTesteMostraTudo()
     await testarAcessoDeSuporte()
     await testarFotosDaOs()
+    await testarPlanoUnicoEVitalicio()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
     // impressão de que correu tudo bem — foi o que aconteceu quando a coluna
@@ -4494,4 +4497,175 @@ async function testarFotosDaOs() {
     'e a lista de limpeza também',
     `select * from public.plataforma_fotos_para_apagar(10)`,
   )
+}
+
+/**
+ * Um plano só, quatro períodos e as 30 vagas vitalícias (0082).
+ *
+ * O que se prova: o preço é público e vem da tabela; a receita do painel
+ * divide cada assinatura pelo período dela; a 31ª vaga vitalícia não entra
+ * por caminho nenhum, a reserva vencida devolve a vaga sozinha, e o pagamento
+ * que já caiu é registrado mesmo com as vagas esgotadas; ligar a vaga à
+ * oficina tira o prazo de acesso e encerra a assinatura recorrente.
+ */
+async function testarPlanoUnicoEVitalicio() {
+  console.log('\n\x1b[1mPlano único, períodos e vitalício\x1b[0m')
+
+  // Preços públicos -------------------------------------------------------------
+  await db.exec('reset role;')
+  await db.exec('set role anon;')
+  const precos = await db.query<{ periodo: string; valor: string }>(
+    `select periodo, valor from public.precos order by ordem`,
+  )
+  const lista = precos.rows.map((r) => `${r.periodo}=${Number(r.valor)}`).join(', ')
+  lista === 'mensal=49.9, trimestral=134.7, anual=478.8, vitalicio=2000'
+    ? ok('quem não entrou vê os quatro preços', lista)
+    : erro('preços públicos', lista)
+  const vagas = await db.query<{ n: number }>(`select public.vagas_vitalicias_restantes() as n`)
+  Number(vagas.rows[0].n) === 30
+    ? ok('e quantas vagas vitalícias restam', '30')
+    : erro('vagas restantes para o público', String(vagas.rows[0].n))
+  // Recusa ou zero linhas: as duas respostas fecham a porta. No Supabase o
+  // visitante tem permissão na tabela e o RLS devolve zero; aqui, sem a
+  // permissão, a recusa vem antes.
+  try {
+    const n = await contar(`select count(*) as n from public.vitalicios`)
+    n === 0 ? ok('mas não a lista de quem comprou', 'zero linhas') : erro('lista de compradores', `${n} linhas`)
+  } catch (e) {
+    ok('mas não a lista de quem comprou', (e as Error).message.split('\n')[0])
+  }
+
+  await comoAdministradorDoBanco()
+  await esperaLinhas(
+    'o Essencial sai de venda, e o Completo fica em R$ 49,90',
+    `select count(*) as n from public.planos
+      where (id = 'essencial' and not ativo) or (id = 'completo' and preco_mensal = 49.90)`,
+    2,
+  )
+  await logarComo(ID.adminA)
+  await esperaBloqueio(
+    'ninguém do app muda preço, nem o dono da oficina',
+    `update public.precos set valor = 1 where periodo = 'mensal'`,
+  )
+  await comoAdministradorDoBanco()
+
+  // A receita por mês -----------------------------------------------------------
+  await db.query(`update public.oficinas set status='ativa', acesso_ate=current_date + 30, teste_ate=null where id in ('${ID.oficinaA}','${ID.oficinaB}')`)
+  await db.query(`delete from public.assinaturas`)
+  await db.exec(`
+    insert into public.assinaturas (oficina_id, plano, situacao, periodo, valor)
+      values ('${ID.oficinaA}', 'completo', 'ativa', 'anual', 478.80);
+    insert into public.assinaturas (oficina_id, plano, situacao, periodo, valor)
+      values ('${ID.oficinaB}', 'completo', 'ativa', 'trimestral', 134.70);
+  `)
+  const painel = (await db.query<{ j: Record<string, any> }>('select public.plataforma_painel() as j')).rows[0].j
+  Number(painel.dinheiro.receita_recorrente) === 84.8
+    ? ok('o anual conta R$ 39,90 por mês e o trimestral R$ 44,90', 'receita do mês R$ 84,80, e não R$ 613,50')
+    : erro('receita por mês', String(painel.dinheiro.receita_recorrente))
+  const indicadores = (await db.query<{ j: Record<string, any> }>('select public.plataforma_indicadores() as j')).rows[0].j
+  Number(indicadores.receita_mensal) === 84.8
+    ? ok('os indicadores contam igual')
+    : erro('indicadores por mês', String(indicadores.receita_mensal))
+
+  // Assinatura sem valor ganha o do período.
+  await db.query(`delete from public.assinaturas where oficina_id = '${ID.oficinaB}'`)
+  await db.query(
+    `insert into public.assinaturas (oficina_id, plano, situacao, periodo) values ('${ID.oficinaB}', 'completo', 'ativa', 'trimestral')`,
+  )
+  await esperaLinhas(
+    'assinatura que nasce sem valor pega o preço do período',
+    `select count(*) as n from public.assinaturas where oficina_id = '${ID.oficinaB}' and valor = 134.70`,
+    1,
+  )
+  await db.query(`update public.assinaturas set id_externo_assinatura = 'sub_b' where oficina_id = '${ID.oficinaB}'`)
+
+  // As 30 vagas -----------------------------------------------------------------
+  await db.query(`delete from public.vitalicios`)
+  await db.query(`
+    insert into public.vitalicios (comprador, valor, origem)
+    select 'Comprador ' || g, 2000, 'fora_do_app' from generate_series(1, 29) g
+  `)
+  await db.query(`
+    insert into public.vitalicios (comprador, valor, origem, situacao, reservada_ate, id_externo_cobranca)
+    values ('Reserva vencida', 2000, 'app', 'reservada', now() - interval '1 hour', 'pay_vencida')
+  `)
+  const restam = await db.query<{ n: number }>(`select public.vagas_vitalicias_restantes() as n`)
+  Number(restam.rows[0].n) === 1
+    ? ok('reserva vencida não ocupa vaga', '29 vendidas, 1 vencida: resta 1')
+    : erro('reserva vencida', String(restam.rows[0].n))
+
+  const reserva = await db.query<{ id: string }>(
+    `select public.reservar_vitalicio('${ID.oficinaA}', 'Tiago', 't@x', 'pay_ultima') as id`,
+  )
+  ok('a vaga 30 é reservada para quem está pagando')
+  await esperaErro(
+    'a 31ª vaga é recusada',
+    `insert into public.vitalicios (comprador, valor, origem) values ('Atrasado', 2000, 'fora_do_app')`,
+  )
+  await esperaErro(
+    'nem por reserva',
+    `select public.reservar_vitalicio('${ID.oficinaB}', 'Outro', null, 'pay_outra')`,
+  )
+
+  // O pagamento da reserva cai: vira paga, a oficina fica sem prazo.
+  await db.query(`select public.registrar_vitalicio_pago('pay_ultima', '${ID.oficinaA}', 'Tiago', 't@x', 2000)`)
+  await esperaLinhas(
+    'o pagamento confirma a reserva',
+    `select count(*) as n from public.vitalicios where id = '${reserva.rows[0].id}' and situacao = 'paga' and oficina_id = '${ID.oficinaA}'`,
+    1,
+  )
+  await esperaLinhas(
+    'e a oficina passa a ter acesso sem prazo, ativa',
+    `select count(*) as n from public.oficinas
+      where id = '${ID.oficinaA}' and acesso_ate is null and public.situacao_da_oficina(id) = 'ativa'`,
+    1,
+  )
+  await esperaLinhas(
+    'a assinatura anual dela é encerrada (para de cobrar)',
+    `select count(*) as n from public.assinaturas where oficina_id = '${ID.oficinaA}' and situacao = 'encerrada'`,
+    1,
+  )
+
+  // PIX que caiu depois de esgotar: registra e marca para conferir.
+  await db.query(`select public.registrar_vitalicio_pago('pay_tardio', '${ID.oficinaB}', 'Tardio', null, 2000)`)
+  await esperaLinhas(
+    'pagamento que chega com as vagas esgotadas é registrado, marcado para conferir',
+    `select count(*) as n from public.vitalicios where id_externo_cobranca = 'pay_tardio' and observacao like '%conferir%'`,
+    1,
+  )
+  const retorno = await db.query<{ r: string | null }>(
+    `select public.vitalicio_na_oficina((select id from public.vitalicios where id_externo_cobranca = 'pay_tardio'), '${ID.oficinaB}') as r`,
+  )
+  retorno.rows[0].r === 'sub_b' || retorno.rows[0].r === null
+    ? ok('ligar a vaga devolve a assinatura recorrente para cancelar no provedor')
+    : erro('assinatura a cancelar', String(retorno.rows[0].r))
+
+  // A oficina sabe que é vitalícia; o app não alcança o resto -------------------
+  await logarComo(ID.adminA)
+  const minha = await db.query<{ v: boolean }>(`select public.minha_oficina_e_vitalicia() as v`)
+  minha.rows[0].v === true ? ok('a oficina vê que é vitalícia') : erro('minha_oficina_e_vitalicia', String(minha.rows[0].v))
+  await esperaLinhas('mas não lê a lista de compradores', `select count(*) as n from public.vitalicios`, 0)
+  await esperaErro(
+    'nem chama o registro de pagamento',
+    `select public.registrar_vitalicio_pago('pay_falso', '${ID.oficinaA}', 'Eu', null, 1)`,
+  )
+  await esperaErro(
+    'nem a reserva',
+    `select public.reservar_vitalicio('${ID.oficinaA}', 'Eu', null, 'pay_falso2')`,
+  )
+
+  // Limpeza -----------------------------------------------------------------------
+  await comoAdministradorDoBanco()
+  await db.query(`delete from public.vitalicios`)
+
+  // Com vaga sobrando, para a recusa ser a da regra de quem escreve, e não a
+  // das vagas esgotadas.
+  await logarComo(ID.adminA)
+  await esperaBloqueio(
+    'o dono da oficina não se dá uma vaga vitalícia, mesmo sobrando vaga',
+    `insert into public.vitalicios (oficina_id, comprador, valor, origem) values ('${ID.oficinaA}', 'Eu', 0, 'app')`,
+  )
+  await comoAdministradorDoBanco()
+  await db.query(`delete from public.assinaturas`)
+  await db.query(`update public.oficinas set acesso_ate = null where id in ('${ID.oficinaA}','${ID.oficinaB}')`)
 }
