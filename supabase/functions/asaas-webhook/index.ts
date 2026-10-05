@@ -170,6 +170,17 @@ Deno.serve(async (req: Request) => {
       .in('id_externo_cobranca', idsDaCompra).limit(1).maybeSingle()
     oficinaId = data?.oficina_id ?? null
   }
+  // Por último, a referência que toda cobrança leva: "<oficina>" ou
+  // "<oficina>|vitalicio". Serve ao PIX antigo de um vitalício cuja reserva foi
+  // trocada. Vem do POST, então só ajuda a ACHAR — quem decide é a referência
+  // conferida no provedor, lá embaixo.
+  if (!oficinaId) {
+    const daReferencia = String(pagamento.externalReference ?? '').split('|')[0]
+    if (/^[0-9a-f-]{36}$/i.test(daReferencia)) {
+      const { data } = await servico.from('oficinas').select('id').eq('id', daReferencia).maybeSingle()
+      oficinaId = data?.id ?? null
+    }
+  }
 
   // Guarda antes de interpretar. Se a aplicação falhar, o evento está salvo.
   const { error: erroRegistro } = await servico.from('eventos_asaas').insert({
@@ -224,27 +235,38 @@ Deno.serve(async (req: Request) => {
         return responder({ ok: false, tipo, aplicado: false, observacao }, 502)
       }
 
-      // É a compra do vitalício? Pela cobrança ou pelo parcelamento, vindos do
+      // É a compra do vitalício? Pela cobrança ou pelo parcelamento na tabela
+      // de vagas, ou pela marca na referência da cobrança — tudo vindo do
       // provedor (conferido), e não do POST.
       const idsConferidos = [conferido.id, conferido.installment].filter(Boolean).map(String)
+      const [oficinaDaReferencia, marca] = String(conferido.externalReference ?? '').split('|')
       const { data: vaga } = await servico
         .from('vitalicios')
         .select('id_externo_cobranca, oficina_id, comprador, email, valor, situacao')
         .in('id_externo_cobranca', idsConferidos)
         .maybeSingle()
 
-      if (vaga) {
-        if (vaga.situacao === 'paga') {
-          // As outras parcelas do mesmo cartão: a vaga já é dela.
+      if (vaga || marca === 'vitalicio') {
+        if (vaga && vaga.situacao !== 'reservada') {
+          // As outras parcelas do mesmo cartão, ou o segundo aviso do mesmo
+          // pagamento: já está registrado.
           aplicado = true
-          observacao = 'parcela do vitalício já registrado'
+          observacao = 'pagamento do vitalício já registrado'
         } else {
+          // Sem reserva (foi trocada por um PIX novo): os dados vêm da oficina.
+          const oficinaDaCompra = vaga?.oficina_id ?? oficinaDaReferencia ?? oficinaId
+          const { data: daOficina } = vaga
+            ? { data: null }
+            : await servico.from('oficinas').select('nome').eq('id', oficinaDaCompra).maybeSingle()
+          const { data: precoVitalicio } = vaga
+            ? { data: null }
+            : await servico.from('precos').select('valor').eq('periodo', 'vitalicio').maybeSingle()
           const { data: assinaturaAntiga, error } = await servico.rpc('registrar_vitalicio_pago', {
-            p_cobranca: vaga.id_externo_cobranca,
-            p_oficina: vaga.oficina_id ?? oficinaId,
-            p_comprador: vaga.comprador,
-            p_email: vaga.email,
-            p_valor: vaga.valor,
+            p_cobranca: String(conferido.installment ?? conferido.id),
+            p_oficina: oficinaDaCompra,
+            p_comprador: vaga?.comprador ?? daOficina?.nome ?? 'Oficina',
+            p_email: vaga?.email ?? null,
+            p_valor: vaga?.valor ?? precoVitalicio?.valor ?? 2000,
           })
           if (error) throw error
           // A mensalidade que ela pagava antes não pode continuar sendo

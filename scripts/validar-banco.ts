@@ -4662,6 +4662,65 @@ async function testarPlanoUnicoEVitalicio() {
     `select public.reservar_vitalicio('${ID.oficinaA}', 'Eu', null, 'pay_falso2')`,
   )
 
+  // Os casos da revisão (Open Claude) ----------------------------------------------
+  await comoAdministradorDoBanco()
+  await db.query(`delete from public.vitalicios`)
+  await db.query(`delete from public.assinaturas`)
+  await db.query(`update public.oficinas set acesso_ate = current_date + 30 where id in ('${ID.oficinaA}','${ID.oficinaB}')`)
+
+  // PIX vencido e PIX novo da mesma oficina: a reserva nova entra.
+  await db.query(`select public.reservar_vitalicio('${ID.oficinaB}', 'Oficina B', null, 'pix_velho', 72)`)
+  await db.query(`update public.vitalicios set reservada_ate = now() - interval '1 hour' where id_externo_cobranca = 'pix_velho'`)
+  try {
+    await db.query(`select public.reservar_vitalicio('${ID.oficinaB}', 'Oficina B', null, 'pix_novo', 72)`)
+    ok('o PIX vencido não impede a oficina de gerar outro')
+  } catch (e) {
+    erro('reserva depois de PIX vencido', (e as Error).message)
+  }
+
+  // O PIX velho é pago mesmo assim: a oficina vira vitalícia pela reserva nova.
+  await db.query(`select public.registrar_vitalicio_pago('pix_velho', '${ID.oficinaB}', 'Oficina B', null, 2000)`)
+  await esperaLinhas(
+    'e se o PIX velho for pago, a oficina vira vitalícia do mesmo jeito',
+    `select count(*) as n from public.vitalicios where oficina_id = '${ID.oficinaB}' and situacao = 'paga'`,
+    1,
+  )
+  const quando = await db.query<{ v: string }>(`select vendido_em::text as v from public.vitalicios where oficina_id = '${ID.oficinaB}'`)
+  // O aviso repetido (confirmado e depois recebido) não faz nada.
+  await db.query(`select public.registrar_vitalicio_pago('pix_velho', '${ID.oficinaB}', 'Oficina B', null, 2000)`)
+  const depois = await db.query<{ v: string }>(`select vendido_em::text as v from public.vitalicios where oficina_id = '${ID.oficinaB}'`)
+  quando.rows[0].v === depois.rows[0].v
+    ? ok('o segundo aviso do mesmo pagamento não muda nada')
+    : erro('aviso repetido', `${quando.rows[0].v} → ${depois.rows[0].v}`)
+
+  // E se o PIX novo também for pago: registrado para estornar, sem ocupar vaga.
+  const antes = await db.query<{ n: number }>(`select public.vagas_vitalicias_restantes() as n`)
+  await db.query(`select public.registrar_vitalicio_pago('pix_novo', '${ID.oficinaB}', 'Oficina B', null, 2000)`)
+  const depoisDoNovo = await db.query<{ n: number }>(`select public.vagas_vitalicias_restantes() as n`)
+  await esperaLinhas(
+    'o segundo pagamento de quem já é vitalício fica marcado para estornar',
+    `select count(*) as n from public.vitalicios where id_externo_cobranca = 'pix_novo' and situacao = 'estornar'`,
+    1,
+  )
+  Number(antes.rows[0].n) === Number(depoisDoNovo.rows[0].n)
+    ? ok('e não ocupa vaga')
+    : erro('estorno ocupando vaga', `${antes.rows[0].n} → ${depoisDoNovo.rows[0].n}`)
+
+  // Reserva vencida paga depois de as 30 acabarem: entra marcada para conferir.
+  await db.query(`delete from public.vitalicios`)
+  await db.query(`select public.reservar_vitalicio('${ID.oficinaA}', 'Oficina A', null, 'pix_atrasado', 72)`)
+  await db.query(`update public.vitalicios set reservada_ate = now() - interval '1 hour' where id_externo_cobranca = 'pix_atrasado'`)
+  await db.query(`
+    insert into public.vitalicios (comprador, valor, origem)
+    select 'Comprador ' || g, 2000, 'fora_do_app' from generate_series(1, 30) g
+  `)
+  await db.query(`select public.registrar_vitalicio_pago('pix_atrasado', '${ID.oficinaA}', 'Oficina A', null, 2000)`)
+  await esperaLinhas(
+    'reserva vencida paga depois de as 30 acabarem entra marcada para conferir (antes virava a 31ª em silêncio)',
+    `select count(*) as n from public.vitalicios where id_externo_cobranca = 'pix_atrasado' and observacao like '%conferir%'`,
+    1,
+  )
+
   // O parcelamento, com a taxa do cliente ------------------------------------------
   await db.exec('reset role;')
   await db.exec('set role anon;')

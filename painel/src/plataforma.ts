@@ -325,7 +325,8 @@ export interface Vitalicio {
   email: string | null
   valor: number
   origem: 'fora_do_app' | 'app'
-  situacao: 'reservada' | 'paga'
+  /** 'estornar': pagou duas vezes; o dinheiro precisa voltar, e não ocupa vaga. */
+  situacao: 'reservada' | 'paga' | 'estornar'
   reservada_ate: string | null
   observacao: string | null
   vendido_em: string

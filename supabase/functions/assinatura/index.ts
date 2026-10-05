@@ -392,6 +392,21 @@ Deno.serve(async (req: Request) => {
         // jeito. Não é motivo para desfazer nada.
       }
     } else {
+      // Um PIX novo do vitalício aposenta o anterior, se havia: sem isto, a
+      // pessoa que deixou o primeiro vencer podia pagar os dois.
+      if (periodo === 'vitalicio') {
+        const { data: anterior } = await servico
+          .from('vitalicios').select('id_externo_cobranca')
+          .eq('oficina_id', oficinaId).eq('situacao', 'reservada').maybeSingle()
+        const idAnterior = anterior?.id_externo_cobranca
+        if (idAnterior) {
+          await noAsaas(
+            idAnterior.startsWith('pay_') ? `/payments/${idAnterior}` : `/installments/${idAnterior}`,
+            { method: 'DELETE' },
+          ).catch(() => undefined)
+        }
+      }
+
       // Cobrança única: o anual parcelado e o vitalício. No parcelado, o
       // provedor divide o total; a diferença de centavo vai na última parcela.
       const cobranca = await noAsaas('/payments', {
@@ -401,7 +416,9 @@ Deno.serve(async (req: Request) => {
           billingType: forma,
           dueDate: dataDoVencimento,
           description: descricao,
-          externalReference: oficinaId,
+          // O vitalício leva a marca na referência: é por ela que o aviso do
+          // provedor reconhece a compra, mesmo que a reserva tenha sido trocada.
+          externalReference: periodo === 'vitalicio' ? `${oficinaId}|vitalicio` : oficinaId,
           ...(parcelas > 1 ? { installmentCount: parcelas, totalValue: total } : { value: total }),
         }),
       })
@@ -421,12 +438,16 @@ Deno.serve(async (req: Request) => {
           p_horas: forma === 'PIX' ? 72 : 24,
         })
         if (erroReserva) {
-          // A última vaga foi vendida entre a conferência e a reserva. A
-          // cobrança acabou de nascer e ninguém pagou: desfaz lá também.
+          // A última vaga foi vendida entre a conferência e a reserva (ou a
+          // oficina virou vitalícia nesse meio-tempo). A cobrança acabou de
+          // nascer e ninguém pagou: desfaz lá também.
           await noAsaas(
             cobranca.installment ? `/installments/${cobranca.installment}` : `/payments/${cobranca.id}`,
             { method: 'DELETE' },
           ).catch(() => undefined)
+          if (erroReserva.hint === 'ja_e_vitalicia') {
+            return responder({ erro: 'Esta oficina já é vitalícia.' }, 409)
+          }
           return responder({ erro: 'As vagas vitalícias acabaram.', esgotado: true }, 409)
         }
       } else {

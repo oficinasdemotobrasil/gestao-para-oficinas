@@ -288,8 +288,10 @@ create table if not exists public.vitalicios (
   valor numeric(12, 2) not null check (valor >= 0),
   origem text not null check (origem in ('fora_do_app', 'app')),
   -- 'reservada' é a compra em andamento no app: segura a vaga enquanto o PIX
-  -- não cai. Expira sozinha em `reservada_ate`.
-  situacao text not null default 'paga' check (situacao in ('reservada', 'paga')),
+  -- não cai. Expira sozinha em `reservada_ate`. 'estornar' é dinheiro que
+  -- entrou e não deveria (oficina que já era vitalícia pagou de novo): fica
+  -- registrado para a plataforma devolver, sem ocupar vaga.
+  situacao text not null default 'paga' check (situacao in ('reservada', 'paga', 'estornar')),
   reservada_ate timestamptz,
   id_externo_cobranca text unique,
   observacao text,
@@ -419,38 +421,57 @@ end;
 $$;
 
 -- A compra no app: a reserva da vaga enquanto o pagamento não cai.
+--
+-- Revisão da 0082 (Open Claude): oficina_id é único, e a reserva vencida
+-- continuava na tabela — a oficina que deixasse o primeiro PIX vencer não
+-- conseguia gerar outro, e se pagasse o novo ficava sem acesso. A reserva
+-- anterior da mesma oficina sai antes da nova. Se o PIX antigo ainda for
+-- pago, registrar_vitalicio_pago acha a oficina pela reserva nova.
 create or replace function public.reservar_vitalicio(
-  p_oficina uuid,
-  p_comprador text,
-  p_email text,
-  p_cobranca text,
-  p_horas integer default 72
+  p_oficina uuid, p_comprador text, p_email text, p_cobranca text, p_horas integer default 72
 )
 returns uuid
-language sql
+language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_id uuid;
+begin
+  if exists (select 1 from public.vitalicios where oficina_id = p_oficina and situacao = 'paga') then
+    raise exception 'Esta oficina já é vitalícia.'
+      using errcode = 'unique_violation', hint = 'ja_e_vitalicia';
+  end if;
+
+  delete from public.vitalicios where oficina_id = p_oficina and situacao = 'reservada';
+
   insert into public.vitalicios
     (oficina_id, comprador, email, valor, origem, situacao, reservada_ate, id_externo_cobranca)
   select p_oficina, p_comprador, p_email, p.valor, 'app', 'reservada',
          now() + make_interval(hours => greatest(p_horas, 1)), p_cobranca
   from public.precos p where p.periodo = 'vitalicio'
-  returning id;
+  returning id into v_id;
+
+  return v_id;
+end;
 $$;
 
 /*
  * O pagamento do vitalício caiu (chamada pelo aviso do provedor, depois de
- * conferir lá). Com reserva: ela vira paga. Sem reserva (venceu e alguém
- * apagou, ou nunca houve): registra mesmo assim — o dinheiro entrou — e
- * anota para a plataforma conferir.
+ * conferir lá). Revisão da 0082 (Open Claude), três casos a mais:
+ *
+ *   - o provedor avisa duas vezes (confirmado e recebido): a segunda não faz
+ *     nada — antes, reescrevia a data da venda;
+ *   - reserva VENCIDA paga depois de as 30 acabarem: entra, mas marcada para
+ *     conferir — antes, virava a 31ª vaga sem aviso nenhum;
+ *   - oficina que já é vitalícia pagou de novo (dois PIX): fica registrado
+ *     para estornar, sem ocupar vaga.
+ *
+ * Sem reserva nenhuma (venceu e foi trocada, ou nunca houve), registra mesmo
+ * assim — o dinheiro entrou — e anota para conferir se passou das 30.
  */
 create or replace function public.registrar_vitalicio_pago(
-  p_cobranca text,
-  p_oficina uuid,
-  p_comprador text,
-  p_email text,
-  p_valor numeric
+  p_cobranca text, p_oficina uuid, p_comprador text, p_email text, p_valor numeric
 )
 returns text
 language plpgsql
@@ -459,15 +480,43 @@ set search_path = public
 as $$
 declare
   v_id uuid;
+  v_situacao text;
+  v_vencida boolean;
   v_acima boolean;
 begin
   perform set_config('app.vitalicio_ja_pago', 'sim', true);
   perform pg_advisory_xact_lock(hashtext('vitalicios'));
 
-  select id into v_id from public.vitalicios where id_externo_cobranca = p_cobranca;
+  select id, situacao, coalesce(reservada_ate <= now(), false)
+    into v_id, v_situacao, v_vencida
+  from public.vitalicios where id_externo_cobranca = p_cobranca;
+
+  if v_situacao in ('paga', 'estornar') then
+    perform set_config('app.vitalicio_ja_pago', '', true);
+    return null;
+  end if;
+
+  -- Cobrança fora da tabela: a oficina pode ter reservado de novo com outro PIX.
+  if v_id is null and p_oficina is not null then
+    select id, situacao, coalesce(reservada_ate <= now(), false)
+      into v_id, v_situacao, v_vencida
+    from public.vitalicios where oficina_id = p_oficina;
+
+    if v_situacao = 'paga' then
+      insert into public.vitalicios
+        (oficina_id, comprador, email, valor, origem, situacao, id_externo_cobranca, observacao)
+      values (null, p_comprador, p_email, p_valor, 'app', 'estornar', p_cobranca,
+              'pagou de novo uma oficina que já é vitalícia — estornar');
+      perform set_config('app.vitalicio_ja_pago', '', true);
+      return null;
+    end if;
+  end if;
+
+  -- Reserva vencida não ocupa vaga: se as 30 acabaram nesse meio-tempo, esta é a 31ª.
+  v_acima := (v_id is null or v_vencida)
+             and public.vitalicios_ocupados() >= public.limite_de_vitalicios();
 
   if v_id is null then
-    v_acima := public.vitalicios_ocupados() >= public.limite_de_vitalicios();
     insert into public.vitalicios
       (oficina_id, comprador, email, valor, origem, situacao, id_externo_cobranca, observacao)
     values
@@ -476,7 +525,9 @@ begin
     returning id into v_id;
   else
     update public.vitalicios
-       set situacao = 'paga', reservada_ate = null, valor = p_valor, vendido_em = now()
+       set situacao = 'paga', reservada_ate = null, valor = p_valor, vendido_em = now(),
+           id_externo_cobranca = p_cobranca,
+           observacao = case when v_acima then 'paga depois de esgotar as vagas — conferir' else observacao end
      where id = v_id;
   end if;
 

@@ -87,6 +87,7 @@ export function Vitalicios({ oficinas, aoMudar }: { oficinas: OficinaNaLista[]; 
   const candidatas = oficinas.filter((o) => !o.vitalicia).sort((a, b) => a.nome.localeCompare(b.nome))
   const pagas = (lista ?? []).filter((v) => v.situacao === 'paga')
   const reservadas = (lista ?? []).filter((v) => v.situacao === 'reservada')
+  const aEstornar = (lista ?? []).filter((v) => v.situacao === 'estornar')
 
   return (
     <div className="flex flex-col gap-6">
@@ -115,7 +116,7 @@ export function Vitalicios({ oficinas, aoMudar }: { oficinas: OficinaNaLista[]; 
             ) : lista.length === 0 ? (
               <tr><td colSpan={5} className="px-4 py-6 text-sm text-claro-secundario">Nenhuma vaga vendida ainda.</td></tr>
             ) : (
-              [...pagas, ...reservadas].map((v) => (
+              [...aEstornar, ...pagas, ...reservadas].map((v) => (
                 <tr key={v.id} className="border-b border-borda-clara last:border-b-0">
                   <td className="px-4 py-3">
                     <span className="block font-medium text-claro">{v.comprador}</span>
@@ -125,6 +126,11 @@ export function Vitalicios({ oficinas, aoMudar }: { oficinas: OficinaNaLista[]; 
                     {v.situacao === 'reservada' && (
                       <span className="mt-1 inline-block rounded-badge bg-atencao-fundo px-2 py-0.5 text-xs font-medium text-atencao-forte">
                         Pagando — vaga reservada até {v.reservada_ate ? new Date(v.reservada_ate).toLocaleString('pt-BR') : '—'}
+                      </span>
+                    )}
+                    {v.situacao === 'estornar' && (
+                      <span className="mt-1 inline-block rounded-badge bg-erro-fundo px-2 py-0.5 text-xs font-semibold text-erro-forte">
+                        Estornar: pagou duas vezes — devolva no Asaas
                       </span>
                     )}
                     {v.observacao?.includes('conferir') && (
