@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { resolverZod } from '@/lib/formulario'
 import { useMutation } from '@tanstack/react-query'
@@ -18,7 +18,6 @@ import type { TipoChavePix } from '@/tipos/banco'
 import { Marca } from './Marca'
 import { Conta } from './Conta'
 import { ComissaoPadrao } from './ComissaoPadrao'
-import { CertificadoDigital } from './CertificadoDigital'
 import { Exemplos } from './Exemplos'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Aparencia } from './Aparencia'
@@ -76,6 +75,16 @@ const esquemaOficina = z
       message: 'A chave não tem o formato do tipo escolhido. Confira antes de cobrar.',
     },
   )
+
+/*
+ * O cartão do certificado traz junto a biblioteca que abre o arquivo .pfx
+ * (node-forge) — sozinha, maior que o resto do app inteiro. Importada aqui no
+ * topo, ela descia para todo mundo que abria o site, inclusive quem só via a
+ * página de vendas. Assim, desce quando esta tela abre, e só ela.
+ */
+const CertificadoDigital = lazy(() =>
+  import('./CertificadoDigital').then((m) => ({ default: m.CertificadoDigital })),
+)
 
 type DadosOficina = z.input<typeof esquemaOficina>
 /** O que sai do Zod, já convertido — é isto que chega no onSubmit. */
@@ -307,7 +316,9 @@ export function Configuracoes() {
       <ComissaoPadrao />
 
       <TituloSecao>Certificado digital</TituloSecao>
-      <CertificadoDigital />
+      <Suspense fallback={<Carregando />}>
+        <CertificadoDigital />
+      </Suspense>
 
       <TituloSecao>Sua conta</TituloSecao>
       <Conta />

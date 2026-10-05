@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { QrCode, CircleCheck } from 'lucide-react'
@@ -14,11 +14,18 @@ import type { FormaPagamento } from '@/tipos/banco'
 import { FORMAS } from '@/funcionalidades/financeiro/api'
 import { ItensDaNotaEntrada } from '../ItensDaNotaEntrada'
 import { CamposFiscais, fiscalVazio, type DadosFiscais } from '../CamposFiscais'
-import { LeitorQrCode } from '../LeitorQrCode'
-import { ImportarXml } from '../ImportarXml'
 import type { NotaDoXml } from '../lerXmlDaNota'
 import { chaveValida, lerChave, chaveDoConteudoDoQr, nomeDoFornecedorPeloCnpj } from '../chaveDeAcesso'
 import { salvarNotaEntrada, type ItemEntradaEmEdicao } from '../api'
+import { Esqueleto } from '@/componentes/ui/Carregando'
+
+/*
+ * O leitor do XML (fast-xml-parser) e o de QR code (jsqr) juntos pesam mais
+ * que muitas telas do app, e só esta tela usa. Carregados sob demanda, deixam
+ * de descer para quem abre o site e nunca lança uma nota.
+ */
+const ImportarXml = lazy(() => import('../ImportarXml').then((m) => ({ default: m.ImportarXml })))
+const LeitorQrCode = lazy(() => import('../LeitorQrCode').then((m) => ({ default: m.LeitorQrCode })))
 
 const hoje = () => new Date().toISOString().slice(0, 10)
 
@@ -176,10 +183,12 @@ export function EditorNotaEntrada() {
       {/* O XML vem primeiro de propósito: é o único caminho que traz a nota
           inteira. O QR e a digitação trazem só a identificação. */}
       <div className="flex flex-col gap-2">
-        <ImportarXml
-          aoImportar={aoImportarXml}
-          aoResolverItem={(item) => setItens((atuais) => [...atuais, item])}
-        />
+        <Suspense fallback={<Esqueleto className="min-h-toque rounded-card" />}>
+          <ImportarXml
+            aoImportar={aoImportarXml}
+            aoResolverItem={(item) => setItens((atuais) => [...atuais, item])}
+          />
+        </Suspense>
 
         <button
           type="button"
@@ -323,7 +332,9 @@ export function EditorNotaEntrada() {
         </div>
       </div>
 
-      <LeitorQrCode aberto={escaneando} aoFechar={() => setEscaneando(false)} aoLer={aoLerQr} />
+      <Suspense fallback={null}>
+        <LeitorQrCode aberto={escaneando} aoFechar={() => setEscaneando(false)} aoLer={aoLerQr} />
+      </Suspense>
     </Tela>
   )
 }

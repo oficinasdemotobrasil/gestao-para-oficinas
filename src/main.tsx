@@ -23,6 +23,25 @@ registerSW({
 })
 
 /**
+ * Partes do app descem sob demanda (o PDF, o certificado, o leitor de nota).
+ * Se o site foi atualizado com a tela aberta, o pedaço antigo pode não existir
+ * mais no servidor e a importação falha — a tela ficaria parada num erro.
+ * Recarregar traz a versão nova inteira. Uma vez por minuto no máximo, para
+ * um problema de verdade (sem internet) não virar recarga sem fim.
+ */
+window.addEventListener('vite:preloadError', (evento) => {
+  try {
+    const ultima = Number(sessionStorage.getItem('recarregou-por-versao') ?? 0)
+    if (Date.now() - ultima < 60_000) return
+    sessionStorage.setItem('recarregou-por-versao', String(Date.now()))
+  } catch {
+    return
+  }
+  evento.preventDefault()
+  window.location.reload()
+})
+
+/**
  * A cor da última oficina que entrou neste aparelho, aplicada antes da
  * primeira tela pintar. Sem isto, quem abre o app veria o amarelo do produto
  * por um instante e depois a própria cor — o pisca-pisca que denuncia gambiarra.
