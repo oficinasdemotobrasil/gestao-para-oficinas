@@ -20,8 +20,9 @@
  * isso vira a oficina entrando em carência sem ter culpa.
  */
 import { useEffect, useRef, useState } from 'react'
-import { Check, Copy, CreditCard, Infinity as Infinito, Loader2, QrCode } from 'lucide-react'
+import { Check, ChevronDown, Copy, CreditCard, Infinity as Infinito, Loader2, QrCode } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { Botao } from '@/componentes/ui/Botao'
 import { Modal } from '@/componentes/ui/Modal'
 import { Selecao } from '@/componentes/ui/Campo'
@@ -31,9 +32,10 @@ import { supabase } from '@/lib/supabase'
 import { traduzirErro } from '@/lib/erros'
 import { moeda, data as formatarData } from '@/lib/formato'
 import { cn } from '@/lib/cn'
-import type { PeriodoDePagamento, Plano, Preco } from '@/tipos/banco'
+import type { PeriodoDePagamento, Preco } from '@/tipos/banco'
 import {
   PERIODO_EM_DESTAQUE,
+  RECURSOS_DO_PLANO,
   ROTULO_DO_PERIODO,
   SUFIXO_DO_PERIODO,
   economia,
@@ -41,6 +43,7 @@ import {
   useParcelas,
   usePrecos,
   useVagasVitalicias,
+  periodoDoEndereco,
 } from './precos'
 
 type Forma = 'PIX' | 'CREDIT_CARD'
@@ -80,16 +83,6 @@ export function Assinatura() {
   const precos = usePrecos()
   const vagas = useVagasVitalicias()
   const opcoesDeParcela = useParcelas(periodo && forma === 'CREDIT_CARD' ? periodo : null)
-
-  const plano = useQuery({
-    queryKey: ['plano-completo'],
-    staleTime: 10 * 60_000,
-    queryFn: async () => {
-      const { data, error } = await supabase.from('planos').select('*').eq('id', 'completo').maybeSingle()
-      if (error) throw error
-      return data as Plano | null
-    },
-  })
 
   const vitalicia = useQuery({
     queryKey: ['vitalicia', oficina?.id],
@@ -141,6 +134,39 @@ export function Assinatura() {
   // Trocar de período ou de forma volta para 1x: a escolha de parcelas era
   // de outra combinação.
   useEffect(() => setParcelas(1), [periodo, forma])
+
+  /*
+   * Quem veio do botão de compra da página de vendas (`?assinar=anual`) não
+   * deveria ter de achar o cartão certo de novo: com o CPF ou CNPJ salvo, a
+   * escolha de como pagar já abre naquele período.
+   *
+   * Uma vez só — o pedido sai do endereço em seguida, para fechar a janela
+   * não a fazer reabrir. E não abre se não faz sentido: oficina vitalícia,
+   * assinatura em dia (exceto para virar vitalícia) ou vagas esgotadas.
+   */
+  const [parametros, definirParametros] = useSearchParams()
+  const pedido = periodoDoEndereco(parametros.get('assinar'))
+  useEffect(() => {
+    if (!pedido || !oficina?.cnpj) return
+    if (!precos.data || vitalicia.isLoading || assinatura.isLoading || vagas.isLoading) return
+    const existe = precos.data.some((p) => p.periodo === pedido)
+    const temVaga = pedido !== 'vitalicio' || (vagas.data ?? 0) > 0
+    const semContrato = !assinatura.data || pedido === 'vitalicio'
+    // Tirar o pedido do endereço é uma navegação, e o roteador volta ao topo
+    // a cada navegação (ScrollRestoration). `preventScrollReset` segura a
+    // página onde está — senão, ao fechar a janela, a pessoa cairia no topo
+    // das configurações e não nos cartões de preço.
+    const resto = new URLSearchParams(parametros)
+    resto.delete('assinar')
+    definirParametros(resto, { replace: true, preventScrollReset: true })
+    if (existe && temVaga && semContrato && !vitalicia.data) {
+      requestAnimationFrame(() => document.getElementById('assinatura')?.scrollIntoView({ block: 'start' }))
+      setPeriodo(pedido)
+    }
+  }, [
+    pedido, oficina?.cnpj, precos.data, vitalicia.isLoading, vitalicia.data,
+    assinatura.isLoading, assinatura.data, vagas.isLoading, vagas.data, parametros, definirParametros,
+  ])
 
   if (!oficina) return null
 
@@ -291,16 +317,30 @@ export function Assinatura() {
               : 'Um plano só, com tudo liberado. Quanto mais tempo, menos você paga por mês.'}
           </p>
 
-          {(plano.data?.beneficios ?? []).length > 0 && (
-            <ul className="grid gap-1 pt-3 tablet:grid-cols-2">
-              {plano.data!.beneficios.map((b) => (
-                <li key={b} className="flex gap-2 text-apoio text-em-superficie-2">
-                  <Check aria-hidden size={16} className="mt-0.5 shrink-0 text-sucesso-forte" />
-                  {b}
-                </li>
+          {/* A mesma lista da página de vendas (precos.ts): o que se promete
+              lá é o que se lê aqui, na hora de pagar. Fechada por padrão para
+              os cartões continuarem à vista no celular. */}
+          <details className="group pt-3">
+            <summary className="flex min-h-toque cursor-pointer list-none items-center gap-1.5 text-corpo font-medium text-acento-forte">
+              Ver tudo o que está incluído
+              <ChevronDown aria-hidden size={18} className="transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="grid gap-4 pt-2 tablet:grid-cols-2">
+              {RECURSOS_DO_PLANO.map((g) => (
+                <div key={g.grupo}>
+                  <p className="text-apoio font-semibold text-em-superficie">{g.grupo}</p>
+                  <ul className="space-y-1 pt-1">
+                    {g.itens.map((item) => (
+                      <li key={item} className="flex gap-2 text-apoio text-em-superficie-2">
+                        <Check aria-hidden size={16} className="mt-0.5 shrink-0 text-sucesso-forte" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
-          )}
+            </div>
+          </details>
 
           <div className="grid gap-3 pt-4 tablet:grid-cols-2 desktop:grid-cols-4">
             {lista.map((p) => (

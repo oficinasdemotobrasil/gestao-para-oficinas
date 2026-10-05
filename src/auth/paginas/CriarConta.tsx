@@ -36,6 +36,7 @@ import { CorpoDoDocumento } from '@/funcionalidades/legal/PaginaLegal'
 import { Modal } from '@/componentes/ui/Modal'
 import { MolduraDeEntrada } from '@/auth/MolduraDeEntrada'
 import { useAuth } from '@/auth/ProvedorAuth'
+import { ROTULO_DO_PERIODO, periodoDoEndereco } from '@/funcionalidades/configuracoes/precos'
 
 interface PlanoNaTela {
   id: string
@@ -101,6 +102,12 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
    * nessa pequena repetição que se perde gente no meio do cadastro.
    */
   const emailNaUrl = parametros.get('email') ?? ''
+  /*
+   * Quem tocou em "Assinar o anual" na página de vendas quer comprar, não
+   * testar. A conta nasce igual (com os sete dias, que não fazem mal), mas o
+   * fim do cadastro é a tela de pagamento daquele período, e não o início.
+   */
+  const periodoNaUrl = periodoDoEndereco(parametros.get('periodo'))
   const [aceitou, setAceitou] = useState(false)
   /*
    * Os documentos abrem POR CIMA do formulário, e não noutra tela. Saindo
@@ -184,8 +191,11 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
     }
 
     // Cai nas configurações: é lá que estão os dados que faltam — telefone,
-    // endereço, CNPJ, logo e cor.
-    navegar('/configuracoes?novo=1', { replace: true })
+    // endereço, CNPJ, logo e cor. Quem veio comprar leva o período junto, e
+    // as configurações abrem o pagamento assim que houver CPF ou CNPJ.
+    navegar(periodoNaUrl ? `/configuracoes?novo=1&assinar=${periodoNaUrl}` : '/configuracoes?novo=1', {
+      replace: true,
+    })
   }
 
   if (aberto === null || planos === null) {
@@ -293,7 +303,9 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
       <div className="pb-6 pt-2">
         <h1 className="text-secao text-em-fundo">Criar a conta da oficina</h1>
         <p className="pt-1 text-corpo text-em-fundo-2">
-          {planoUnico
+          {periodoNaUrl
+            ? `Plano ${ROTULO_DO_PERIODO[periodoNaUrl].toLowerCase()}. Crie a conta e, em seguida, escolha pagar por PIX ou cartão.`
+            : planoUnico
             ? '7 dias de teste com tudo liberado, sem cartão. Só paga se decidir ficar.'
             : `Plano ${escolhido.nome} · 7 dias de teste com tudo liberado, sem cartão.`}
         </p>
@@ -389,13 +401,14 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
         )}
 
         <Botao type="submit" largo carregando={isSubmitting} className="mt-1">
-          Criar conta e começar
+          {periodoNaUrl ? 'Criar conta e ir para o pagamento' : 'Criar conta e começar'}
         </Botao>
       </form>
 
       <p className="pt-5 text-center text-apoio text-em-fundo-2 desktop:text-left">
-        Depois de criar, você cai direto nas configurações da oficina para completar telefone,
-        endereço e logo.
+        {periodoNaUrl
+          ? 'Depois de criar, você informa o CPF ou o CNPJ (o provedor de pagamento exige) e escolhe entre PIX e cartão.'
+          : 'Depois de criar, você cai direto nas configurações da oficina para completar telefone, endereço e logo.'}
       </p>
 
       <Modal

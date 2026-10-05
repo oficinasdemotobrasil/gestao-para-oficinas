@@ -22,6 +22,7 @@ import { CertificadoDigital } from './CertificadoDigital'
 import { Exemplos } from './Exemplos'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Aparencia } from './Aparencia'
+import { ROTULO_DO_PERIODO, periodoDoEndereco } from './precos'
 
 const opcional = z
   .string()
@@ -90,6 +91,7 @@ export function Configuracoes() {
     handleSubmit,
     reset,
     setError,
+    setFocus,
     formState: { errors, isSubmitting },
   } = useForm<DadosOficina, unknown, DadosOficinaValidados>({
     resolver: resolverZod<DadosOficina, DadosOficinaValidados>(esquemaOficina),
@@ -122,6 +124,17 @@ export function Configuracoes() {
   const [parametros] = useSearchParams()
   /** Veio do cadastro agora há pouco. Ver CriarConta. */
   const recemChegado = parametros.get('novo') === '1'
+  /**
+   * Veio do botão de compra da página de vendas. O provedor de pagamento
+   * exige CPF ou CNPJ; sem ele, o campo ganha o foco e um aviso diz por quê.
+   * Com ele, a seção de assinatura abre o pagamento sozinha (ver Assinatura).
+   */
+  const assinar = periodoDoEndereco(parametros.get('assinar'))
+  const faltaDocumento = Boolean(assinar && oficina && !oficina.cnpj)
+
+  useEffect(() => {
+    if (faltaDocumento) setFocus('cnpj')
+  }, [faltaDocumento, setFocus])
 
   const salvar = useMutation({
     mutationFn: async (dados: DadosOficinaValidados) => {
@@ -138,7 +151,11 @@ export function Configuracoes() {
        * Quem acabou de criar a conta cai aqui direto, porque é aqui que os
        * dados faltam. Salvou, acabou o motivo de estar nesta tela: o lugar
        * dela é o início, vendo o sistema, e não numa página de ajustes.
+       *
+       * A exceção é quem veio pagar: fica aqui, e com o CPF ou CNPJ salvo a
+       * tela de pagamento abre logo abaixo.
        */
+      if (assinar) return
       if (recemChegado) navegar('/', { replace: true })
     },
     onError: (erro) => setError('root', { message: traduzirErro(erro) }),
@@ -149,6 +166,14 @@ export function Configuracoes() {
   return (
     <Tela>
       <CabecalhoInterno titulo="Configurações" contexto="Dados da oficina" />
+
+      {faltaDocumento && assinar && (
+        <p role="status" className="mb-4 rounded-controle bg-acento-suave px-4 py-3 text-corpo text-em-superficie">
+          Falta um passo para pagar o plano {ROTULO_DO_PERIODO[assinar].toLowerCase()}: preencha o CPF
+          ou o CNPJ abaixo e toque em <strong>Salvar configurações</strong>. O provedor de pagamento
+          exige. Em seguida, a tela de pagamento abre.
+        </p>
+      )}
 
       <Formulario aoEnviar={handleSubmit((d) => salvar.mutate(d))}>
         <Campo

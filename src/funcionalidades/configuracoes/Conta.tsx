@@ -221,7 +221,11 @@ export function Conta() {
       </div>
 
       {/* Planos e assinatura -------------------------------------------------- */}
-      <Assinatura />
+      {/* A âncora é para quem chega da página de vendas querendo pagar: as
+          configurações rolam até aqui quando o pagamento abre. */}
+      <div id="assinatura" className="scroll-mt-20">
+        <Assinatura />
+      </div>
 
       {/* Levar os dados ------------------------------------------------------ */}
       <div className="rounded-card bg-superficie p-4 tablet:p-6">
