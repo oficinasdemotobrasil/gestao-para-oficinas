@@ -31,7 +31,9 @@ import { Campo } from '@/componentes/ui/Campo'
 import { Carregando } from '@/componentes/ui/Carregando'
 import { supabase } from '@/lib/supabase'
 import { moeda } from '@/lib/formato'
-import { VERSAO_DOS_DOCUMENTOS } from '@/funcionalidades/legal/documentos'
+import { ATUALIZADO_EM, PRIVACIDADE, TERMOS, VERSAO_DOS_DOCUMENTOS } from '@/funcionalidades/legal/documentos'
+import { CorpoDoDocumento } from '@/funcionalidades/legal/PaginaLegal'
+import { Modal } from '@/componentes/ui/Modal'
 import { MolduraDeEntrada } from '@/auth/MolduraDeEntrada'
 import { useAuth } from '@/auth/ProvedorAuth'
 
@@ -100,6 +102,13 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
    */
   const emailNaUrl = parametros.get('email') ?? ''
   const [aceitou, setAceitou] = useState(false)
+  /*
+   * Os documentos abrem POR CIMA do formulário, e não noutra tela. Saindo
+   * daqui, o que a pessoa tinha digitado — nome, e-mail e as duas senhas —
+   * sumia, e ela voltava para um formulário vazio justamente por ter tido o
+   * cuidado de ler antes de aceitar.
+   */
+  const [lendo, setLendo] = useState<'termos' | 'privacidade' | null>(null)
   const [erroGeral, setErroGeral] = useState<string | null>(null)
   const [mostrarSenha, setMostrarSenha] = useState(false)
 
@@ -359,13 +368,13 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
           />
           <span className="text-apoio text-em-superficie-2">
             Li e aceito os{' '}
-            <Link to="/termos" className="text-acento-forte">
+            <button type="button" onClick={() => setLendo('termos')} className="text-acento-forte underline-offset-2 hover:underline">
               Termos de Uso
-            </Link>{' '}
+            </button>{' '}
             e a{' '}
-            <Link to="/privacidade" className="text-acento-forte">
+            <button type="button" onClick={() => setLendo('privacidade')} className="text-acento-forte underline-offset-2 hover:underline">
               Política de Privacidade
-            </Link>
+            </button>
             .
           </span>
         </label>
@@ -388,6 +397,23 @@ export function CriarConta({ previa }: { previa?: PlanoNaTela[] }) {
         Depois de criar, você cai direto nas configurações da oficina para completar telefone,
         endereço e logo.
       </p>
+
+      <Modal
+        aberto={lendo !== null}
+        aoFechar={() => setLendo(null)}
+        titulo={lendo === 'privacidade' ? 'Política de Privacidade' : 'Termos de Uso'}
+        larga
+        rodape={
+          <Botao largo onClick={() => setLendo(null)}>
+            Voltar ao cadastro
+          </Botao>
+        }
+      >
+        <p className="pb-4 text-apoio text-em-superficie-2">
+          Versão {VERSAO_DOS_DOCUMENTOS} · atualizado em {ATUALIZADO_EM}
+        </p>
+        <CorpoDoDocumento secoes={lendo === 'privacidade' ? PRIVACIDADE : TERMOS} />
+      </Modal>
     </MolduraDeEntrada>
   )
 }

@@ -40,6 +40,7 @@ import {
 } from 'lucide-react'
 import { Logotipo, Simbolo } from '@/componentes/marca/Logotipo'
 import { supabase } from '@/lib/supabase'
+import { LinkLegal } from '@/funcionalidades/legal/PaginaLegal'
 import {
   PERIODO_EM_DESTAQUE,
   ROTULO_DO_PERIODO,
@@ -796,8 +797,8 @@ function Rodape() {
       <div className="mx-auto flex max-w-6xl flex-col gap-4 tablet:flex-row tablet:items-center tablet:justify-between">
         <Logotipo tamanho={24} />
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-apoio text-em-fundo-2">
-          <Link to="/termos">Termos de Uso</Link>
-          <Link to="/privacidade">Política de Privacidade</Link>
+          <LinkLegal para="termos">Termos de Uso</LinkLegal>
+          <LinkLegal para="privacidade">Política de Privacidade</LinkLegal>
           <Link to="/entrar">Entrar</Link>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { LinkLegal } from '@/funcionalidades/legal/PaginaLegal'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -131,12 +132,12 @@ export function Entrar() {
       </p>
 
       <nav className="flex flex-wrap justify-center gap-4 pt-6 text-apoio text-em-fundo-2 desktop:justify-start">
-        <Link to="/termos" className="min-h-toque-fino">
+        <LinkLegal para="termos" className="min-h-toque-fino">
           Termos de Uso
-        </Link>
-        <Link to="/privacidade" className="min-h-toque-fino">
+        </LinkLegal>
+        <LinkLegal para="privacidade" className="min-h-toque-fino">
           Política de Privacidade
-        </Link>
+        </LinkLegal>
       </nav>
     </MolduraDeEntrada>
   )

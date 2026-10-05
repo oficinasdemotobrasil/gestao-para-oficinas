@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Users, Users2, Settings, LogOut, Share, Info, Wallet, Receipt } from 'lucide-react'
+import { Users, Users2, Settings, LogOut, Share, Info, Wallet, Receipt, FileText, ShieldCheck } from 'lucide-react'
 import { Logotipo } from '@/componentes/marca/Logotipo'
 import { Tela, CabecalhoTela, TituloSecao } from '@/componentes/layout/Tela'
 import { ListaCard, LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
@@ -132,6 +132,32 @@ export function Mais() {
           </div>
         </>
       )}
+
+      {/* Os documentos que a oficina aceitou. A volta traz de novo para cá
+          (o "Voltar" do documento usa o histórico). */}
+      <TituloSecao>Termos e privacidade</TituloSecao>
+      <ListaCard>
+        <LinhaLista
+          inicio={
+            <IconeCirculo>
+              <FileText aria-hidden size={20} />
+            </IconeCirculo>
+          }
+          titulo="Termos de Uso"
+          descricao="Pagamento, cancelamento, vitalício e suporte"
+          aoTocar={() => navegar('/termos', { state: { de: '/mais' } })}
+        />
+        <LinhaLista
+          inicio={
+            <IconeCirculo>
+              <ShieldCheck aria-hidden size={20} />
+            </IconeCirculo>
+          }
+          titulo="Política de Privacidade"
+          descricao="Que dados guardamos e o que você pode fazer com eles"
+          aoTocar={() => navegar('/privacidade', { state: { de: '/mais' } })}
+        />
+      </ListaCard>
 
       <TituloSecao>Conta</TituloSecao>
       <Botao variante="contorno" largo icone={<LogOut aria-hidden size={20} />} onClick={sair}>
