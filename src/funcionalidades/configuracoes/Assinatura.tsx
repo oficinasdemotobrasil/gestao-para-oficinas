@@ -54,6 +54,21 @@ interface Pix {
   expira_em: string | null
 }
 
+/** Uma cobrança gerada que ainda espera pagamento, como o provedor a vê. */
+interface CobrancaEmAberto {
+  periodo: PeriodoDePagamento
+  forma: string
+  valor: number
+  total: number
+  parcelas: number
+  vencimento: string | null
+  vencida: boolean
+  /** Nada pago ainda nesta compra: a assinatura só existe no papel. */
+  primeira: boolean
+  link: string | null
+  pix: Pix | null
+}
+
 /** O que cada forma quer dizer, conforme o período. */
 function detalheDaForma(forma: Forma, periodo: PeriodoDePagamento, parcelado: boolean): string {
   if (forma === 'PIX') {
@@ -107,6 +122,23 @@ export function Assinatura() {
   })
 
   /*
+   * A cobrança gerada e ainda não paga. Sem isto, quem fechava a página do
+   * pagamento no meio via a assinatura como se estivesse em dia ("próxima
+   * cobrança em…") e não tinha onde pagar. Antes de a função nova estar no ar,
+   * a consulta falha e a tela segue como era.
+   */
+  const emAberto = useQuery({
+    queryKey: ['cobranca-em-aberto', oficina?.id],
+    enabled: Boolean(oficina) && vitalicia.data === false,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('assinatura', { body: { acao: 'em_aberto' } })
+      if (error) throw error
+      return (data?.em_aberto ?? null) as CobrancaEmAberto | null
+    },
+  })
+
+  /*
    * Enquanto o código PIX está na tela, perguntamos de tempos em tempos se o
    * pagamento caiu.
    *
@@ -128,6 +160,7 @@ export function Assinatura() {
       setConfirmado(true)
       void fila.invalidateQueries({ queryKey: ['vitalicia'] })
       void fila.invalidateQueries({ queryKey: ['assinatura'] })
+      void fila.invalidateQueries({ queryKey: ['cobranca-em-aberto'] })
     }
   }, [pix, confirmado, oficina?.acesso_ate, fila])
 
@@ -235,6 +268,7 @@ export function Assinatura() {
       }
 
       await fila.invalidateQueries({ queryKey: ['assinatura'] })
+      void fila.invalidateQueries({ queryKey: ['cobranca-em-aberto'] })
       setPeriodo(null)
       esquecerPedido()
 
@@ -259,7 +293,7 @@ export function Assinatura() {
     }
   }
 
-  async function cancelar() {
+  async function cancelar(desistindo = false) {
     setEnviando(true)
     try {
       const { data, error } = await supabase.functions.invoke('assinatura', {
@@ -267,8 +301,16 @@ export function Assinatura() {
       })
       if (error) throw error
       if (data?.erro) throw new Error(data.erro)
-      await Promise.all([recarregarUsuario(), fila.invalidateQueries({ queryKey: ['assinatura'] })])
-      toast.sucesso('Assinatura cancelada. Seu acesso segue até o fim do período pago.')
+      await Promise.all([
+        recarregarUsuario(),
+        fila.invalidateQueries({ queryKey: ['assinatura'] }),
+        fila.invalidateQueries({ queryKey: ['cobranca-em-aberto'] }),
+      ])
+      toast.sucesso(
+        desistindo
+          ? 'Pronto, a cobrança foi cancelada. Escolha de novo como quer pagar.'
+          : 'Assinatura cancelada. Seu acesso segue até o fim do período pago.',
+      )
     } catch (e) {
       toast.erro(traduzirErro(e))
     } finally {
@@ -301,9 +343,53 @@ export function Assinatura() {
     : null
   // O anual parcelado não renova sozinho: perto do fim, a oficina assina de novo.
   const podeRenovar = parcelado && diasParaVencer !== null && diasParaVencer <= 30
+  const aberta = emAberto.data ?? null
+  // Gerou a cobrança e não pagou: o contrato existe, mas só no papel.
+  const naoPagaAinda = Boolean(contrato && aberta?.primeira && aberta.periodo === contrato.periodo)
+
+  /** Leva ao pagamento da cobrança em aberto: o PIX aqui mesmo, o cartão na página do provedor. */
+  function pagarAgora(c: CobrancaEmAberto) {
+    if (c.pix) {
+      prazoAntes.current = oficina?.acesso_ate ?? null
+      setConfirmado(false)
+      setPix(c.pix)
+      return
+    }
+    if (c.link) window.location.href = c.link
+  }
 
   return (
     <div className="rounded-card bg-superficie p-4 tablet:p-6">
+      {aberta && (aberta.pix || aberta.link) && (
+        <div
+          className={cn(
+            'mb-5 rounded-controle border p-4',
+            aberta.vencida ? 'border-erro bg-erro-fundo' : 'border-acento bg-acento-suave',
+          )}
+        >
+          <p className="text-corpo font-semibold text-em-superficie">
+            {aberta.vencida
+              ? 'Pagamento atrasado'
+              : aberta.primeira
+                ? 'Falta pagar para ativar'
+                : 'Cobrança esperando pagamento'}
+          </p>
+          <p className="pt-1 text-apoio text-em-superficie-2">
+            {ROTULO_DO_PERIODO[aberta.periodo]} · {moeda(aberta.total)}
+            {aberta.parcelas > 1 && ` em ${aberta.parcelas}x de ${moeda(aberta.valor)}`}
+            {' '}· {aberta.forma === 'PIX' ? 'PIX' : 'cartão'}
+            {aberta.vencimento &&
+              ` · ${aberta.vencida ? 'venceu' : 'vence'} em ${formatarData(aberta.vencimento)}`}
+            .
+          </p>
+          <div className="pt-3">
+            <Botao type="button" compactoNoDesktop onClick={() => pagarAgora(aberta)}>
+              {aberta.pix ? 'Pagar com PIX' : 'Pagar agora'}
+            </Botao>
+          </div>
+        </div>
+      )}
+
       {contrato && !podeRenovar ? (
         <>
           <p className="text-corpo text-em-superficie">
@@ -317,14 +403,21 @@ export function Assinatura() {
             .
           </p>
           <p className="pt-1 text-apoio text-em-superficie-2">
-            {parcelado
-              ? `Vale até ${oficina.acesso_ate ? formatarData(oficina.acesso_ate) : '—'}. Um mês antes, aparece aqui o botão para renovar.`
-              : `Próxima cobrança em ${contrato.proxima_cobranca ? formatarData(contrato.proxima_cobranca) : 'a definir'}. Cancelar não corta nada antes do fim do período já pago.`}
+            {naoPagaAinda
+              ? 'Ainda não foi paga: o plano passa a valer quando o pagamento cair. Quer trocar o período ou a forma de pagamento? Desista desta e escolha de novo.'
+              : parcelado
+                ? `Vale até ${oficina.acesso_ate ? formatarData(oficina.acesso_ate) : '—'}. Um mês antes, aparece aqui o botão para renovar.`
+                : `Próxima cobrança em ${contrato.proxima_cobranca ? formatarData(contrato.proxima_cobranca) : 'a definir'}. Cancelar não corta nada antes do fim do período já pago.`}
           </p>
-          {!parcelado && (
+          {(naoPagaAinda || !parcelado) && (
             <div className="pt-4">
-              <Botao type="button" variante="perigo" carregando={enviando} onClick={() => void cancelar()}>
-                Cancelar assinatura
+              <Botao
+                type="button"
+                variante={naoPagaAinda ? 'contorno-no-card' : 'perigo'}
+                carregando={enviando}
+                onClick={() => void cancelar(naoPagaAinda)}
+              >
+                {naoPagaAinda ? 'Desistir e escolher de novo' : 'Cancelar assinatura'}
               </Botao>
             </div>
           )}

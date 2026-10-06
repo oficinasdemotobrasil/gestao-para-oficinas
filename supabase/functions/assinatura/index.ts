@@ -49,7 +49,7 @@ const FORMAS = ['PIX', 'CREDIT_CARD'] as const
 type Forma = (typeof FORMAS)[number]
 
 interface Corpo {
-  acao?: 'assinar' | 'cancelar' | 'ambiente' | 'conferir'
+  acao?: 'assinar' | 'cancelar' | 'ambiente' | 'conferir' | 'em_aberto'
   /** Só a tela antiga manda: ela assinava por plano, e sempre por mês. */
   plano?: string
   periodo?: string
@@ -207,6 +207,110 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  /**
+   * Os pagamentos de uma compra no provedor: os da assinatura, os do
+   * parcelamento ou a cobrança avulsa (o id dela começa com `pay_`).
+   */
+  async function pagamentosDe(
+    onde: { assinatura?: string | null; compra?: string | null },
+  ): Promise<Record<string, unknown>[]> {
+    if (onde.assinatura) {
+      const r = await noAsaas(`/payments?subscription=${onde.assinatura}&limit=50`)
+      return r?.data ?? []
+    }
+    if (onde.compra?.startsWith('pay_')) return [await noAsaas(`/payments/${onde.compra}`)]
+    if (onde.compra) {
+      const r = await noAsaas(`/payments?installment=${onde.compra}&limit=50`)
+      return r?.data ?? []
+    }
+    return []
+  }
+  const PAGO = ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH']
+  const ESPERANDO = ['PENDING', 'OVERDUE']
+
+  // A cobrança esperando pagamento -----------------------------------------------
+  //
+  // Quem gerou a cobrança e fechou a página do pagamento no meio precisa de um
+  // caminho de volta — antes, a tela mostrava a assinatura como se estivesse
+  // em dia, e não havia onde pagar. A resposta vem do provedor, e não da nossa
+  // tabela: só ele sabe se aquele PIX já foi pago.
+  if (corpo.acao === 'em_aberto') {
+    try {
+      // O vitalício reservado (e ainda no prazo) vem primeiro: é a compra mais
+      // recente que pode estar esperando, mesmo com uma assinatura ativa.
+      const { data: reserva } = await servico
+        .from('vitalicios').select('id_externo_cobranca')
+        .eq('oficina_id', oficinaId).eq('situacao', 'reservada')
+        .gt('reservada_ate', new Date().toISOString()).maybeSingle()
+      const { data: contrato } = await servico
+        .from('assinaturas').select('periodo, id_externo_assinatura, id_externo_parcelamento')
+        .eq('oficina_id', oficinaId).eq('situacao', 'ativa')
+        .order('criado_em', { ascending: false }).limit(1).maybeSingle()
+
+      const compra = reserva?.id_externo_cobranca
+        ? { periodo: 'vitalicio', recorrente: false, pagamentos: await pagamentosDe({ compra: reserva.id_externo_cobranca }) }
+        : contrato
+          ? {
+              periodo: contrato.periodo as string,
+              recorrente: Boolean(contrato.id_externo_assinatura),
+              pagamentos: await pagamentosDe({
+                assinatura: contrato.id_externo_assinatura,
+                compra: contrato.id_externo_parcelamento,
+              }),
+            }
+          : null
+      if (!compra) return responder({ em_aberto: null })
+
+      const pagos = compra.pagamentos.filter((p) => PAGO.includes(String(p.status)))
+      const aberto = compra.pagamentos
+        .filter((p) => ESPERANDO.includes(String(p.status)))
+        .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))[0]
+      if (!aberto) return responder({ em_aberto: null })
+
+      // No cartão, depois do primeiro pagamento o provedor cobra sozinho no
+      // vencimento: a cobrança em aberto ali não pede nada de ninguém — a não
+      // ser que o cartão tenha sido recusado e ela venceu.
+      if (aberto.billingType === 'CREDIT_CARD' && pagos.length > 0 && aberto.status !== 'OVERDUE') {
+        return responder({ em_aberto: null })
+      }
+
+      let pix: { imagem: string; copia_e_cola: string; expira_em: string | null } | null = null
+      if (aberto.billingType === 'PIX') {
+        try {
+          const qr = await noAsaas(`/payments/${aberto.id}/pixQrCode`)
+          if (qr?.payload) {
+            pix = { imagem: qr.encodedImage ?? '', copia_e_cola: qr.payload, expira_em: qr.expirationDate ?? null }
+          }
+        } catch {
+          // Sem o QR, a página do provedor serve do mesmo jeito.
+        }
+      }
+
+      // Na compra parcelada, cada parcela é um pagamento; o que a pessoa
+      // reconhece é o total e em quantas vezes.
+      const parcelado = !compra.recorrente && compra.pagamentos.length > 1
+      return responder({
+        em_aberto: {
+          periodo: compra.periodo,
+          forma: aberto.billingType,
+          valor: Number(aberto.value),
+          total: parcelado
+            ? compra.pagamentos.reduce((s, p) => s + Number(p.value ?? 0), 0)
+            : Number(aberto.value),
+          parcelas: parcelado ? compra.pagamentos.length : 1,
+          vencimento: aberto.dueDate ?? null,
+          vencida: aberto.status === 'OVERDUE',
+          // Nada pago ainda nesta compra: a assinatura só existe no papel.
+          primeira: pagos.length === 0,
+          link: aberto.invoiceUrl ?? null,
+          pix,
+        },
+      })
+    } catch (e) {
+      return responder({ erro: (e as Error).message }, 400)
+    }
+  }
+
   // Cancelar ---------------------------------------------------------------------
   if (corpo.acao === 'cancelar') {
     // O anual parcelado não tem assinatura no provedor: foi uma compra
@@ -214,12 +318,28 @@ Deno.serve(async (req: Request) => {
     // aqui só registra que ele não vai renovar; o acesso vale até o fim do ano
     // pago, como em qualquer cancelamento.
     const { data: assinatura } = await servico
-      .from('assinaturas').select('id_externo_assinatura')
+      .from('assinaturas').select('id_externo_assinatura, id_externo_parcelamento')
       .eq('oficina_id', oficinaId).eq('situacao', 'ativa').maybeSingle()
 
     if (assinatura?.id_externo_assinatura) {
       try {
         await noAsaas(`/subscriptions/${assinatura.id_externo_assinatura}`, { method: 'DELETE' })
+      } catch (e) {
+        return responder({ erro: (e as Error).message }, 400)
+      }
+    }
+
+    // O parcelado que ninguém pagou ainda é só uma cobrança esperando: desistir
+    // dele apaga a cobrança lá também, senão o provedor seguiria mandando
+    // lembrete de algo que a oficina já desistiu. Com alguma parcela paga, não
+    // se mexe — as parcelas seguem na fatura do cartão, como foi comprado.
+    if (assinatura?.id_externo_parcelamento) {
+      try {
+        const pagamentos = await pagamentosDe({ compra: assinatura.id_externo_parcelamento })
+        if (!pagamentos.some((p) => PAGO.includes(String(p.status)))) {
+          const id = assinatura.id_externo_parcelamento
+          await noAsaas(id.startsWith('pay_') ? `/payments/${id}` : `/installments/${id}`, { method: 'DELETE' })
+        }
       } catch (e) {
         return responder({ erro: (e as Error).message }, 400)
       }
