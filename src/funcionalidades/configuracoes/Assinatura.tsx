@@ -140,32 +140,69 @@ export function Assinatura() {
    * deveria ter de achar o cartão certo de novo: com o CPF ou CNPJ salvo, a
    * escolha de como pagar já abre naquele período.
    *
-   * Uma vez só — o pedido sai do endereço em seguida, para fechar a janela
-   * não a fazer reabrir. E não abre se não faz sentido: oficina vitalícia,
-   * assinatura em dia (exceto para virar vitalícia) ou vagas esgotadas.
+   * O pedido fica no endereço enquanto a compra está em andamento, e só sai
+   * quando a pessoa desiste (fecha a janela) ou quando a cobrança é gerada.
+   * Sair antes fazia o sistema esquecer a compra no meio do caminho: quem
+   * tinha de corrigir o CPF salvava e caía no início, como cadastro comum.
+   *
+   * Não abre se não faz sentido: oficina vitalícia, assinatura em dia (exceto
+   * para virar vitalícia) ou vagas esgotadas — aí o pedido é só descartado.
    */
   const [parametros, definirParametros] = useSearchParams()
   const pedido = periodoDoEndereco(parametros.get('assinar'))
+  const documentoRecusado = parametros.get('doc') === 'recusado'
+  const jaAbriu = useRef(false)
+
+  /** A compra acabou (gerada ou desistida): o pedido sai do endereço. */
+  function esquecerPedido() {
+    if (!parametros.has('assinar') && !parametros.has('doc')) return
+    const resto = new URLSearchParams(parametros)
+    resto.delete('assinar')
+    resto.delete('doc')
+    // Tirar do endereço é uma navegação, e o roteador volta ao topo a cada
+    // uma (ScrollRestoration). `preventScrollReset` segura a página onde está.
+    definirParametros(resto, { replace: true, preventScrollReset: true })
+  }
+
+  function fecharEscolha() {
+    setPeriodo(null)
+    esquecerPedido()
+  }
+
+  /*
+   * O provedor recusou o CPF ou CNPJ. A pessoa volta para o campo, lá no
+   * topo das configurações, e o pedido continua no endereço — com o período
+   * que ela tinha escolhido, mesmo que tenha vindo dos cartões daqui — para a
+   * escolha abrir de novo assim que o documento certo for salvo.
+   */
+  function voltarAoDocumento(periodoEscolhido: PeriodoDePagamento) {
+    setPeriodo(null)
+    jaAbriu.current = false
+    const novos = new URLSearchParams(parametros)
+    novos.set('assinar', periodoEscolhido)
+    novos.set('doc', 'recusado')
+    definirParametros(novos, { replace: true })
+    window.scrollTo({ top: 0 })
+  }
+
   useEffect(() => {
-    if (!pedido || !oficina?.cnpj) return
+    if (!pedido || !oficina?.cnpj || documentoRecusado || jaAbriu.current) return
     if (!precos.data || vitalicia.isLoading || assinatura.isLoading || vagas.isLoading) return
+    jaAbriu.current = true
     const existe = precos.data.some((p) => p.periodo === pedido)
     const temVaga = pedido !== 'vitalicio' || (vagas.data ?? 0) > 0
     const semContrato = !assinatura.data || pedido === 'vitalicio'
-    // Tirar o pedido do endereço é uma navegação, e o roteador volta ao topo
-    // a cada navegação (ScrollRestoration). `preventScrollReset` segura a
-    // página onde está — senão, ao fechar a janela, a pessoa cairia no topo
-    // das configurações e não nos cartões de preço.
-    const resto = new URLSearchParams(parametros)
-    resto.delete('assinar')
-    definirParametros(resto, { replace: true, preventScrollReset: true })
     if (existe && temVaga && semContrato && !vitalicia.data) {
       requestAnimationFrame(() => document.getElementById('assinatura')?.scrollIntoView({ block: 'start' }))
       setPeriodo(pedido)
+    } else {
+      esquecerPedido()
     }
+    // `esquecerPedido` muda a cada endereço e fica de fora de propósito: o
+    // que decide abrir está listado, e `jaAbriu` garante uma vez só.
   }, [
-    pedido, oficina?.cnpj, precos.data, vitalicia.isLoading, vitalicia.data,
-    assinatura.isLoading, assinatura.data, vagas.isLoading, vagas.data, parametros, definirParametros,
+    pedido, oficina?.cnpj, documentoRecusado, precos.data, vitalicia.isLoading, vitalicia.data,
+    assinatura.isLoading, assinatura.data, vagas.isLoading, vagas.data,
   ])
 
   if (!oficina) return null
@@ -183,17 +220,23 @@ export function Assinatura() {
       const { data, error } = await supabase.functions.invoke('assinatura', {
         body: { acao: 'assinar', periodo, forma, parcelas },
       })
-      if (error) {
-        // A função explica no corpo; o erro do invoke só diz o número.
-        const resposta = (error as { context?: Response }).context
-        const corpo = resposta ? await resposta.json().catch(() => null) : null
+      // A função explica no corpo; o erro do invoke só diz o número.
+      const resposta = error ? (error as { context?: Response }).context : null
+      const corpo = error ? (resposta ? await resposta.json().catch(() => null) : null) : data
+      if (error || corpo?.erro) {
         if (corpo?.esgotado) void fila.invalidateQueries({ queryKey: ['vagas-vitalicias'] })
+        // Documento faltando ou recusado pelo provedor: o conserto é no
+        // campo lá em cima, e não nesta janela.
+        if (corpo?.campo === 'cnpj' || /\b(CPF|CNPJ)\b/i.test(String(corpo?.erro ?? ''))) {
+          voltarAoDocumento(periodo)
+          return
+        }
         throw new Error(corpo?.erro ?? 'Não foi possível criar a cobrança.')
       }
-      if (data?.erro) throw new Error(data.erro)
 
       await fila.invalidateQueries({ queryKey: ['assinatura'] })
       setPeriodo(null)
+      esquecerPedido()
 
       // No PIX a pessoa NÃO sai do aplicativo: o código aparece aqui mesmo.
       if (data.pix) {
@@ -359,7 +402,7 @@ export function Assinatura() {
       {/* Como pagar ------------------------------------------------------------ */}
       <Modal
         aberto={periodo !== null}
-        aoFechar={() => setPeriodo(null)}
+        aoFechar={fecharEscolha}
         titulo="Como você prefere pagar?"
       >
         {escolhido && (
@@ -430,7 +473,7 @@ export function Assinatura() {
             </p>
 
             <div className="flex flex-col gap-3 pt-2 tablet:flex-row tablet:justify-end">
-              <Botao type="button" variante="contorno-no-card" compactoNoDesktop onClick={() => setPeriodo(null)}>
+              <Botao type="button" variante="contorno-no-card" compactoNoDesktop onClick={fecharEscolha}>
                 Voltar
               </Botao>
               <Botao type="button" compactoNoDesktop carregando={enviando} onClick={() => void assinar()}>

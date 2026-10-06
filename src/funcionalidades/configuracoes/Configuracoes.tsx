@@ -14,6 +14,7 @@ import { traduzirErro } from '@/lib/erros'
 import { mascararTelefone } from '@/lib/formato'
 import { useAuth } from '@/auth/ProvedorAuth'
 import { chavePixValida } from '@/lib/pix'
+import { cnpjValido, cpfValido } from '@/lib/documento'
 import type { TipoChavePix } from '@/tipos/banco'
 import { Marca } from './Marca'
 import { Conta } from './Conta'
@@ -42,14 +43,23 @@ const esquemaOficina = z
     // existe desde a primeira migration e é lida pelo PDF, pela exportação e
     // pela cobrança. Renomear seria mexer em cinco lugares para ganhar um nome
     // melhor num só.
-    cnpj: opcional.refine(
-      (v) => {
-        if (v === null) return true
-        const digitos = v.replace(/\D/g, '').length
-        return digitos === 11 || digitos === 14
-      },
-      'Informe um CPF (11 dígitos) ou um CNPJ (14 dígitos).',
-    ),
+    //
+    // E confere os dígitos verificadores: um número trocado na digitação só
+    // apareceria na hora de pagar, recusado pelo provedor, longe deste campo.
+    cnpj: opcional.superRefine((v, ctx) => {
+      if (v === null) return
+      const digitos = v.replace(/\D/g, '')
+      if (digitos.length !== 11 && digitos.length !== 14) {
+        ctx.addIssue({ code: 'custom', message: 'Informe um CPF (11 dígitos) ou um CNPJ (14 dígitos).' })
+        return
+      }
+      if (digitos.length === 11 ? !cpfValido(digitos) : !cnpjValido(digitos)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `Este ${digitos.length === 11 ? 'CPF' : 'CNPJ'} não confere. Algum número foi trocado na digitação?`,
+        })
+      }
+    }),
     tipo_chave_pix: z
       .string()
       .transform((v) => (v === '' ? null : (v as TipoChavePix)))
@@ -130,7 +140,7 @@ export function Configuracoes() {
   }, [oficina, reset])
 
   const navegar = useNavigate()
-  const [parametros] = useSearchParams()
+  const [parametros, definirParametros] = useSearchParams()
   /** Veio do cadastro agora há pouco. Ver CriarConta. */
   const recemChegado = parametros.get('novo') === '1'
   /**
@@ -140,10 +150,24 @@ export function Configuracoes() {
    */
   const assinar = periodoDoEndereco(parametros.get('assinar'))
   const faltaDocumento = Boolean(assinar && oficina && !oficina.cnpj)
+  /**
+   * O provedor recusou o documento na hora de gerar a cobrança (ver
+   * Assinatura). A pessoa volta para cá, com o erro no próprio campo; salvo
+   * o documento certo, a escolha de como pagar abre de novo sozinha.
+   */
+  const documentoRecusado = Boolean(assinar && oficina?.cnpj && parametros.get('doc') === 'recusado')
 
   useEffect(() => {
     if (faltaDocumento) setFocus('cnpj')
   }, [faltaDocumento, setFocus])
+
+  useEffect(() => {
+    if (!documentoRecusado) return
+    setError('cnpj', {
+      message: 'O provedor de pagamento não aceitou este documento. Confira os números e salve de novo.',
+    })
+    setFocus('cnpj')
+  }, [documentoRecusado, setError, setFocus])
 
   const salvar = useMutation({
     mutationFn: async (dados: DadosOficinaValidados) => {
@@ -162,9 +186,17 @@ export function Configuracoes() {
        * dela é o início, vendo o sistema, e não numa página de ajustes.
        *
        * A exceção é quem veio pagar: fica aqui, e com o CPF ou CNPJ salvo a
-       * tela de pagamento abre logo abaixo.
+       * tela de pagamento abre logo abaixo — inclusive depois de corrigir um
+       * documento que o provedor recusou.
        */
-      if (assinar) return
+      if (assinar) {
+        if (parametros.has('doc')) {
+          const resto = new URLSearchParams(parametros)
+          resto.delete('doc')
+          definirParametros(resto, { replace: true, preventScrollReset: true })
+        }
+        return
+      }
       if (recemChegado) navegar('/', { replace: true })
     },
     onError: (erro) => setError('root', { message: traduzirErro(erro) }),
@@ -176,11 +208,13 @@ export function Configuracoes() {
     <Tela>
       <CabecalhoInterno titulo="Configurações" contexto="Dados da oficina" />
 
-      {faltaDocumento && assinar && (
+      {assinar && (faltaDocumento || documentoRecusado) && (
         <p role="status" className="mb-4 rounded-controle bg-acento-suave px-4 py-3 text-corpo text-em-superficie">
-          Falta um passo para pagar o plano {ROTULO_DO_PERIODO[assinar].toLowerCase()}: preencha o CPF
-          ou o CNPJ abaixo e toque em <strong>Salvar configurações</strong>. O provedor de pagamento
-          exige. Em seguida, a tela de pagamento abre.
+          {documentoRecusado
+            ? 'O provedor de pagamento não aceitou o CPF ou CNPJ cadastrado. '
+            : `Falta um passo para pagar o plano ${ROTULO_DO_PERIODO[assinar].toLowerCase()}: `}
+          {documentoRecusado ? 'Confira os números abaixo' : 'preencha o CPF ou o CNPJ abaixo'} e toque
+          em <strong>Salvar configurações</strong>. Em seguida, a tela de pagamento abre.
         </p>
       )}
 
