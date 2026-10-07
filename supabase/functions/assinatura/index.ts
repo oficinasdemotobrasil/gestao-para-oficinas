@@ -243,9 +243,34 @@ Deno.serve(async (req: Request) => {
         .eq('oficina_id', oficinaId).eq('situacao', 'reservada')
         .gt('reservada_ate', new Date().toISOString()).maybeSingle()
       const { data: contrato } = await servico
-        .from('assinaturas').select('periodo, id_externo_assinatura, id_externo_parcelamento')
+        .from('assinaturas').select('periodo, criado_em, id_externo_assinatura, id_externo_parcelamento')
         .eq('oficina_id', oficinaId).eq('situacao', 'ativa')
         .order('criado_em', { ascending: false }).limit(1).maybeSingle()
+
+      /*
+       * O prazo de arrependimento (art. 49 do CDC) é da CONTRATAÇÃO: sete dias
+       * corridos a partir do primeiro pagamento desta assinatura. As
+       * renovações seguintes não reabrem o prazo — foi o que o advogado
+       * confirmou. Contado pelo aviso de pagamento que o próprio sistema
+       * aplicou, e não pelo que a tela acha.
+       */
+      let arrependimentoAte: string | null = null
+      if (contrato) {
+        const { data: primeiro } = await servico
+          .from('eventos_asaas').select('criado_em')
+          .eq('oficina_id', oficinaId).eq('aplicado', true)
+          .in('tipo', ['PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED'])
+          .gte('criado_em', contrato.criado_em)
+          .order('criado_em', { ascending: true }).limit(1).maybeSingle()
+        if (primeiro) {
+          const fimDoPrazo = new Date(new Date(primeiro.criado_em).getTime() + 7 * 86_400_000)
+          if (fimDoPrazo.getTime() > Date.now()) {
+            arrependimentoAte = fimDoPrazo.toLocaleDateString('en-CA', { timeZone: 'America/Recife' })
+          }
+        }
+      }
+      const responderCom = (emAberto: unknown) =>
+        responder({ em_aberto: emAberto, arrependimento_ate: arrependimentoAte })
 
       const compra = reserva?.id_externo_cobranca
         ? { periodo: 'vitalicio', recorrente: false, pagamentos: await pagamentosDe({ compra: reserva.id_externo_cobranca }) }
@@ -259,19 +284,19 @@ Deno.serve(async (req: Request) => {
               }),
             }
           : null
-      if (!compra) return responder({ em_aberto: null })
+      if (!compra) return responderCom(null)
 
       const pagos = compra.pagamentos.filter((p) => PAGO.includes(String(p.status)))
       const aberto = compra.pagamentos
         .filter((p) => ESPERANDO.includes(String(p.status)))
         .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))[0]
-      if (!aberto) return responder({ em_aberto: null })
+      if (!aberto) return responderCom(null)
 
       // No cartão, depois do primeiro pagamento o provedor cobra sozinho no
       // vencimento: a cobrança em aberto ali não pede nada de ninguém — a não
       // ser que o cartão tenha sido recusado e ela venceu.
       if (aberto.billingType === 'CREDIT_CARD' && pagos.length > 0 && aberto.status !== 'OVERDUE') {
-        return responder({ em_aberto: null })
+        return responderCom(null)
       }
 
       let pix: { imagem: string; copia_e_cola: string; expira_em: string | null } | null = null
@@ -289,22 +314,20 @@ Deno.serve(async (req: Request) => {
       // Na compra parcelada, cada parcela é um pagamento; o que a pessoa
       // reconhece é o total e em quantas vezes.
       const parcelado = !compra.recorrente && compra.pagamentos.length > 1
-      return responder({
-        em_aberto: {
-          periodo: compra.periodo,
-          forma: aberto.billingType,
-          valor: Number(aberto.value),
-          total: parcelado
-            ? compra.pagamentos.reduce((s, p) => s + Number(p.value ?? 0), 0)
-            : Number(aberto.value),
-          parcelas: parcelado ? compra.pagamentos.length : 1,
-          vencimento: aberto.dueDate ?? null,
-          vencida: aberto.status === 'OVERDUE',
-          // Nada pago ainda nesta compra: a assinatura só existe no papel.
-          primeira: pagos.length === 0,
-          link: aberto.invoiceUrl ?? null,
-          pix,
-        },
+      return responderCom({
+        periodo: compra.periodo,
+        forma: aberto.billingType,
+        valor: Number(aberto.value),
+        total: parcelado
+          ? compra.pagamentos.reduce((s, p) => s + Number(p.value ?? 0), 0)
+          : Number(aberto.value),
+        parcelas: parcelado ? compra.pagamentos.length : 1,
+        vencimento: aberto.dueDate ?? null,
+        vencida: aberto.status === 'OVERDUE',
+        // Nada pago ainda nesta compra: a assinatura só existe no papel.
+        primeira: pagos.length === 0,
+        link: aberto.invoiceUrl ?? null,
+        pix,
       })
     } catch (e) {
       return responder({ erro: (e as Error).message }, 400)

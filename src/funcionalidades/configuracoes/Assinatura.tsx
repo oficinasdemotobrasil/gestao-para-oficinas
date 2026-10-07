@@ -32,6 +32,7 @@ import { supabase } from '@/lib/supabase'
 import { traduzirErro } from '@/lib/erros'
 import { moeda, data as formatarData } from '@/lib/formato'
 import { cn } from '@/lib/cn'
+import { AVISO_DE_ARREPENDIMENTO, CONTATO } from '@/funcionalidades/legal/documentos'
 import type { PeriodoDePagamento, Preco } from '@/tipos/banco'
 import {
   PERIODO_EM_DESTAQUE,
@@ -94,6 +95,7 @@ export function Assinatura() {
   const [pix, setPix] = useState<Pix | null>(null)
   const [copiado, setCopiado] = useState(false)
   const [confirmado, setConfirmado] = useState(false)
+  const [confirmandoCancelamento, setConfirmandoCancelamento] = useState(false)
 
   const precos = usePrecos()
   const vagas = useVagasVitalicias()
@@ -134,7 +136,11 @@ export function Assinatura() {
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('assinatura', { body: { acao: 'em_aberto' } })
       if (error) throw error
-      return (data?.em_aberto ?? null) as CobrancaEmAberto | null
+      return {
+        cobranca: (data?.em_aberto ?? null) as CobrancaEmAberto | null,
+        /** Até quando vale o arrependimento desta assinatura (YYYY-MM-DD). Nulo fora do prazo. */
+        arrependimentoAte: (data?.arrependimento_ate ?? null) as string | null,
+      }
     },
   })
 
@@ -294,6 +300,8 @@ export function Assinatura() {
   }
 
   async function cancelar(desistindo = false) {
+    // Dentro do prazo de arrependimento, a mensagem final aponta a devolução.
+    const noArrependimento = Boolean(emAberto.data?.arrependimentoAte)
     setEnviando(true)
     try {
       const { data, error } = await supabase.functions.invoke('assinatura', {
@@ -306,10 +314,13 @@ export function Assinatura() {
         fila.invalidateQueries({ queryKey: ['assinatura'] }),
         fila.invalidateQueries({ queryKey: ['cobranca-em-aberto'] }),
       ])
+      setConfirmandoCancelamento(false)
       toast.sucesso(
         desistindo
           ? 'Pronto, a cobrança foi cancelada. Escolha de novo como quer pagar.'
-          : 'Assinatura cancelada. Seu acesso segue até o fim do período pago.',
+          : noArrependimento
+            ? `Assinatura cancelada. Para a devolução, siga as instruções do aviso e escreva para ${CONTATO}.`
+            : 'Assinatura cancelada. Seu acesso segue até o fim do período pago.',
       )
     } catch (e) {
       toast.erro(traduzirErro(e))
@@ -343,7 +354,8 @@ export function Assinatura() {
     : null
   // O anual parcelado não renova sozinho: perto do fim, a oficina assina de novo.
   const podeRenovar = parcelado && diasParaVencer !== null && diasParaVencer <= 30
-  const aberta = emAberto.data ?? null
+  const aberta = emAberto.data?.cobranca ?? null
+  const arrependimentoAte = emAberto.data?.arrependimentoAte ?? null
   // Gerou a cobrança e não pagou: o contrato existe, mas só no papel.
   const naoPagaAinda = Boolean(contrato && aberta?.primeira && aberta.periodo === contrato.periodo)
 
@@ -409,13 +421,15 @@ export function Assinatura() {
                 ? `Vale até ${oficina.acesso_ate ? formatarData(oficina.acesso_ate) : '—'}. Um mês antes, aparece aqui o botão para renovar.`
                 : `Próxima cobrança em ${contrato.proxima_cobranca ? formatarData(contrato.proxima_cobranca) : 'a definir'}. Cancelar não corta nada antes do fim do período já pago.`}
           </p>
-          {(naoPagaAinda || !parcelado) && (
+          {/* O parcelado só tem o que cancelar no prazo de arrependimento:
+              depois dele, as parcelas seguem e ele não renova sozinho. */}
+          {(naoPagaAinda || !parcelado || arrependimentoAte) && (
             <div className="pt-4">
               <Botao
                 type="button"
                 variante={naoPagaAinda ? 'contorno-no-card' : 'perigo'}
                 carregando={enviando}
-                onClick={() => void cancelar(naoPagaAinda)}
+                onClick={() => (naoPagaAinda ? void cancelar(true) : setConfirmandoCancelamento(true))}
               >
                 {naoPagaAinda ? 'Desistir e escolher de novo' : 'Cancelar assinatura'}
               </Botao>
@@ -491,6 +505,60 @@ export function Assinatura() {
           </div>
         </>
       )}
+
+      {/* Confirmar o cancelamento ---------------------------------------------
+          Dentro dos 7 dias da contratação, o aviso de arrependimento; depois,
+          a regra sem devolução, dita antes do clique e não depois. */}
+      <Modal
+        aberto={confirmandoCancelamento}
+        aoFechar={() => setConfirmandoCancelamento(false)}
+        titulo={arrependimentoAte ? AVISO_DE_ARREPENDIMENTO.titulo : 'Cancelar a assinatura?'}
+      >
+        {arrependimentoAte ? (
+          <div className="flex flex-col gap-4 text-corpo text-em-superficie">
+            <p className="rounded-controle bg-acento-suave px-3 py-2 text-apoio font-semibold text-em-superficie">
+              O prazo de arrependimento desta assinatura vai até {formatarData(arrependimentoAte)}.
+            </p>
+            {AVISO_DE_ARREPENDIMENTO.blocos.map((bloco, i) => (
+              <div key={i} className="flex flex-col gap-2">
+                {bloco.titulo && <p className="font-semibold">{bloco.titulo}</p>}
+                {bloco.paragrafos.map((p) => (
+                  <p key={p} className="text-apoio leading-relaxed text-em-superficie-2">{p}</p>
+                ))}
+                {bloco.itens && (
+                  <ul className="list-disc space-y-1 pl-5">
+                    {bloco.itens.map((item) => (
+                      <li key={item} className="text-apoio leading-relaxed text-em-superficie-2">{item}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 text-corpo text-em-superficie-2">
+            <p>
+              Passados 7 dias da contratação, não há devolução de valores — nem do período em
+              andamento, nem proporcional.
+            </p>
+            <p>
+              As próximas cobranças param, e o acesso continua normalmente até{' '}
+              <strong className="text-em-superficie">
+                {oficina.acesso_ate ? formatarData(oficina.acesso_ate) : 'o fim do período pago'}
+              </strong>
+              .
+            </p>
+          </div>
+        )}
+        <div className="flex flex-col-reverse gap-2 pt-5 tablet:flex-row tablet:justify-end">
+          <Botao type="button" variante="contorno-no-card" compactoNoDesktop onClick={() => setConfirmandoCancelamento(false)}>
+            Voltar
+          </Botao>
+          <Botao type="button" variante="perigo" compactoNoDesktop carregando={enviando} onClick={() => void cancelar()}>
+            Cancelar a assinatura
+          </Botao>
+        </div>
+      </Modal>
 
       {/* Como pagar ------------------------------------------------------------ */}
       <Modal

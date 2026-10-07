@@ -15,8 +15,8 @@
  * jurídica — principalmente as partes de responsabilidade e rescisão.
  */
 
-export const VERSAO_DOS_DOCUMENTOS = '2026-10-05'
-export const ATUALIZADO_EM = '5 de outubro de 2026'
+export const VERSAO_DOS_DOCUMENTOS = '2026-10-07'
+export const ATUALIZADO_EM = '7 de outubro de 2026'
 
 /**
  * Quem fornece e onde falar. Sem CNPJ por enquanto (05/10/2026): quando a
@@ -66,6 +66,7 @@ export const TERMOS: Secao[] = [
       'A contratação é feita pela internet, então vale o direito de arrependimento do Código de Defesa do Consumidor: dentro de sete dias corridos a partir do pagamento, a oficina pode desistir e receber de volta o valor pago, integralmente. Vale para qualquer período, inclusive o vitalício.',
       `Basta cancelar pela tela de assinatura dentro desse prazo e nos avisar em ${CONTATO}. A devolução é feita pelo mesmo meio do pagamento; no cartão parcelado, as parcelas são estornadas.`,
       'Esse prazo é separado do período de teste gratuito: o teste vem antes de qualquer cobrança, e o arrependimento conta a partir do dia em que a assinatura começou.',
+      'O direito é da contratação: os sete dias contam do primeiro pagamento da assinatura. As renovações automáticas seguintes — o segundo mês, o segundo trimestre, o segundo ano — não reabrem o prazo, e cancelar depois disso segue a regra abaixo, sem devolução.',
     ],
   },
   {
@@ -205,3 +206,48 @@ export const PRIVACIDADE: Secao[] = [
     ],
   },
 ]
+
+/**
+ * O aviso que aparece a quem cancela dentro dos 7 dias da contratação.
+ *
+ * Texto do Ed (07/10/2026), mostrado na tela de assinatura ao confirmar o
+ * cancelamento. O prazo é da CONTRATAÇÃO — sete dias do primeiro pagamento
+ * da assinatura; as renovações não reabrem —, e quem decide se está no prazo
+ * é o servidor, pelo aviso de pagamento que ele mesmo aplicou.
+ */
+export interface BlocoDoAviso {
+  titulo?: string
+  paragrafos: string[]
+  itens?: string[]
+}
+
+export const AVISO_DE_ARREPENDIMENTO: { titulo: string; blocos: BlocoDoAviso[] } = {
+  titulo: 'Notificação de Direito de Arrependimento – Código de Defesa do Consumidor',
+  blocos: [
+    {
+      paragrafos: [
+        'Prezado(a) Cliente,',
+        'Comunicamos que Vossa Senhoria encontra-se atualmente resguardada pelo direito potestativo de arrependimento, conforme preceitua o artigo 49 da Lei n. 8.078/1990 (Código de Defesa do Consumidor), o qual assegura ao consumidor a faculdade de rescindir o contrato firmado fora do estabelecimento comercial, em especial por meio eletrônico, no prazo impreterível de 7 (sete) dias corridos, contados a partir da data de aquisição ou do ato de recebimento do produto/serviço, sem que isso acarrete qualquer ônus ou penalidade.',
+        'Para a efetivação do respectivo estorno integral dos valores desembolsados, faz-se necessária a instrução do procedimento administrativo de reembolso mediante o envio da documentação comprobatória indispensável à validação cadastral e à segurança jurídica da transação.',
+      ],
+    },
+    {
+      titulo: 'Instruções para a Restituição de Valores',
+      paragrafos: [
+        `Para dar andamento ao pleito de rescisão e restituição, solicitamos o encaminhamento tempestivo dos seguintes documentos digitalizados para o canal oficial de atendimento eletrônico: ${CONTATO}:`,
+      ],
+      itens: [
+        'Documento de Identificação Oficial com Foto: Cópia legível (frente e verso) do documento cadastrado no sistema (RG, CNH ou equivalente legal).',
+        'Comprovante de Residência Atualizado: Fatura recente de concessionária de serviços públicos (água, luz, telefonia ou internet) ou documento equivalente emitido nos últimos 30 (noventa) dias, comprovando a titularidade e o endereço cadastrados.',
+      ],
+    },
+    {
+      titulo: 'Prazos e Condições',
+      paragrafos: [
+        'Uma vez recepcionados os documentos exigidos e constatada a regularidade das informações prestadas, a empresa procederá com a restituição integral da quantia paga, utilizando o mesmo meio de pagamento empregado na transação original, no prazo legal de até 30 (trinta) dias úteis.',
+        'Ressaltamos que o procedimento restará condicionado à conferência estrita dos dados para fins de prevenção a fraudes e conformidade com as diretrizes de segurança da informação e proteção de dados (LGPD).',
+        'Permanecemos à inteira disposição para eventuais esclarecimentos adicionais por meio de nossos canais oficiais de suporte.',
+      ],
+    },
+  ],
+}
