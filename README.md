@@ -9,7 +9,7 @@ Primeiro cliente: **Oficina Tiago Carvalho**.
 **Fase 3 de 4** — ordens de serviço, apontamento de tempo, financeiro, PIX,
 painel, clientes sumidos e histórico da placa. As Fases 1 e 2 estão fechadas.
 
-Em produção: **https://gestao-para-oficinas.vercel.app**
+Em produção: **https://usegiromotos.com** (o endereço antigo, gestao-para-oficinas.vercel.app, manda para o novo — ver `src/lib/endereco.ts`)
 
 ---
 

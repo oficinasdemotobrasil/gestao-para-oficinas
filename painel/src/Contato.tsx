@@ -17,7 +17,7 @@ import {
  */
 
 /** Onde a oficina assina ou regulariza. Fica em Configurações › Sua conta. */
-const ENDERECO_DO_APP = 'https://gestao-para-oficinas.vercel.app'
+const ENDERECO_DO_APP = 'https://usegiromotos.com'
 const ONDE_ASSINAR = `${ENDERECO_DO_APP}/configuracoes`
 
 /**

@@ -5,6 +5,7 @@ import { App } from './App'
 import './estilos/globais.css'
 import { aplicarCorDaMarca, marcaLembrada } from './lib/marca'
 import { aplicarTema, temaEscolhido } from './lib/tema'
+import { cuidarDaMudancaDeEndereco } from './lib/endereco'
 
 /**
  * Mantém o app atualizado sozinho.
@@ -40,6 +41,9 @@ window.addEventListener('vite:preloadError', (evento) => {
   evento.preventDefault()
   window.location.reload()
 })
+
+// O GIRO mudou para usegiromotos.com (07/10/2026). Ver lib/endereco.ts.
+cuidarDaMudancaDeEndereco()
 
 /**
  * A cor da última oficina que entrou neste aparelho, aplicada antes da

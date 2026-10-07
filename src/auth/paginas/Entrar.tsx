@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Eye, EyeOff } from 'lucide-react'
 import { marcaLembrada } from '@/lib/marca'
+import { veioDoEnderecoAntigo } from '@/lib/endereco'
 import { MolduraDeEntrada } from '@/auth/MolduraDeEntrada'
 import { Botao } from '@/componentes/ui/Botao'
 import { Campo } from '@/componentes/ui/Campo'
@@ -35,6 +36,9 @@ export function Entrar() {
   }
 
   const marca = marcaLembrada()
+  // Veio do endereço antigo: o login de lá não vale aqui, e a pessoa precisa
+  // saber que não é erro dela nem conta nova.
+  const mudouDeEndereco = veioDoEnderecoAntigo()
 
   return (
     <MolduraDeEntrada>
@@ -44,6 +48,17 @@ export function Entrar() {
           Entre para ver o movimento da sua oficina.
         </p>
       </div>
+
+      {mudouDeEndereco && (
+        <div role="status" className="mb-4 rounded-card bg-acento-suave p-4 text-left">
+          <p className="text-corpo font-semibold text-em-superficie">O GIRO mudou de endereço</p>
+          <p className="pt-1 text-apoio text-em-superficie">
+            Agora é <strong>usegiromotos.com</strong>. Entre com o mesmo e-mail e a mesma senha de
+            sempre: seus dados estão todos aqui. Se você usa o GIRO pelo ícone na tela do celular,
+            instale o ícone de novo a partir desta página.
+          </p>
+        </div>
+      )}
 
       <form
         onSubmit={handleSubmit(aoEnviar)}
