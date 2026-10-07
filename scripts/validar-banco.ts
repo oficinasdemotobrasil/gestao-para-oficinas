@@ -3757,6 +3757,7 @@ async function main() {
     await testarAcessoDeSuporte()
     await testarFotosDaOs()
     await testarPlanoUnicoEVitalicio()
+    await testarDescontoNoPagamento()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
     // impressão de que correu tudo bem — foi o que aconteceu quando a coluna
@@ -4508,6 +4509,191 @@ async function testarFotosDaOs() {
  * que já caiu é registrado mesmo com as vagas esgotadas; ligar a vaga à
  * oficina tira o prazo de acesso e encerra a assinatura recorrente.
  */
+/**
+ * Desconto na hora de receber (0083).
+ *
+ * As três decisões do Ed: só o dono dá desconto; a comissão do indicador cai
+ * junto (a não ser que já tenha sido paga); e o desconto aparece no PDF da OS
+ * — inclusive quando quem gera o PDF é o balcão, que não lê o financeiro.
+ */
+async function testarDescontoNoPagamento() {
+  console.log('\n\x1b[1mDesconto na hora de receber\x1b[0m')
+  await logarComo(ID.adminA)
+  const INDICADOR = '11111111-aaaa-4aaa-8aaa-111111111111'
+
+  /** Orçamento → OS finalizada → cobrança à vista. Devolve a OS e a conta. */
+  async function osCobrada(valor: number, comIndicador: boolean) {
+    const itens = JSON.stringify([
+      { tipo: 'servico', produto_id: null, servico_id: ID.servicoA, descricao: 'Serviço com desconto', quantidade: 1, valor_unitario: valor },
+    ])
+    const orc = await db.query<{ id: string }>(
+      `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', null,
+         7, 90, null, 0, null, $1::jsonb, ${comIndicador ? `'${INDICADOR}'` : 'null'}) as id`,
+      [itens],
+    )
+    const os = await db.query<{ id: string }>(
+      `select public.aprovar_orcamento('${orc.rows[0].id}', '${ID.adminA}') as id`,
+    )
+    const osId = os.rows[0].id
+    await db.query(`select public.mudar_status_da_os('${osId}', 'em_andamento')`)
+    await db.query(`select public.finalizar_os('${osId}')`)
+    await db.query(`select public.criar_cobranca_da_os('${osId}', 1, current_date, 'pix')`)
+    const conta = await db.query<{ id: string }>(
+      `select id from public.contas_receber where ordem_servico_id = '${osId}'`,
+    )
+    return { osId, orcamentoId: orc.rows[0].id, contaId: conta.rows[0].id }
+  }
+
+  const a = await osCobrada(1000, true)
+  const comissaoAntes = await contar(
+    `select (valor * 100)::int as n from public.comissoes where orcamento_id = '${a.orcamentoId}'`,
+  )
+
+  // Quem pode, e com que regra --------------------------------------------
+  await logarComo(ID.vendedorA)
+  await esperaErro(
+    'o balcão não dá desconto',
+    `select public.dar_desconto('${a.contaId}', 100, 'pagou no pix')`,
+  )
+  await logarComo(ID.adminA)
+  await esperaErro(
+    'desconto sem motivo é recusado',
+    `select public.dar_desconto('${a.contaId}', 100, '')`,
+  )
+  await esperaErro(
+    'desconto maior que o que falta receber é recusado',
+    `select public.dar_desconto('${a.contaId}', 1000.01, 'pagou no pix')`,
+  )
+
+  // O dono dá R$ 100 de desconto, sem receber ainda ------------------------
+  const r1 = await db.query<{ r: { comissao: string | null } }>(
+    `select public.dar_desconto('${a.contaId}', 100, 'pagou à vista no pix') as r`,
+  )
+  await esperaLinhas(
+    'o valor da conta passa a ser o valor com desconto, e o desconto fica ao lado',
+    `select count(*) as n from public.contas_receber
+      where id = '${a.contaId}' and valor = 900 and desconto = 100
+        and motivo_do_desconto = 'pagou à vista no pix' and status = 'aberta'`,
+    1,
+  )
+  r1.rows[0].r.comissao === 'ajustada'
+    ? ok('a função avisa que a comissão foi ajustada')
+    : erro('aviso da comissão', JSON.stringify(r1.rows[0].r))
+  const comissaoDepois = await contar(
+    `select (valor * 100)::int as n from public.comissoes where orcamento_id = '${a.orcamentoId}'`,
+  )
+  comissaoAntes === 15000 && comissaoDepois === 13500
+    ? ok('a comissão do indicador cai junto', '15% de R$ 1.000 → 15% de R$ 900')
+    : erro('comissão com desconto', `antes ${comissaoAntes}, depois ${comissaoDepois} centavos`)
+  await esperaLinhas(
+    'o desconto fica no histórico, com o motivo e o dinheiro em português',
+    `select count(*) as n from public.correcoes_financeiras
+      where conta_receber_id = '${a.contaId}'
+        and de = 'R$ 1.000,00' and para = 'R$ 900,00 (desconto de R$ 100,00)'
+        and motivo = 'Desconto: pagou à vista no pix'`,
+    1,
+  )
+
+  // O PDF da OS: o balcão vê o desconto; o mecânico, não ---------------------
+  await logarComo(ID.vendedorA)
+  const noPdf = await db.query<{ desconto: string; motivo: string | null }>(
+    `select desconto::text, motivo from public.desconto_no_pagamento_da_os('${a.osId}')`,
+  )
+  Number(noPdf.rows[0].desconto) === 100 && noPdf.rows[0].motivo === 'pagou à vista no pix'
+    ? ok('o balcão, que não lê o financeiro, recebe o desconto para o PDF da OS')
+    : erro('desconto para o PDF (balcão)', JSON.stringify(noPdf.rows[0]))
+  await logarComo(ID.mecanicoA)
+  const doMecanico = await contar(
+    `select (desconto * 100)::int as n from public.desconto_no_pagamento_da_os('${a.osId}')`,
+  )
+  doMecanico === 0
+    ? ok('o mecânico, que não vê preço, não recebe nada')
+    : erro('desconto para o mecânico', `veio ${doMecanico} centavos`)
+
+  // Desfazer volta tudo, inclusive a comissão --------------------------------
+  await logarComo(ID.adminA)
+  await esperaErro(
+    'desfazer sem motivo é recusado',
+    `select public.desfazer_desconto('${a.contaId}', '')`,
+  )
+  await db.query(`select public.desfazer_desconto('${a.contaId}', 'dei por engano')`)
+  await esperaLinhas(
+    'desfazer volta a conta ao valor original',
+    `select count(*) as n from public.contas_receber
+      where id = '${a.contaId}' and valor = 1000 and desconto = 0 and motivo_do_desconto is null`,
+    1,
+  )
+  const comissaoDesfeita = await contar(
+    `select (valor * 100)::int as n from public.comissoes where orcamento_id = '${a.orcamentoId}'`,
+  )
+  comissaoDesfeita === 15000
+    ? ok('e a comissão volta junto')
+    : erro('comissão ao desfazer', `veio ${comissaoDesfeita} centavos`)
+
+  // Desconto e baixa juntos, numa operação só ---------------------------------
+  await db.query(
+    `select public.dar_desconto('${a.contaId}', 50, 'pagou à vista', true, null, current_date, 'pix')`,
+  )
+  await esperaLinhas(
+    'com "receber" junto, a conta fecha paga pelo valor com desconto',
+    `select count(*) as n from public.contas_receber
+      where id = '${a.contaId}' and status = 'paga' and valor = 950 and valor_recebido = 950
+        and desconto = 50 and forma_pagamento = 'pix' and data_pagamento is not null`,
+    1,
+  )
+  await esperaErro(
+    'conta já paga não recebe desconto',
+    `select public.dar_desconto('${a.contaId}', 10, 'tarde demais')`,
+  )
+
+  // Comissão já paga ao indicador não muda --------------------------------------
+  const b = await osCobrada(400, true)
+  const comissaoB = await db.query<{ id: string }>(
+    `select id from public.comissoes where orcamento_id = '${b.orcamentoId}'`,
+  )
+  await db.query(`select public.pagar_comissao('${comissaoB.rows[0].id}', current_date)`)
+  const r2 = await db.query<{ r: { comissao: string | null } }>(
+    `select public.dar_desconto('${b.contaId}', 40, 'cliente antigo') as r`,
+  )
+  const valorB = await contar(
+    `select (valor * 100)::int as n from public.comissoes where id = '${comissaoB.rows[0].id}'`,
+  )
+  r2.rows[0].r.comissao === 'ja_paga' && valorB === 6000
+    ? ok('comissão já paga ao indicador não muda, e a função avisa')
+    : erro('comissão já paga', `${JSON.stringify(r2.rows[0].r)} · valor ${valorB} centavos`)
+
+  // O desconto que cobre o saldo quita a conta --------------------------------
+  const c = await osCobrada(500, false)
+  await db.query(`select public.receber_conta('${c.contaId}', 450, current_date, 'dinheiro')`)
+  const r3 = await db.query<{ r: { comissao: string | null } }>(
+    `select public.dar_desconto('${c.contaId}', 50, 'arredondou') as r`,
+  )
+  await esperaLinhas(
+    'recebeu R$ 450 de R$ 500 e deu R$ 50: a conta fecha paga',
+    `select count(*) as n from public.contas_receber
+      where id = '${c.contaId}' and status = 'paga' and valor = 450 and valor_recebido = 450`,
+    1,
+  )
+  r3.rows[0].r.comissao === null
+    ? ok('sem indicador, não há comissão para ajustar')
+    : erro('comissão sem indicador', JSON.stringify(r3.rows[0].r))
+  await db.query(`select public.desfazer_desconto('${c.contaId}', 'conferindo')`)
+  await esperaLinhas(
+    'desfazer um desconto que tinha quitado a conta reabre o saldo',
+    `select count(*) as n from public.contas_receber
+      where id = '${c.contaId}' and status = 'aberta' and valor = 500
+        and valor_recebido = 450 and data_pagamento is null`,
+    1,
+  )
+
+  // A outra oficina não alcança a conta ---------------------------------------
+  await logarComo(ID.adminB)
+  await esperaErro(
+    'a oficina vizinha não dá desconto numa conta que não é dela',
+    `select public.dar_desconto('${c.contaId}', 10, 'invasão')`,
+  )
+}
+
 async function testarPlanoUnicoEVitalicio() {
   console.log('\n\x1b[1mPlano único, períodos e vitalício\x1b[0m')
 
