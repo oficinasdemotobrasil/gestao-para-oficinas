@@ -26,7 +26,12 @@ import type { OrdemCompleta } from './api'
 export async function gerarPdfDaOrdem(
   ordem: OrdemCompleta,
   oficina: Oficina,
-  registro: { fotos?: FotoDoDocumento[]; vistoria?: OsVistoria | null } = {},
+  registro: {
+    fotos?: FotoDoDocumento[]
+    vistoria?: OsVistoria | null
+    /** Desconto dado na hora de receber (0083), com o motivo. */
+    descontoNoPagamento?: { valor: number; motivo: string | null } | null
+  } = {},
 ): Promise<jsPDF> {
   const doc = novoDocumento()
 
@@ -53,6 +58,9 @@ export async function gerarPdfDaOrdem(
   y = tabelaDeItens(doc, y, itens)
 
   const soma = itens.reduce((a, i) => a + i.quantidade * i.valor_unitario, 0)
+  // O desconto do orçamento e, se houve, o da hora de receber — este não muda
+  // a ordem (o que foi aprovado fica como foi aprovado), só o que se pagou.
+  const noPagamento = Number(registro.descontoNoPagamento?.valor ?? 0)
   y = blocoDeTotais(doc, y, {
     soma,
     desconto: Math.max(soma - Number(ordem.valor_total), 0),
@@ -60,7 +68,8 @@ export async function gerarPdfDaOrdem(
       ordem.desconto_tipo === 'percentual'
         ? `Desconto (${porcentagem(ordem.desconto)})`
         : 'Desconto',
-    total: Number(ordem.valor_total),
+    descontoNoPagamento: noPagamento > 0 ? registro.descontoNoPagamento : null,
+    total: Number(ordem.valor_total) - noPagamento,
   })
 
   y = blocoDeTexto(doc, y, 'SERVIÇO EXECUTADO', ordem.observacoes_tecnicas ?? '')

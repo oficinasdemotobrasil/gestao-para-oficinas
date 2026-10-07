@@ -527,6 +527,12 @@ type ContaReceber = {
   total_parcelas: number | null
   /** De qual nota de saída esta cobrança nasceu. Nula em cobrança avulsa (0058). */
   nota_fiscal_saida_id: string | null
+  /**
+   * Desconto dado na hora de receber (0083). O `valor` já está com ele
+   * abatido; o valor original da conta é `valor + desconto`.
+   */
+  desconto: number
+  motivo_do_desconto: string | null
   status: StatusConta
   criado_em: string
   atualizado_em: string
@@ -1030,6 +1036,26 @@ export type Database = {
         Returns: ContaReceber
       }
       cancelar_conta_receber: { Args: { p_conta_id: string }; Returns: undefined }
+      dar_desconto: {
+        Args: {
+          p_conta_id: string
+          p_desconto: number
+          p_motivo: string
+          p_receber?: boolean
+          p_valor_recebido?: number | null
+          p_data?: string
+          p_forma_pagamento?: string | null
+        }
+        Returns: { conta: ContaReceber; comissao: 'ajustada' | 'ja_paga' | null }
+      }
+      desfazer_desconto: {
+        Args: { p_conta_id: string; p_motivo: string }
+        Returns: { conta: ContaReceber; comissao: 'ajustada' | 'ja_paga' | null }
+      }
+      desconto_no_pagamento_da_os: {
+        Args: { p_os: string }
+        Returns: { desconto: number; motivo: string | null }[]
+      }
       lancar_conta_a_pagar: {
         Args: {
           p_descricao: string

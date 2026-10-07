@@ -276,6 +276,22 @@ export const GUIAS: Guia[] = [
     visivel: (p) => p.verFinanceiro,
   },
   {
+    id: 'desconto-no-pagamento',
+    secao: 'Dinheiro',
+    titulo: 'Dar desconto na hora de receber',
+    resumo: 'O cliente pagou à vista e ganhou desconto: a conta fecha certa, sem ele ficar devendo a diferença.',
+    passos: [
+      'Abra Financeiro e encontre a conta do cliente (aba "A receber").',
+      'Toque em "Marcar como recebida" e marque "Dar desconto ao cliente".',
+      'Escolha em reais ou em porcento, digite o desconto e escreva o motivo (ex.: pagou à vista no PIX).',
+      'Confira o valor que o cliente paga e toque em "Confirmar".',
+      'Vai cobrar por PIX? Toque antes em "Dar desconto": o código do PIX já sai com o valor certo.',
+    ],
+    atencao:
+      'Só o dono dá desconto. O desconto aparece no PDF da ordem de serviço, a comissão de quem indicou o cliente diminui junto (se ainda não foi paga) e tudo fica no histórico da conta. Errou? Toque em "Desfazer", ao lado do desconto.',
+    visivel: (p) => p.verFinanceiro,
+  },
+  {
     id: 'despesa',
     secao: 'Dinheiro',
     titulo: 'Lançar uma despesa',

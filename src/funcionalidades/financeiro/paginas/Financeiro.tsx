@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, QrCode, CheckCircle2, Wallet, Lock, PencilLine } from 'lucide-react'
+import { Plus, QrCode, CheckCircle2, Wallet, Lock, PencilLine, BadgePercent } from 'lucide-react'
 import { Tela, CabecalhoTela, TituloSecao } from '@/componentes/layout/Tela'
 import { Abas } from '@/componentes/ui/Abas'
 import { Card } from '@/componentes/ui/Card'
@@ -16,14 +16,23 @@ import { EsqueletoLista } from '@/componentes/ui/Carregando'
 import { useToast } from '@/componentes/ui/Toast'
 import { traduzirErro } from '@/lib/erros'
 import { paraNumero } from '@/lib/numero'
-import { moeda, data as formatarData } from '@/lib/formato'
+import { moeda, data as formatarData, hojeNoAparelho } from '@/lib/formato'
 import { useAuth } from '@/auth/ProvedorAuth'
 import { usePermissoes } from '@/auth/usePermissoes'
 import { CobrancaPix } from '../CobrancaPix'
 import {
+  CamposDeDesconto,
+  JanelaDeDesconto,
+  JanelaDeDesfazerDesconto,
+  avisoDaComissao,
+  useDescontoNoFormulario,
+  valorDoDesconto,
+} from '../Desconto'
+import {
   listarContasAReceber,
   listarContasAPagar,
   receberConta,
+  darDesconto,
   pagarConta,
   corrigirRecebimento,
   corrigirPagamento,
@@ -133,6 +142,21 @@ export function Financeiro() {
   const [formaDaBaixa, setFormaDaBaixa] = useState<FormaPagamento | ''>('')
   const [lancando, setLancando] = useState(false)
 
+  // Desconto na hora de receber (0083): junto com a baixa, sozinho (para
+  // cobrar o PIX já com o valor certo) e o desfazer.
+  const [comDesconto, setComDesconto] = useState(false)
+  const descontoDaBaixa = useDescontoNoFormulario()
+  const [descontando, setDescontando] = useState<ContaAReceber | null>(null)
+  const [desfazendo, setDesfazendo] = useState<ContaAReceber | null>(null)
+
+  function abrirBaixaDeRecebimento(c: ContaAReceber) {
+    setBaixando({ conta: c, tipo: 'receber' })
+    setValorDaBaixa('')
+    setFormaDaBaixa(c.forma_pagamento ?? '')
+    setComDesconto(false)
+    descontoDaBaixa.limpar()
+  }
+
   /*
    * A correção de uma baixa já feita.
    *
@@ -177,22 +201,41 @@ export function Financeiro() {
 
   const baixar = useMutation({
     mutationFn: async () => {
-      if (!baixando) return
-      const hoje = new Date().toISOString().slice(0, 10)
+      if (!baixando) return null
+      const hoje = hojeNoAparelho()
       const forma = formaDaBaixa || null
       if (baixando.tipo === 'receber') {
         const parcial = paraNumero(valorDaBaixa)
+        const conta = baixando.conta as ContaAReceber
+        const falta = Number(conta.valor) - Number(conta.valor_recebido)
+        const desconto = comDesconto
+          ? valorDoDesconto(descontoDaBaixa.tipo, descontoDaBaixa.texto, falta)
+          : 0
+        if (desconto > 0) {
+          // Desconto e baixa numa operação só: ou ficam os dois, ou nenhum.
+          return darDesconto(conta.id, desconto, descontoDaBaixa.motivo.trim(), {
+            valor: parcial > 0 ? parcial : null,
+            data: hoje,
+            forma,
+          })
+        }
         await receberConta(baixando.conta.id, parcial > 0 ? parcial : null, hoje, forma)
       } else {
         await pagarConta(baixando.conta.id, hoje, forma)
       }
+      return null
     },
-    onSuccess: () => {
+    onSuccess: (comissao) => {
       setBaixando(null)
       setValorDaBaixa('')
       setFormaDaBaixa('')
+      setComDesconto(false)
+      descontoDaBaixa.limpar()
       recarregar()
+      void cache.invalidateQueries({ queryKey: ['correcoes'] })
       toast.sucesso('Baixa registrada.')
+      const aviso = avisoDaComissao(comissao)
+      if (aviso) toast.aviso(aviso)
     },
     onError: (e) => toast.erro(traduzirErro(e)),
   })
@@ -380,7 +423,21 @@ export function Financeiro() {
                       <span className="text-corpo font-semibold text-em-superficie">{moeda(c.valor)}</span>
                     </div>
 
-    {efetivo === 'paga' && (
+                    {Number(c.desconto) > 0 && (
+                      <div className="flex items-baseline justify-between gap-3 pt-1">
+                        <span className="text-apoio text-em-superficie-2">
+                          Desconto de {moeda(c.desconto)}
+                          {c.motivo_do_desconto ? ` · ${c.motivo_do_desconto}` : ''}
+                        </span>
+                        {efetivo !== 'cancelada' && (
+                          <Botao variante="texto" onClick={() => setDesfazendo(c)}>
+                            Desfazer
+                          </Botao>
+                        )}
+                      </div>
+                    )}
+
+                    {efetivo === 'paga' && (
                       <div className="border-t border-borda-em-superficie pt-3 mt-3">
                         <Botao
                           largo
@@ -405,12 +462,16 @@ export function Financeiro() {
                         </Botao>
                         <Botao
                           largo
+                          variante="contorno-no-card"
+                          icone={<BadgePercent aria-hidden size={20} />}
+                          onClick={() => setDescontando(c)}
+                        >
+                          Dar desconto
+                        </Botao>
+                        <Botao
+                          largo
                           icone={<CheckCircle2 aria-hidden size={20} />}
-                          onClick={() => {
-                            setBaixando({ conta: c, tipo: 'receber' })
-                            setValorDaBaixa('')
-                            setFormaDaBaixa(c.forma_pagamento ?? '')
-                          }}
+                          onClick={() => abrirBaixaDeRecebimento(c)}
                         >
                           Marcar como recebida
                         </Botao>
@@ -447,6 +508,16 @@ export function Financeiro() {
                 celula: (c) => (
                   <span className="font-semibold">
                     {moeda(c.valor)}
+                    {Number(c.desconto) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => statusDaConta(c) !== 'cancelada' && setDesfazendo(c)}
+                        title={c.motivo_do_desconto ?? undefined}
+                        className="block w-full text-right text-apoio font-normal text-em-superficie-2 underline decoration-dotted underline-offset-2"
+                      >
+                        com desconto de {moeda(c.desconto)}
+                      </button>
+                    )}
                     {Number(c.valor_recebido) > 0 && statusDaConta(c) !== 'paga' && (
                       <span className="block text-apoio font-normal text-em-superficie-2">
                         faltam {moeda(Number(c.valor) - Number(c.valor_recebido))}
@@ -492,12 +563,15 @@ export function Financeiro() {
                         PIX
                       </Botao>
                       <Botao
+                        variante="contorno-no-card"
+                        icone={<BadgePercent aria-hidden size={18} />}
+                        aria-label="Dar desconto"
+                        title="Dar desconto"
+                        onClick={() => setDescontando(c)}
+                      />
+                      <Botao
                         icone={<CheckCircle2 aria-hidden size={18} />}
-                        onClick={() => {
-                          setBaixando({ conta: c, tipo: 'receber' })
-                          setValorDaBaixa('')
-                          setFormaDaBaixa(c.forma_pagamento ?? '')
-                        }}
+                        onClick={() => abrirBaixaDeRecebimento(c)}
                       >
                         Recebi
                       </Botao>
@@ -678,13 +752,49 @@ export function Financeiro() {
               rotulo="Valor recebido"
               inputMode="decimal"
               placeholder="Deixe vazio se recebeu tudo"
-              dica="Recebeu só uma parte? Digite quanto entrou — a conta continua aberta com o saldo."
+              dica={
+                comDesconto
+                  ? 'Vazio: recebeu tudo o que sobra depois do desconto.'
+                  : 'Recebeu só uma parte? Digite quanto entrou — a conta continua aberta com o saldo.'
+              }
               value={valorDaBaixa}
               onChange={(e) => setValorDaBaixa(e.target.value)}
             />
           )}
+
+          {baixando?.tipo === 'receber' && (
+            <div className="rounded-controle border border-borda-em-superficie p-4">
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={comDesconto}
+                  onChange={(e) => setComDesconto(e.target.checked)}
+                  className="mt-1 h-5 w-5 shrink-0 accent-[rgb(var(--cor-acento))]"
+                />
+                <span className="text-corpo text-em-superficie">
+                  Dar desconto ao cliente
+                  <span className="block text-apoio text-em-superficie-2">
+                    Ex.: pagou à vista no PIX. Só o dono pode dar.
+                  </span>
+                </span>
+              </label>
+              {comDesconto && baixando && (
+                <div className="pt-4">
+                  <CamposDeDesconto
+                    d={descontoDaBaixa}
+                    falta={
+                      Number(baixando.conta.valor) - Number((baixando.conta as ContaAReceber).valor_recebido)
+                    }
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </Modal>
+
+      <JanelaDeDesconto conta={descontando} aoFechar={() => setDescontando(null)} />
+      <JanelaDeDesfazerDesconto conta={desfazendo} aoFechar={() => setDesfazendo(null)} />
 
       <Modal
         aberto={corrigindo !== null}

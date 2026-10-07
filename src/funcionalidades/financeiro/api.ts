@@ -1,3 +1,4 @@
+import { hojeNoAparelho } from '@/lib/formato'
 import { supabase } from '@/lib/supabase'
 import type { Cliente, ContaPagar, ContaReceber, FormaPagamento, StatusConta } from '@/tipos/banco'
 
@@ -112,6 +113,45 @@ export async function receberConta(
     p_forma_pagamento: forma,
   })
   if (error) throw error
+}
+
+/** O que aconteceu com a comissão do indicador ao dar ou desfazer um desconto. */
+export type ComissaoNoDesconto = 'ajustada' | 'ja_paga' | null
+
+/**
+ * Desconto na hora de receber (0083). Só o dono dá — o banco confere.
+ *
+ * O valor da conta passa a ser o valor com desconto, e a comissão do
+ * indicador cai junto se ainda não foi paga. Com `receber`, dá o desconto e a
+ * baixa numa operação só: ou ficam os dois, ou nenhum.
+ */
+export async function darDesconto(
+  contaId: string,
+  desconto: number,
+  motivo: string,
+  receber?: { valor: number | null; data: string; forma: FormaPagamento | null },
+): Promise<ComissaoNoDesconto> {
+  const { data, error } = await supabase.rpc('dar_desconto', {
+    p_conta_id: contaId,
+    p_desconto: desconto,
+    p_motivo: motivo,
+    p_receber: Boolean(receber),
+    p_valor_recebido: receber?.valor ?? null,
+    p_data: receber?.data ?? hojeNoAparelho(),
+    p_forma_pagamento: receber?.forma ?? null,
+  })
+  if (error) throw error
+  return data?.comissao ?? null
+}
+
+/** Volta a conta ao valor original; a comissão volta junto, se não foi paga. */
+export async function desfazerDesconto(contaId: string, motivo: string): Promise<ComissaoNoDesconto> {
+  const { data, error } = await supabase.rpc('desfazer_desconto', {
+    p_conta_id: contaId,
+    p_motivo: motivo,
+  })
+  if (error) throw error
+  return data?.comissao ?? null
 }
 
 /**

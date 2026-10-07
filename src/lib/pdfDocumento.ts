@@ -317,6 +317,11 @@ export interface Totais {
   soma: number
   desconto: number
   rotuloDoDesconto: string
+  /**
+   * Desconto dado na hora de receber (0083), depois do orçamento. `total` já
+   * vem com ele abatido; aqui é só para mostrar a linha e o motivo.
+   */
+  descontoNoPagamento?: { valor: number; motivo: string | null } | null
   total: number
 }
 
@@ -327,7 +332,8 @@ export function blocoDeTotais(doc: jsPDF, y: number, t: Totais): number {
 
   // Com muitos itens a tabela vira a página, e o total cairia rodapé abaixo — o
   // número mais importante do documento, cortado.
-  y = garantirEspaco(doc, y, 40)
+  const pagamento = t.descontoNoPagamento && t.descontoNoPagamento.valor > 0 ? t.descontoNoPagamento : null
+  y = garantirEspaco(doc, y, pagamento ? 54 : 40)
 
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
@@ -344,6 +350,14 @@ export function blocoDeTotais(doc: jsPDF, y: number, t: Totais): number {
     doc.text(`- ${moeda(t.desconto)}`, colunaValor, y, { align: 'right' })
   }
 
+  if (pagamento) {
+    y += 6
+    doc.setTextColor(...CINZA)
+    doc.text('Desconto no pagamento', colunaRotulo, y, { align: 'right' })
+    doc.setTextColor(...ESCURO)
+    doc.text(`- ${moeda(pagamento.valor)}`, colunaValor, y, { align: 'right' })
+  }
+
   // O total é o número que a pessoa procura primeiro: fundo na cor da marca e
   // corpo grande, como na tela.
   y += 4
@@ -356,6 +370,20 @@ export function blocoDeTotais(doc: jsPDF, y: number, t: Totais): number {
   doc.text('TOTAL', colunaRotulo - 6, y)
   doc.setFontSize(14)
   doc.text(moeda(t.total), colunaValor - 3, y, { align: 'right' })
+
+  // O porquê do desconto, embaixo do total: é a primeira pergunta de quem
+  // confere o papel ("por que veio menos?").
+  if (pagamento?.motivo) {
+    y += 10
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(...CINZA)
+    doc.text(paraPdf(`Desconto no pagamento: ${pagamento.motivo}`), colunaValor, y, {
+      align: 'right',
+      maxWidth: largura - MARGEM * 2,
+    })
+    return y + 8
+  }
 
   return y + 14
 }

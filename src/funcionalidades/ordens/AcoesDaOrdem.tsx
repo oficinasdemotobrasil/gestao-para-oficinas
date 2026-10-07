@@ -1,3 +1,4 @@
+import { supabase } from '@/lib/supabase'
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -91,6 +92,22 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
     queryFn: () => fotosParaDocumento(ordem.id),
     enabled: p.gerenciarOrdens && (ordem.status === 'finalizada' || ordem.status === 'entregue'),
     staleTime: Infinity,
+  })
+  /*
+   * O desconto dado na hora de receber (0083), para o PDF. O balcão não lê o
+   * financeiro, então vem por uma função que entrega só isto: quanto e por quê.
+   */
+  const descontoDoPdf = useQuery({
+    queryKey: ['desconto-no-pagamento', ordem.id],
+    enabled: p.gerenciarOrdens && (ordem.status === 'finalizada' || ordem.status === 'entregue'),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('desconto_no_pagamento_da_os', { p_os: ordem.id })
+      if (error) throw error
+      const linha = data?.[0]
+      return linha && Number(linha.desconto) > 0
+        ? { valor: Number(linha.desconto), motivo: linha.motivo }
+        : null
+    },
   })
   // A mesma chave do bloco de vistoria da tela: as duas leituras são uma só.
   const vistoriaDoPdf = useQuery({
@@ -197,6 +214,7 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
       const doc = await moduloPdf.gerarPdfDaOrdem(ordem, oficina, {
         fotos: fotosDoPdf.data ?? [],
         vistoria: vistoriaDoPdf.data ?? null,
+        descontoNoPagamento: descontoDoPdf.data ?? null,
       })
       const nome = moduloPdf.nomeDoArquivoDaOrdem(ordem)
       if (acao === 'baixar') {
@@ -336,7 +354,7 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
           <Botao
             largo
             variante="contorno"
-            carregando={!pdfPronto || fotosDoPdf.isLoading || vistoriaDoPdf.isLoading}
+            carregando={!pdfPronto || fotosDoPdf.isLoading || vistoriaDoPdf.isLoading || descontoDoPdf.isLoading}
             icone={<Download aria-hidden size={20} />}
             onClick={() => comOPdf('baixar')}
           >
@@ -347,7 +365,7 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
             <Botao
               largo
               variante="contorno"
-              carregando={!pdfPronto || fotosDoPdf.isLoading || vistoriaDoPdf.isLoading}
+              carregando={!pdfPronto || fotosDoPdf.isLoading || vistoriaDoPdf.isLoading || descontoDoPdf.isLoading}
               icone={<Share2 aria-hidden size={20} />}
               onClick={() => comOPdf('compartilhar')}
             >

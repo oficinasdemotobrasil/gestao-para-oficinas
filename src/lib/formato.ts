@@ -110,3 +110,15 @@ export function diasAte(data: string | Date): number {
   const zerar = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
   return Math.round((zerar(alvo) - zerar(hoje)) / 86_400_000)
 }
+
+/**
+ * A data de hoje no relógio do aparelho, como "2026-10-07".
+ *
+ * `new Date().toISOString()` dá a data de Greenwich: depois das 21h em
+ * Recife, já é o dia seguinte — e um recebimento das 22h saía com a data de
+ * amanhã.
+ */
+export function hojeNoAparelho(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
