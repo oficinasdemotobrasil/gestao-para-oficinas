@@ -24,7 +24,7 @@ export const ATUALIZADO_EM = '7 de outubro de 2026'
  * comércio eletrônico (Decreto 7.962/2013) pede os dois.
  */
 export const FORNECEDOR = 'PLYVO'
-export const CONTATO = 'contato@plyvo.ai'
+export const CONTATO = 'contato@usegiromotos.com'
 
 export interface Secao {
   titulo: string
