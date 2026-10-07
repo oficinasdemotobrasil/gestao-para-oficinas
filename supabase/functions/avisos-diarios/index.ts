@@ -1,8 +1,9 @@
 /**
  * A rotina que avisa quem está para acabar o teste.
  *
- * Roda uma vez por dia (ou mais, sem prejuízo). Para cada marco — 3 dias e
- * 1 dia —, pergunta ao banco quem ainda precisa ser avisado e manda.
+ * Roda uma vez por dia (ou mais, sem prejuízo: no máximo um aviso por oficina
+ * por dia). Para cada marco — 3 dias e 1 dia —, pergunta ao banco quem ainda
+ * precisa ser avisado e manda.
  *
  * O que faz esta rotina ser segura de repetir: quem decide a fila é o banco,
  * pela referência do envio (`vencimento|marco`). Rodar duas vezes no mesmo dia
@@ -80,19 +81,14 @@ async function temPoderDeServico(url: string, token: string): Promise<boolean> {
   }
 }
 
-Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: cabecalhosCors })
-  if (req.method !== 'POST') return responder({ erro: 'Método não permitido.' }, 405)
+/**
+ * O Edge Runtime do Supabase deixa uma tarefa continuar depois da resposta.
+ * Fora dele (teste local), não existe — e aí a rotina roda antes de responder.
+ */
+declare const EdgeRuntime: { waitUntil(tarefa: Promise<unknown>): void } | undefined
 
-  const url = Deno.env.get('SUPABASE_URL')!
-  const chaveServico = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-
-  // Mesma porta fechada da função de e-mails: só o servidor entra.
-  const autorizacao = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '')
-  if (!(await temPoderDeServico(url, autorizacao))) {
-    return responder({ erro: 'Não autorizado.' }, 401)
-  }
-
+/** A rodada inteira: os marcos, a fila de cada um e o envio. */
+async function rodar(url: string, chaveServico: string) {
   const servico = createClient(url, chaveServico, { auth: { persistSession: false } })
 
   const enviados: string[] = []
@@ -112,9 +108,35 @@ Deno.serve(async (req: Request) => {
    */
   const jaAvisadas = new Set<string>()
 
+  /*
+   * E quem já recebeu um aviso HOJE (dia de Recife), em qualquer rodada e por
+   * qualquer marco, também não recebe outro. Sem isto, uma segunda rodada no
+   * mesmo dia mandava o aviso de 1 dia a quem acabara de receber o de 3 dias
+   * faltando 1 — o mesmo "termina amanhã", repetido. Foi o que aconteceu em
+   * 07/10/2026, em dois testes seguidos: um cliente recebeu três cópias.
+   * Recife não tem horário de verão: o dia começa às 03:00 UTC.
+   */
+  const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' })
+  const { data: avisadasHoje, error: erroDeHoje } = await servico
+    .from('emails_enviados')
+    .select('oficina_id')
+    .eq('tipo', 'teste_terminando')
+    .eq('enviado', true)
+    .gte('criado_em', `${hoje}T03:00:00Z`)
+  if (erroDeHoje) {
+    // Sem saber quem já recebeu, é melhor não mandar nada do que repetir.
+    falhas.push(`avisos de hoje: ${erroDeHoje.message}`)
+    console.log(JSON.stringify({ rodada: 'avisos-diarios', enviados, falhas }))
+    return { enviados, falhas }
+  }
+  for (const e of avisadasHoje ?? []) jaAvisadas.add(e.oficina_id as string)
+
   for (const marco of MARCOS) {
     const { data, error } = await servico.rpc('oficinas_para_avisar', { p_marco: marco })
-    if (error) return responder({ erro: `fila do marco ${marco}: ${error.message}` }, 500)
+    if (error) {
+      falhas.push(`fila do marco ${marco}: ${error.message}`)
+      continue
+    }
 
     for (const linha of (data ?? []) as NaFila[]) {
       if (jaAvisadas.has(linha.oficina_id)) continue
@@ -144,12 +166,57 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  return responder({
-    ok: falhas.length === 0,
-    enviados,
-    falhas,
-    // Quem falhou hoje continua na fila amanhã. É de propósito, e é a razão de
-    // esta rotina não ter fila própria nem nova tentativa aqui dentro.
-    observacao: falhas.length > 0 ? 'as falhas voltam para a fila na próxima execução' : undefined,
-  })
+  // Aparece nos logs da função: é onde se vê a rodada que o Cron disparou.
+  console.log(JSON.stringify({ rodada: 'avisos-diarios', enviados, falhas }))
+  return { enviados, falhas }
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cabecalhosCors })
+  if (req.method !== 'POST') return responder({ erro: 'Método não permitido.' }, 405)
+
+  const url = Deno.env.get('SUPABASE_URL')!
+  const chaveServico = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+  /*
+   * Mesma porta fechada da função de e-mails: só o servidor entra.
+   *
+   * A chave pode chegar por dois cabeçalhos. Quem chama à mão manda
+   * `Authorization: Bearer`; o Cron do Supabase ("Add secret key") manda em
+   * `apikey`. Qualquer um dos dois serve, desde que tenha poder de serviço.
+   */
+  const candidatas = [
+    (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, ''),
+    req.headers.get('apikey') ?? '',
+  ].filter(Boolean)
+  let autorizado = false
+  for (const chave of candidatas) {
+    if (await temPoderDeServico(url, chave)) {
+      autorizado = true
+      break
+    }
+  }
+  if (!autorizado) return responder({ erro: 'Não autorizado.' }, 401)
+
+  /*
+   * O Cron espera no máximo 5 segundos pela resposta, e cada e-mail leva
+   * perto de 1,5 s. Então, chamada pelo Cron, a rotina responde na hora e
+   * envia em seguida, sem pressa — o resultado fica nos logs da função e no
+   * registro de e-mails. Quem chama à mão e quer ver o resumo manda
+   * {"esperar": true} no corpo.
+   */
+  const corpo = await req.json().catch(() => ({}))
+  if (corpo?.esperar || typeof EdgeRuntime === 'undefined') {
+    const { enviados, falhas } = await rodar(url, chaveServico)
+    return responder({
+      ok: falhas.length === 0,
+      enviados,
+      falhas,
+      // Quem falhou hoje continua na fila amanhã. É de propósito, e é a razão
+      // de esta rotina não ter fila própria nem nova tentativa aqui dentro.
+      observacao: falhas.length > 0 ? 'as falhas voltam para a fila na próxima execução' : undefined,
+    })
+  }
+  EdgeRuntime.waitUntil(rodar(url, chaveServico))
+  return responder({ ok: true, iniciada: true }, 202)
 })
