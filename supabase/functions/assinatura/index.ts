@@ -50,6 +50,9 @@ type Forma = (typeof FORMAS)[number]
 
 interface Corpo {
   acao?: 'assinar' | 'cancelar' | 'ambiente' | 'conferir' | 'em_aberto'
+  /** Cancelar o que já foi pago: a marca de confirmação e a senha da conta. */
+  confirmado?: boolean
+  senha?: string
   /** Só a tela antiga manda: ela assinava por plano, e sempre por mês. */
   plano?: string
   periodo?: string
@@ -341,8 +344,46 @@ Deno.serve(async (req: Request) => {
     // aqui só registra que ele não vai renovar; o acesso vale até o fim do ano
     // pago, como em qualquer cancelamento.
     const { data: assinatura } = await servico
-      .from('assinaturas').select('id_externo_assinatura, id_externo_parcelamento')
+      .from('assinaturas').select('criado_em, id_externo_assinatura, id_externo_parcelamento')
       .eq('oficina_id', oficinaId).eq('situacao', 'ativa').maybeSingle()
+
+    /*
+     * Cancelar o que já foi pago pede a marca "quero cancelar" e a senha da
+     * conta (decisão do Ed, 07/10/2026) — e é conferido aqui, não só na tela:
+     * quem chamasse esta função por fora cancelaria sem nenhuma das duas.
+     *
+     * Desistir de uma cobrança que ninguém pagou não pede nada: não há
+     * dinheiro em jogo, e é o caminho de quem só quer trocar o período.
+     */
+    if (assinatura) {
+      const { data: jaPagou } = await servico
+        .from('eventos_asaas').select('id')
+        .eq('oficina_id', oficinaId).eq('aplicado', true)
+        .in('tipo', ['PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED'])
+        .gte('criado_em', assinatura.criado_em)
+        .limit(1).maybeSingle()
+      if (jaPagou) {
+        if (corpo.confirmado !== true) {
+          return responder({ erro: 'Marque a confirmação de que quer cancelar.', campo: 'confirmado' }, 400)
+        }
+        const senha = typeof corpo.senha === 'string' ? corpo.senha : ''
+        if (!senha || !sessao.user.email) {
+          return responder({ erro: 'Digite a sua senha para confirmar.', campo: 'senha' }, 400)
+        }
+        // Um cliente à parte, sem guardar nada: só para perguntar ao Auth se a
+        // senha é desta conta. A sessão que nasce dessa pergunta é encerrada
+        // em seguida (só ela — a do navegador continua).
+        const conferencia = createClient(url, chaveAnon, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        })
+        const { error: senhaErrada } = await conferencia.auth.signInWithPassword({
+          email: sessao.user.email,
+          password: senha,
+        })
+        if (senhaErrada) return responder({ erro: 'Senha incorreta.', campo: 'senha' }, 400)
+        await conferencia.auth.signOut({ scope: 'local' }).catch(() => undefined)
+      }
+    }
 
     if (assinatura?.id_externo_assinatura) {
       try {

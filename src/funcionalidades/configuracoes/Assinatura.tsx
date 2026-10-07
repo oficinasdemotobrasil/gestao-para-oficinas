@@ -25,7 +25,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Botao } from '@/componentes/ui/Botao'
 import { Modal } from '@/componentes/ui/Modal'
-import { Selecao } from '@/componentes/ui/Campo'
+import { Campo, Selecao } from '@/componentes/ui/Campo'
 import { useToast } from '@/componentes/ui/Toast'
 import { useAuth } from '@/auth/ProvedorAuth'
 import { supabase } from '@/lib/supabase'
@@ -96,6 +96,10 @@ export function Assinatura() {
   const [copiado, setCopiado] = useState(false)
   const [confirmado, setConfirmado] = useState(false)
   const [confirmandoCancelamento, setConfirmandoCancelamento] = useState(false)
+  // Cancelar o que já foi pago pede a marca e a senha — conferidas no servidor.
+  const [querCancelar, setQuerCancelar] = useState(false)
+  const [senhaParaCancelar, setSenhaParaCancelar] = useState('')
+  const [erroDaSenha, setErroDaSenha] = useState<string | null>(null)
 
   const precos = usePrecos()
   const vagas = useVagasVitalicias()
@@ -299,16 +303,38 @@ export function Assinatura() {
     }
   }
 
+  function abrirCancelamento() {
+    setQuerCancelar(false)
+    setSenhaParaCancelar('')
+    setErroDaSenha(null)
+    setConfirmandoCancelamento(true)
+  }
+
   async function cancelar(desistindo = false) {
     // Dentro do prazo de arrependimento, a mensagem final aponta a devolução.
     const noArrependimento = Boolean(emAberto.data?.arrependimentoAte)
     setEnviando(true)
+    setErroDaSenha(null)
     try {
       const { data, error } = await supabase.functions.invoke('assinatura', {
-        body: { acao: 'cancelar' },
+        body: desistindo
+          ? { acao: 'cancelar' }
+          : { acao: 'cancelar', confirmado: querCancelar, senha: senhaParaCancelar },
       })
-      if (error) throw error
-      if (data?.erro) throw new Error(data.erro)
+      // A função explica no corpo; o erro do invoke só diz o número.
+      const resposta = error ? (error as { context?: Response }).context : null
+      const corpo = error ? (resposta ? await resposta.json().catch(() => null) : null) : data
+      if (error || corpo?.erro) {
+        if (corpo?.campo === 'senha' || corpo?.campo === 'confirmado') {
+          // Já houve pagamento: o caminho é a confirmação com senha, mesmo
+          // que a tela tenha achado que era só desistir de uma cobrança.
+          if (desistindo) abrirCancelamento()
+          else setErroDaSenha(corpo.erro)
+          return
+        }
+        throw new Error(corpo?.erro ?? 'Não foi possível cancelar.')
+      }
+      setSenhaParaCancelar('')
       await Promise.all([
         recarregarUsuario(),
         fila.invalidateQueries({ queryKey: ['assinatura'] }),
@@ -429,7 +455,7 @@ export function Assinatura() {
                 type="button"
                 variante={naoPagaAinda ? 'contorno-no-card' : 'perigo'}
                 carregando={enviando}
-                onClick={() => (naoPagaAinda ? void cancelar(true) : setConfirmandoCancelamento(true))}
+                onClick={() => (naoPagaAinda ? void cancelar(true) : abrirCancelamento())}
               >
                 {naoPagaAinda ? 'Desistir e escolher de novo' : 'Cancelar assinatura'}
               </Botao>
@@ -550,14 +576,53 @@ export function Assinatura() {
             </p>
           </div>
         )}
-        <div className="flex flex-col-reverse gap-2 pt-5 tablet:flex-row tablet:justify-end">
-          <Botao type="button" variante="contorno-no-card" compactoNoDesktop onClick={() => setConfirmandoCancelamento(false)}>
-            Voltar
-          </Botao>
-          <Botao type="button" variante="perigo" compactoNoDesktop carregando={enviando} onClick={() => void cancelar()}>
-            Cancelar a assinatura
-          </Botao>
-        </div>
+        {/* A marca e a senha: cancelar o que foi pago é decisão do responsável,
+            confirmada com a senha dele — o servidor confere as duas. */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (querCancelar && senhaParaCancelar) void cancelar()
+          }}
+          className="mt-5 flex flex-col gap-4 border-t border-borda-em-superficie pt-5"
+        >
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              checked={querCancelar}
+              onChange={(e) => setQuerCancelar(e.target.checked)}
+              className="mt-1 h-5 w-5 shrink-0 accent-[rgb(var(--cor-acento))]"
+            />
+            <span className="text-apoio text-em-superficie">
+              Li o aviso acima e confirmo que quero cancelar a assinatura.
+            </span>
+          </label>
+          <Campo
+            rotulo="Sua senha"
+            type="password"
+            autoComplete="current-password"
+            dica="A mesma senha que você usa para entrar no GIRO."
+            erro={erroDaSenha ?? undefined}
+            value={senhaParaCancelar}
+            onChange={(e) => {
+              setSenhaParaCancelar(e.target.value)
+              setErroDaSenha(null)
+            }}
+          />
+          <div className="flex flex-col-reverse gap-2 tablet:flex-row tablet:justify-end">
+            <Botao type="button" variante="contorno-no-card" compactoNoDesktop onClick={() => setConfirmandoCancelamento(false)}>
+              Voltar
+            </Botao>
+            <Botao
+              type="submit"
+              variante="perigo"
+              compactoNoDesktop
+              carregando={enviando}
+              disabled={!querCancelar || !senhaParaCancelar}
+            >
+              Cancelar a assinatura
+            </Botao>
+          </div>
+        </form>
       </Modal>
 
       {/* Como pagar ------------------------------------------------------------ */}

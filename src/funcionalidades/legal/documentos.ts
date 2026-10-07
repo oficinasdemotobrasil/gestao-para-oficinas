@@ -64,7 +64,7 @@ export const TERMOS: Secao[] = [
     titulo: 'Desistir nos primeiros sete dias',
     paragrafos: [
       'A contratação é feita pela internet, então vale o direito de arrependimento do Código de Defesa do Consumidor: dentro de sete dias corridos a partir do pagamento, a oficina pode desistir e receber de volta o valor pago, integralmente. Vale para qualquer período, inclusive o vitalício.',
-      `Basta cancelar pela tela de assinatura dentro desse prazo e nos avisar em ${CONTATO}. A devolução é feita pelo mesmo meio do pagamento; no cartão parcelado, as parcelas são estornadas.`,
+      `Para isso, a oficina cancela pela tela de assinatura dentro desse prazo, confirmando com a senha da conta, e envia para ${CONTATO} cópia legível de documento oficial com foto do titular cadastrado e comprovante de residência recente, para a conferência dos dados e a prevenção de fraudes. Conferidos os documentos, a devolução integral é feita pelo mesmo meio do pagamento, em até 30 dias úteis; no cartão parcelado, as parcelas são estornadas.`,
       'Esse prazo é separado do período de teste gratuito: o teste vem antes de qualquer cobrança, e o arrependimento conta a partir do dia em que a assinatura começou.',
       'O direito é da contratação: os sete dias contam do primeiro pagamento da assinatura. As renovações automáticas seguintes — o segundo mês, o segundo trimestre, o segundo ano — não reabrem o prazo, e cancelar depois disso segue a regra abaixo, sem devolução.',
     ],
@@ -72,7 +72,7 @@ export const TERMOS: Secao[] = [
   {
     titulo: 'Cancelar',
     paragrafos: [
-      'Passados os sete dias de arrependimento, a oficina pode cancelar quando quiser, pela própria tela de assinatura, sem multa e sem precisar falar com ninguém.',
+      'Passados os sete dias de arrependimento, a oficina pode cancelar quando quiser, pela própria tela de assinatura, sem multa e sem precisar falar com ninguém. O cancelamento é confirmado com a senha da conta.',
       'O acesso continua até o fim do período já pago. Não devolvemos valor proporcional do período em andamento — seja o mês, o trimestre ou o ano —, e também não cortamos antes do prazo que a oficina comprou.',
       'No anual parcelado, cancelar não interrompe as parcelas que faltam, porque o ano foi comprado de uma vez; o acesso vai até o fim desse ano.',
       'Ao encerrar a conta, os dados ficam guardados por mais trinta dias, e nesse prazo dá para voltar atrás. Depois disso podem ser apagados definitivamente.',
@@ -153,6 +153,7 @@ export const PRIVACIDADE: Secao[] = [
       'Dos e-mails: o registro de cada mensagem enviada, com data, destinatário, assunto e resultado. É o que permite responder quando alguém diz que não recebeu.',
       'Das ordens de serviço: as fotos que a oficina tirar da moto e a vistoria de entrada. As fotos ficam numa área privada, que só a própria oficina enxerga, e podem mostrar a placa e o estado da moto.',
       'Do suporte: quando nossa equipe entra numa conta para dar suporte, guardamos quem entrou, quando e o motivo.',
+      `Da devolução por arrependimento: quem pede a devolução nos sete dias da contratação envia para ${CONTATO} cópia de documento oficial com foto e comprovante de residência. Usamos esses documentos só para conferir a titularidade e prevenir fraude no estorno, e os guardamos pelo tempo necessário para comprovar a devolução.`,
     ],
   },
   {
