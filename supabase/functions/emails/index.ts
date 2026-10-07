@@ -28,6 +28,10 @@ const cabecalhosCors = {
 const AMARELO = '#f5c518'
 const ESCURO = '#111113'
 const CINZA = '#6b6b70'
+const PRETO = '#0b0b0c'
+const TEXTO = '#3f3f46'
+/** O logotipo do e-mail, servido pelo próprio site (public/email/logo-giro.png). */
+const LOGO = 'https://usegiromotos.com/email/logo-giro.png'
 
 type Tipo =
   | 'boas_vindas'
@@ -79,33 +83,48 @@ function seguro(texto: string | number | undefined): string {
  * O que é feio aqui é o que chega inteiro lá.
  */
 function moldura(titulo: string, corpo: string, botao?: { texto: string; url: string }): string {
+  // A mesma identidade dos e-mails de senha (supabase/templates): faixa preta
+  // com o logotipo, filete amarelo, botão amarelo. O logotipo é imagem porque
+  // cliente de e-mail não carrega a fonte nem o desenho do símbolo; a imagem
+  // foi gerada do próprio Logotipo.tsx, nas proporções dele.
   return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">
 <title>${seguro(titulo)}</title></head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:24px 12px;">
+<body style="margin:0;padding:0;background:#f3f3f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f3f5;padding:32px 12px;">
 <tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;">
-  <tr><td style="height:6px;background:${AMARELO};font-size:0;line-height:0;">&nbsp;</td></tr>
-  <tr><td style="padding:28px 28px 8px 28px;">
-    <p style="margin:0;font-size:13px;color:${CINZA};">Gestão para Oficinas</p>
-    <h1 style="margin:6px 0 0 0;font-size:22px;line-height:28px;color:${ESCURO};">${seguro(titulo)}</h1>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;">
+  <tr><td style="background:${PRETO};padding:26px 32px;">
+    <img src="${LOGO}" width="98" height="40" alt="GIRO" style="display:block;border:0;color:#ffffff;font-size:26px;font-weight:900;">
   </td></tr>
-  <tr><td style="padding:8px 28px 24px 28px;font-size:15px;line-height:23px;color:${ESCURO};">
+  <tr><td style="height:4px;background:${AMARELO};font-size:0;line-height:0;">&nbsp;</td></tr>
+  <tr><td style="padding:32px 32px 8px 32px;">
+    <h1 style="margin:0;font-size:22px;line-height:28px;font-weight:700;color:${ESCURO};">${seguro(titulo)}</h1>
+  </td></tr>
+  <tr><td style="padding:12px 32px 24px 32px;font-size:15px;line-height:24px;color:${TEXTO};">
     ${corpo}
   </td></tr>
   ${
     botao
-      ? `<tr><td style="padding:0 28px 28px 28px;">
-    <a href="${seguro(botao.url)}" style="display:inline-block;background:${AMARELO};color:${ESCURO};text-decoration:none;font-weight:600;font-size:15px;padding:13px 24px;border-radius:12px;">${seguro(botao.texto)}</a>
+      ? `<tr><td style="padding:0 32px 28px 32px;">
+    <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+      <td style="background:${AMARELO};border-radius:12px;">
+        <a href="${seguro(botao.url)}" style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:600;color:${ESCURO};text-decoration:none;">${seguro(botao.texto)}</a>
+      </td>
+    </tr></table>
   </td></tr>`
       : ''
   }
-  <tr><td style="padding:0 28px 26px 28px;border-top:1px solid #e6e6e9;">
-    <p style="margin:16px 0 0 0;font-size:12px;line-height:18px;color:${CINZA};">
+  <tr><td style="padding:0 32px 28px 32px;border-top:1px solid #e6e6e9;">
+    <p style="margin:18px 0 0 0;font-size:12px;line-height:18px;color:${CINZA};">
       Este é um aviso automático do sistema da sua oficina.
       Se precisar de ajuda, é só responder esta mensagem.
+    </p>
+    <p style="margin:10px 0 0 0;font-size:12px;line-height:18px;color:${CINZA};">
+      <strong style="color:${ESCURO};">GIRO</strong> · Sistema para oficinas de moto ·
+      <a href="https://usegiromotos.com" style="color:${CINZA};text-decoration:underline;">usegiromotos.com</a>
     </p>
   </td></tr>
 </table>

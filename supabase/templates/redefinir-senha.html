@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Redefinir sua senha do GIRO</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f3f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+<!-- Modelo "Reset Password" do Supabase (Authentication → Emails → Templates).
+     Mesma identidade do app e dos avisos automáticos (supabase/functions/emails):
+     faixa preta com o logotipo, filete amarelo, botão amarelo, cinza do tema claro. -->
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Use o botão para criar uma nova senha. Se não foi você, ignore este e-mail.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f3f5;padding:32px 12px;">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;">
+  <tr><td style="background:#0b0b0c;padding:26px 32px;">
+    <img src="https://usegiromotos.com/email/logo-giro.png" width="98" height="40" alt="GIRO" style="display:block;border:0;color:#ffffff;font-size:26px;font-weight:900;">
+  </td></tr>
+  <tr><td style="height:4px;background:#f5c518;font-size:0;line-height:0;">&nbsp;</td></tr>
+  <tr><td style="padding:32px 32px 8px 32px;">
+    <h1 style="margin:0;font-size:22px;line-height:28px;font-weight:700;color:#111113;">Redefinir sua senha</h1>
+    <p style="margin:12px 0 0 0;font-size:15px;line-height:24px;color:#3f3f46;">
+      Recebemos um pedido para trocar a senha da sua conta no GIRO. Toque no botão abaixo para criar uma senha nova.
+    </p>
+  </td></tr>
+  <tr><td style="padding:24px 32px 8px 32px;">
+    <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+      <td style="background:#f5c518;border-radius:12px;">
+        <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:600;color:#111113;text-decoration:none;">Criar uma nova senha</a>
+      </td>
+    </tr></table>
+  </td></tr>
+  <tr><td style="padding:20px 32px 28px 32px;">
+    <p style="margin:0;font-size:14px;line-height:22px;color:#3f3f46;">
+      O link funciona uma vez só. Se não foi você quem pediu, ignore este e-mail: sua senha continua a mesma.
+    </p>
+    <p style="margin:16px 0 0 0;font-size:12px;line-height:18px;color:#6b6b70;">
+      Se o botão não abrir, copie este endereço no navegador:<br>
+      <span style="word-break:break-all;color:#6b6b70;">{{ .ConfirmationURL }}</span>
+    </p>
+  </td></tr>
+  <tr><td style="padding:0 32px 28px 32px;border-top:1px solid #e6e6e9;">
+    <p style="margin:18px 0 0 0;font-size:12px;line-height:18px;color:#6b6b70;">
+      <strong style="color:#111113;">GIRO</strong> · Sistema para oficinas de moto<br>
+      <a href="https://usegiromotos.com" style="color:#6b6b70;text-decoration:underline;">usegiromotos.com</a> · <a href="mailto:contato@usegiromotos.com" style="color:#6b6b70;text-decoration:underline;">contato@usegiromotos.com</a>
+    </p>
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>
