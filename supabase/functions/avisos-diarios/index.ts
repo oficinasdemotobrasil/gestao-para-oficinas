@@ -13,8 +13,14 @@
  * que só conseguiu sair no dia seguinte precisa dizer "faltam 2 dias" — senão
  * o e-mail mente para o cliente.
  *
- * Deploy:
- *   npx supabase functions deploy avisos-diarios
+ * Quem chama é o agendamento do Supabase (Integrations → Cron, todo dia às
+ * 12:00 UTC = 9h em Recife), com a chave secreta no formato novo (sb_secret_).
+ * Esse formato não é JWT, então a verificação automática do Supabase fica
+ * DESLIGADA e a porta é esta função: `temPoderDeServico` recusa quem não tem
+ * poder de serviço, com 401.
+ *
+ * Deploy (sem exigir JWT — ver acima):
+ *   npx supabase functions deploy avisos-diarios --no-verify-jwt
  */
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
