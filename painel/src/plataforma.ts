@@ -83,6 +83,17 @@ export interface OficinaNaLista {
   vitalicia?: boolean
   /** Fotos de OS guardadas e o limite do plano (0079). Nulo antes da migração. */
   fotos: { em_uso: number; limite: number | null } | null
+  /**
+   * Cancelou a assinatura dentro dos 7 dias do primeiro pagamento (direito de
+   * arrependimento): a lei garante devolver tudo, e o sistema não devolve
+   * sozinho. 'devolver' até o estorno chegar; depois, 'ajustar_acesso' enquanto
+   * o acesso ainda for além de hoje.
+   */
+  arrependimento?: {
+    situacao: 'devolver' | 'ajustar_acesso'
+    valor: number
+    desistiu_em: string
+  } | null
 }
 
 /**

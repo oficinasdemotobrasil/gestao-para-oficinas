@@ -227,9 +227,57 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    /*
+     * Quem desistiu no prazo de arrependimento (art. 49 do CDC): cancelou a
+     * assinatura até sete dias depois do PRIMEIRO pagamento dela — o prazo é
+     * da contratação, renovação não reabre. A lei garante a devolução
+     * integral, e o sistema não devolve sozinho: é o Ed, no Asaas. Este é o
+     * lembrete, que muda de "devolver" para "ajustar o acesso" quando o
+     * estorno chega, e some quando o acesso já não vai além de hoje.
+     *
+     * Opcional como as fotos: falhando a consulta, a lista sai sem o aviso.
+     */
+    const desde = new Date(Date.now() - 60 * 86_400_000).toISOString()
+    const [encerradas, avisosDeDinheiro] = await Promise.all([
+      servico
+        .from('assinaturas').select('oficina_id, criado_em, cancelada_em')
+        .eq('situacao', 'encerrada').gte('cancelada_em', desde),
+      servico
+        .from('eventos_asaas')
+        .select('oficina_id, tipo, aplicado, criado_em, pagamento:conteudo->payment->>id, valor:conteudo->payment->>value')
+        .in('tipo', ['PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED', 'PAYMENT_REFUNDED'])
+        .gte('criado_em', desde),
+    ])
+    const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' })
+    function arrependimentoDe(oficinaId: string, acessoAte: string | null) {
+      if (encerradas.error || avisosDeDinheiro.error) return null
+      const contrato = (encerradas.data ?? [])
+        .filter((c) => c.oficina_id === oficinaId && c.cancelada_em)
+        .sort((a, b) => String(b.cancelada_em).localeCompare(String(a.cancelada_em)))[0]
+      if (!contrato) return null
+      const avisos = (avisosDeDinheiro.data ?? []).filter(
+        (e) => e.oficina_id === oficinaId && e.criado_em >= contrato.criado_em,
+      )
+      const pagos = avisos
+        .filter((e) => e.aplicado && e.tipo !== 'PAYMENT_REFUNDED' && e.criado_em <= contrato.cancelada_em!)
+        .sort((a, b) => a.criado_em.localeCompare(b.criado_em))
+      if (pagos.length === 0) return null // desistiu sem ter pago: não há o que devolver
+      const fimDoPrazo = new Date(new Date(pagos[0].criado_em).getTime() + 7 * 86_400_000).toISOString()
+      if (contrato.cancelada_em! > fimDoPrazo) return null // cancelou depois dos 7 dias: sem devolução
+      // Cartão manda CONFIRMED e depois RECEIVED do mesmo pagamento: conta uma vez.
+      const porPagamento = new Map(pagos.map((e) => [String(e.pagamento), Number(e.valor ?? 0)]))
+      const valor = [...porPagamento.values()].reduce((s, v) => s + v, 0)
+      const devolvido = avisos.some((e) => e.tipo === 'PAYMENT_REFUNDED' && e.criado_em >= pagos[0].criado_em)
+      if (!devolvido) return { situacao: 'devolver' as const, valor, desistiu_em: contrato.cancelada_em }
+      if (acessoAte && acessoAte > hoje) {
+        return { situacao: 'ajustar_acesso' as const, valor, desistiu_em: contrato.cancelada_em }
+      }
+      return null
+    }
+
     const precoDoPlano = new Map((planos.data ?? []).map((p) => [p.id, Number(p.preco_mensal)]))
     const cadastroPorId = new Map((cadastros.data ?? []).map((c) => [c.id, c]))
-    const oficinas = (lista.data ?? []).map((o: { id: string; plano: string }) => {
+    const oficinas = (lista.data ?? []).map((o: { id: string; plano: string; acesso_ate?: string | null }) => {
       const { id: _, ...cadastro } = cadastroPorId.get(o.id) ?? { id: '' }
       const contrato = (contratos.data ?? []).find((c) => c.oficina_id === o.id) ?? null
       return {
@@ -249,6 +297,7 @@ Deno.serve(async (req: Request) => {
         },
         vitalicia: oficinasVitalicias.has(o.id),
         fotos: fotosPorOficina.get(o.id) ?? null,
+        arrependimento: arrependimentoDe(o.id, o.acesso_ate ?? null),
       }
     })
 

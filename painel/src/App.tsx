@@ -291,6 +291,9 @@ function Indicador({
 
 const PRAZOS = [
   { rotulo: 'Sem prazo (cortesia)', dias: null },
+  // Depois de devolver o dinheiro de quem desistiu no prazo de arrependimento:
+  // sem isto, o período estornado continuava liberado.
+  { rotulo: 'Acaba hoje', dias: 0 },
   { rotulo: 'Mais 7 dias', dias: 7 },
   { rotulo: 'Mais 14 dias', dias: 14 },
   { rotulo: 'Mais 30 dias', dias: 30 },
@@ -300,7 +303,9 @@ function emDias(dias: number | null): string | null {
   if (dias === null) return null
   const d = new Date()
   d.setDate(d.getDate() + dias)
-  return d.toISOString().slice(0, 10)
+  // A data daqui, e não a de Greenwich: depois das 21h em Recife, o
+  // `toISOString` já devolvia o dia seguinte.
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function Lista({ sessao }: { sessao: Session }) {
@@ -623,6 +628,21 @@ function Lista({ sessao }: { sessao: Session }) {
                             ? `${ROTULO_DO_PERIODO[o.assinatura.periodo ?? 'mensal']}${(o.assinatura.parcelas ?? 1) > 1 ? ` em ${o.assinatura.parcelas}x` : ''}`
                             : 'Sem assinatura'}
                       </span>
+                      {o.arrependimento && (
+                        <button
+                          type="button"
+                          onClick={alternarFicha}
+                          className={`mt-1 inline-block rounded-badge px-2 py-0.5 text-left text-xs font-semibold ${
+                            o.arrependimento.situacao === 'devolver'
+                              ? 'bg-erro-fundo text-erro-forte'
+                              : 'bg-atencao-fundo text-atencao-forte'
+                          }`}
+                        >
+                          {o.arrependimento.situacao === 'devolver'
+                            ? `Devolver ${dinheiro(o.arrependimento.valor)}`
+                            : 'Devolvido: ajustar o acesso'}
+                        </button>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       {/* O selo é o atalho da conversa que a situação pede. */}

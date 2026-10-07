@@ -350,6 +350,25 @@ export function FichaDaOficina({ o }: { o: OficinaNaLista }) {
             {(o.assinatura.parcelas ?? 1) > 1 ? ` em ${o.assinatura.parcelas}x no cartão` : ''}
           </Linha>
         )}
+        {o.arrependimento && (
+          <Linha rotulo="Desistiu no prazo de arrependimento">
+            <span
+              className={`block font-semibold ${
+                o.arrependimento.situacao === 'devolver' ? 'text-erro-forte' : 'text-atencao-forte'
+              }`}
+            >
+              {o.arrependimento.situacao === 'devolver'
+                ? `Devolver ${dinheiro(o.arrependimento.valor)}`
+                : 'Valor devolvido — falta ajustar o acesso'}
+            </span>
+            <span className="block text-xs text-claro-secundario">
+              Cancelou em {data(o.arrependimento.desistiu_em)}, dentro dos 7 dias do primeiro pagamento.{' '}
+              {o.arrependimento.situacao === 'devolver'
+                ? 'A lei garante a devolução integral: estorne no Asaas (Cobranças → o pagamento → Estornar). Depois, em "Mudar prazo…", escolha "Acaba hoje".'
+                : `O acesso ainda vai até ${o.acesso_ate ? data(o.acesso_ate) : '—'}, pago com o valor estornado. Em "Mudar prazo…", escolha "Acaba hoje".`}
+            </span>
+          </Linha>
+        )}
         {o.fotos && (
           <Linha rotulo="Fotos de OS guardadas">
             {o.fotos.em_uso}
