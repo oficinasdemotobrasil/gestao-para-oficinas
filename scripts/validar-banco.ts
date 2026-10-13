@@ -3758,6 +3758,7 @@ async function main() {
     await testarFotosDaOs()
     await testarPlanoUnicoEVitalicio()
     await testarDescontoNoPagamento()
+    await testarTotalDoItemDaOs()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
     // impressão de que correu tudo bem — foi o que aconteceu quando a coluna
@@ -4516,6 +4517,83 @@ async function testarFotosDaOs() {
  * junto (a não ser que já tenha sido paga); e o desconto aparece no PDF da OS
  * — inclusive quando quem gera o PDF é o balcão, que não lê o financeiro.
  */
+async function testarTotalDoItemDaOs() {
+  console.log('\n\x1b[1mO total de cada item da OS é do servidor (0084)\x1b[0m')
+  await logarComo(ID.adminA)
+
+  // Quantidade quebrada de propósito: 0,333 × 10,05 = 3,34665 → 3,35. É aqui
+  // que uma conta diferente da do orçamento erraria o centavo.
+  const itens = JSON.stringify([
+    { tipo: 'servico', produto_id: null, servico_id: ID.servicoA, descricao: 'Troca dos balancins', quantidade: 1, valor_unitario: 800 },
+    { tipo: 'avulso', produto_id: null, servico_id: null, descricao: 'Graxa a granel', quantidade: 0.333, valor_unitario: 10.05 },
+  ])
+  const orc = await db.query<{ id: string }>(
+    `select public.salvar_orcamento_com_itens(null, '${ID.clienteA}', '${ID.motoA}', null,
+       7, 90, null, 0, null, $1::jsonb) as id`,
+    [itens],
+  )
+  const os = await db.query<{ id: string }>(
+    `select public.aprovar_orcamento('${orc.rows[0].id}', '${ID.adminA}') as id`,
+  )
+  const osId = os.rows[0].id
+  const totalDaOs = `select (valor_total * 100)::int as n from public.ordens_servico where id = '${osId}'`
+  const doItem = (descricao: string) =>
+    `select (valor_total * 100)::int as n from public.os_itens
+     where ordem_servico_id = '${osId}' and descricao = '${descricao}'`
+
+  await esperaLinhas(
+    'a OS nasce com o total do orçamento aprovado, centavo por centavo',
+    totalDaOs,
+    await contar(`select (valor_total * 100)::int as n from public.orcamentos where id = '${orc.rows[0].id}'`),
+  )
+  await esperaLinhas('a quantidade quebrada arredonda como no orçamento', doItem('Graxa a granel'), 335)
+
+  // O defeito da OS 025: a tela gravava a quantidade e o total, e nunca o preço.
+  await db.query(
+    `update public.os_itens set quantidade = 1, valor_total = 80
+     where ordem_servico_id = '${osId}' and descricao = 'Troca dos balancins'`,
+  )
+  await esperaLinhas(
+    'gravar só o total (o defeito da OS 025) não pega: o banco refaz quantidade × preço',
+    doItem('Troca dos balancins'),
+    80000,
+  )
+  await esperaLinhas('e o total da OS continua batendo com a tela', totalDaOs, 80335)
+
+  await db.query(
+    `update public.os_itens set valor_unitario = 750
+     where ordem_servico_id = '${osId}' and descricao = 'Troca dos balancins'`,
+  )
+  await esperaLinhas('mudar o preço muda o total do item', doItem('Troca dos balancins'), 75000)
+  await esperaLinhas('e o total da OS vem junto', totalDaOs, 75335)
+
+  await db.query(
+    `insert into public.os_itens (oficina_id, ordem_servico_id, tipo, descricao, quantidade, valor_unitario, valor_total)
+     values ('${ID.oficinaA}', '${osId}', 'avulso', 'Abraçadeira', 2, 5, 9999)`,
+  )
+  await esperaLinhas('item novo com total inventado entra com quantidade × preço', doItem('Abraçadeira'), 1000)
+
+  // O que já está gravado errado não é reescrito por baixo dos panos: corrigir
+  // uma ordem antiga é decisão da oficina (ela pode já ter sido cobrada).
+  await comoAdministradorDoBanco()
+  await db.exec('alter table public.os_itens disable trigger os_itens_total_do_servidor')
+  await db.query(
+    `update public.os_itens set valor_total = 1
+     where ordem_servico_id = '${osId}' and descricao = 'Abraçadeira'`,
+  )
+  await db.exec('alter table public.os_itens enable trigger os_itens_total_do_servidor')
+  await db.query(
+    `update public.os_itens set executado_em = now()
+     where ordem_servico_id = '${osId}' and descricao = 'Abraçadeira'`,
+  )
+  await esperaLinhas(
+    'marcar um item como feito não reescreve o total que já estava gravado',
+    doItem('Abraçadeira'),
+    100,
+  )
+  await logarComo(ID.adminA)
+}
+
 async function testarDescontoNoPagamento() {
   console.log('\n\x1b[1mDesconto na hora de receber\x1b[0m')
   await logarComo(ID.adminA)
