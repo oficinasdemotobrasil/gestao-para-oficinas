@@ -55,7 +55,14 @@ function sabeCompartilharArquivo(): boolean {
   }
 }
 
-export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
+export function AcoesDaOrdem({
+  ordem,
+  itensGravando = false,
+}: {
+  ordem: OrdemCompleta
+  /** Itens ainda por gravar: andar com a ordem agora levaria a lista antiga. */
+  itensGravando?: boolean
+}) {
   const { oficina } = useAuth()
   const p = usePermissoes()
   const toast = useToast()
@@ -230,7 +237,8 @@ export function AcoesDaOrdem({ ordem }: { ordem: OrdemCompleta }) {
     }
   }
 
-  const mexendo = mudar.isPending || conferirEstoque.isPending || finalizar.isPending
+  const mexendo =
+    itensGravando || mudar.isPending || conferirEstoque.isPending || finalizar.isPending
   const emAberto = !['finalizada', 'entregue', 'cancelada'].includes(ordem.status)
   const pronta = ordem.status === 'finalizada' || ordem.status === 'entregue'
 

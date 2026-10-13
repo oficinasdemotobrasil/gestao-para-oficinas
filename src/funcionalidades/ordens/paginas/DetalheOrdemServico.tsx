@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { User, Bike, FileText, UserCog, TriangleAlert } from 'lucide-react'
@@ -24,15 +24,18 @@ import {
 import { usePermissoes, nomeDoPerfil } from '@/auth/usePermissoes'
 import { ItensDoOrcamento } from '@/funcionalidades/orcamentos/ItensDoOrcamento'
 import type { ItemEmEdicao } from '@/funcionalidades/orcamentos/api'
+import type { OsItem } from '@/tipos/banco'
 import { StatusOsBadge, rotuloDoStatusOs } from '../StatusOsBadge'
 import { ListaDeColaboradores } from '../EscolherResponsavel'
 import { AcoesDaOrdem } from '../AcoesDaOrdem'
 import { RegistroDaOrdem } from '@/funcionalidades/fotos/RegistroDaOrdem'
 import { Cronometro } from '../Cronometro'
+import { criarFilaDeItens } from '../filaDeItens'
 import {
   obterOrdemServico,
   tempoDaOs,
   sincronizarItensDaOs,
+  itensDaOs,
   atribuirResponsavel,
   salvarObservacoesTecnicas,
 } from '../api'
@@ -48,6 +51,10 @@ function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
 
 /** Enquanto a ordem anda, os itens mudam. Depois de finalizada, é documento. */
 const EDITAVEL = ['aberta', 'em_andamento', 'pausada', 'aguardando_conferencia']
+
+/** Quanto esperar a pessoa parar de mexer antes de gravar os itens. */
+const ESPERA_PARA_GRAVAR_MS = 700
+
 
 export function DetalheOrdemServico() {
   const { id } = useParams<{ id: string }>()
@@ -75,8 +82,46 @@ export function DetalheOrdemServico() {
   const [tecnicas, setTecnicas] = useState('')
   const [tecnicasSujas, setTecnicasSujas] = useState(false)
 
+  /*
+   * Os itens são gravados pela fila (filaDeItens.ts): só depois que a pessoa
+   * para de mexer, uma gravação por vez, comparando com o banco daquele momento.
+   */
+  const [gravandoItens, setGravandoItens] = useState(false)
+  const fila = useRef<ReturnType<typeof criarFilaDeItens<OsItem>> | null>(null)
+  if (!fila.current) {
+    fila.current = criarFilaDeItens<OsItem>({
+      banco: { itensNoBanco: itensDaOs, sincronizar: sincronizarItensDaOs },
+      esperaMs: ESPERA_PARA_GRAVAR_MS,
+      aoMudarOcupada: setGravandoItens,
+      aoTerminar: () => {
+        void cache.invalidateQueries({ queryKey: ['ordem-servico'] })
+        void cache.invalidateQueries({ queryKey: ['ordens'] })
+      },
+      aoErrar: (e) => toast.erro(traduzirErro(e)),
+    })
+  }
+
+  function mudarItens(novos: ItemEmEdicao[]) {
+    setItens(novos)
+    fila.current!.mudar(id!, novos)
+  }
+
+  // Saiu da tela no meio da espera: grava já, em vez de perder a última mudança.
+  useEffect(() => () => void fila.current!.gravarJa(), [])
+
+  // Fechar a aba com itens por gravar pede confirmação ao navegador.
+  useEffect(() => {
+    if (!gravandoItens) return
+    const segurar = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', segurar)
+    return () => window.removeEventListener('beforeunload', segurar)
+  }, [gravandoItens])
+
   useEffect(() => {
     if (!ordem) return
+    // Com mudança por gravar, o banco ainda não tem a última palavra: trocar a
+    // lista agora desfaria o que a pessoa acabou de digitar.
+    if (fila.current!.ocupada()) return
     setItens(
       ordem.itens.map((i) => ({
         chave: i.id,
@@ -92,15 +137,6 @@ export function DetalheOrdemServico() {
     setTecnicas((antes) => (tecnicasSujas ? antes : (ordem.observacoes_tecnicas ?? '')))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ordem])
-
-  const sincronizar = useMutation({
-    mutationFn: (novos: ItemEmEdicao[]) => sincronizarItensDaOs(id!, ordem?.itens ?? [], novos),
-    onSuccess: () => void cache.invalidateQueries({ queryKey: ['ordem-servico', id] }),
-    onError: (e) => {
-      toast.erro(traduzirErro(e))
-      void refetch()
-    },
-  })
 
   const trocarResponsavel = useMutation({
     mutationFn: (usuarioId: string) => atribuirResponsavel(id!, usuarioId),
@@ -192,7 +228,7 @@ export function DetalheOrdemServico() {
           </div>
         )}
 
-        <AcoesDaOrdem ordem={ordem} />
+        <AcoesDaOrdem ordem={ordem} itensGravando={gravandoItens} />
 
         <TituloSecao
           acao={
@@ -257,10 +293,7 @@ export function DetalheOrdemServico() {
         itens={itens}
         somenteLeitura={!podeEditarItens}
         semValores={!mostraValores}
-        aoMudar={(novos) => {
-          setItens(novos)
-          sincronizar.mutate(novos)
-        }}
+        aoMudar={mudarItens}
       />
 
       {mostraValores && (

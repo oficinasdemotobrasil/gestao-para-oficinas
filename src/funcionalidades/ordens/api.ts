@@ -231,22 +231,38 @@ export interface ItemNovoDaOs {
  * O total da ordem não é enviado daqui: um gatilho no banco recalcula sozinho
  * a cada item que entra, muda ou sai (migration 0026). Mandar o total pela
  * tela abriria espaço para dois celulares gravarem contas diferentes.
+ *
+ * O total do item vai junto só por compatibilidade: desde a 0084 o banco o
+ * refaz como quantidade × preço, escreva a tela o que escrever.
+ *
+ * Devolve o id da linha nova, para quem grava em sequência saber que o item
+ * já entrou e não o inserir de novo.
  */
-export async function adicionarItemNaOs(ordemId: string, item: ItemNovoDaOs): Promise<void> {
-  const { error } = await supabase.from('os_itens').insert({
-    ordem_servico_id: ordemId,
-    tipo: item.tipo,
-    produto_id: item.produto_id,
-    servico_id: item.servico_id,
-    descricao: item.descricao,
-    quantidade: item.quantidade,
-    valor_unitario: item.valor_unitario,
-    valor_total: Number((item.quantidade * item.valor_unitario).toFixed(2)),
-  })
+export async function adicionarItemNaOs(ordemId: string, item: ItemNovoDaOs): Promise<string> {
+  const { data, error } = await supabase
+    .from('os_itens')
+    .insert({
+      ordem_servico_id: ordemId,
+      tipo: item.tipo,
+      produto_id: item.produto_id,
+      servico_id: item.servico_id,
+      descricao: item.descricao,
+      quantidade: item.quantidade,
+      valor_unitario: item.valor_unitario,
+      valor_total: Number((item.quantidade * item.valor_unitario).toFixed(2)),
+    })
+    .select('id')
+    .single()
   if (error) throw error
+  return data.id
 }
 
-export async function alterarQuantidadeDoItem(
+/**
+ * Quantidade E preço. Até 13/10/2026 só a quantidade e o total eram gravados:
+ * mudar o preço de um item já na ordem deixava o preço antigo no banco e um
+ * total que não batia com ele (OS 025, R$ 1.910 na tela e R$ 1.190 na lista).
+ */
+export async function alterarItemDaOs(
   itemId: string,
   quantidade: number,
   valorUnitario: number,
@@ -255,6 +271,7 @@ export async function alterarQuantidadeDoItem(
     .from('os_itens')
     .update({
       quantidade,
+      valor_unitario: valorUnitario,
       valor_total: Number((quantidade * valorUnitario).toFixed(2)),
     })
     .eq('id', itemId)
@@ -274,6 +291,8 @@ export async function removerItemDaOs(itemId: string): Promise<void> {
  * novo — é assim que se sabe quem é quem sem mandar tudo de volta.
  *
  * O total não é enviado: o gatilho do banco recalcula (0026).
+ *
+ * Devolve, para cada item novo, a chave provisória e o id com que ele entrou.
  */
 export async function sincronizarItensDaOs(
   ordemId: string,
@@ -287,7 +306,7 @@ export async function sincronizarItensDaOs(
     quantidade: number
     valor_unitario: number
   }>,
-): Promise<void> {
+): Promise<Map<string, string>> {
   const porChave = new Map(novos.map((i) => [i.chave, i]))
 
   for (const antigo of anteriores) {
@@ -300,15 +319,28 @@ export async function sincronizarItensDaOs(
       Number(antigo.quantidade) !== atual.quantidade ||
       Number(antigo.valor_unitario) !== atual.valor_unitario
     if (mudou) {
-      await alterarQuantidadeDoItem(antigo.id, atual.quantidade, atual.valor_unitario)
+      await alterarItemDaOs(antigo.id, atual.quantidade, atual.valor_unitario)
     }
   }
 
   const existentes = new Set(anteriores.map((i) => i.id))
+  const inseridos = new Map<string, string>()
   for (const item of novos) {
     if (existentes.has(item.chave)) continue
-    await adicionarItemNaOs(ordemId, item)
+    inseridos.set(item.chave, await adicionarItemNaOs(ordemId, item))
   }
+  return inseridos
+}
+
+/** Os itens como estão no banco agora — a base de cada gravação da tela. */
+export async function itensDaOs(ordemId: string): Promise<OsItem[]> {
+  const { data, error } = await supabase
+    .from('os_itens')
+    .select('*')
+    .eq('ordem_servico_id', ordemId)
+    .order('criado_em')
+  if (error) throw error
+  return (data ?? []) as OsItem[]
 }
 
 export interface FaltaDeEstoque {

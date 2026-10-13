@@ -34,7 +34,8 @@
     "teste:cadastro-publico": "tsx scripts/teste-cadastro-publico.mts",
     "teste:comissao": "tsx scripts/teste-comissao-do-vendedor.mts",
     "teste:reserva": "tsx scripts/teste-reserva-de-estoque.mts",
-    "teste:fotos": "tsx scripts/teste-fotos-da-os.mts"
+    "teste:fotos": "tsx scripts/teste-fotos-da-os.mts",
+    "teste:fila-de-itens": "tsx scripts/teste-fila-de-itens.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
