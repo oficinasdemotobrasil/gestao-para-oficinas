@@ -3759,6 +3759,7 @@ async function main() {
     await testarPlanoUnicoEVitalicio()
     await testarDescontoNoPagamento()
     await testarTotalDoItemDaOs()
+    await testarPortasFechadas()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
     // impressão de que correu tudo bem — foi o que aconteceu quando a coluna
@@ -4591,6 +4592,111 @@ async function testarTotalDoItemDaOs() {
     doItem('Abraçadeira'),
     100,
   )
+  await logarComo(ID.adminA)
+}
+
+async function testarPortasFechadas() {
+  console.log('\n\x1b[1mFunções fechadas para quem não entrou (0085)\x1b[0m')
+  await comoAdministradorDoBanco()
+
+  const abertas = await db.query<{ nome: string }>(`
+    select p.proname as nome
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.prosecdef
+       and p.prorettype <> 'trigger'::regtype
+       and p.proname not in ('vagas_vitalicias_restantes', 'simular_parcelas', 'valor_parcelado')
+       and has_function_privilege('anon', p.oid, 'execute')
+     order by 1`)
+  abertas.rows.length === 0
+    ? ok('nenhuma função que roda como dono do banco fica aberta a quem não entrou')
+    : erro('funções abertas ao anônimo', abertas.rows.map((r) => r.nome).join(', '))
+
+  await esperaLinhas(
+    'toda função do app tem caminho de busca fixo',
+    `select count(*) as n from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.prokind = 'f'
+        and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search_path=%')`,
+    0,
+  )
+
+  // Uma OS da oficina A, para o relógio.
+  const os = await db.query<{ id: string }>(
+    `select id from public.ordens_servico where oficina_id = '${ID.oficinaA}' order by criado_em limit 1`,
+  )
+  const osId = os.rows[0].id
+
+  // Quem não entrou -----------------------------------------------------------
+  await db.exec('reset role;')
+  await db.query('select set_config($1, $2, false)', ['request.jwt.claim.sub', ''])
+  await db.exec('set role anon;')
+  try {
+    await db.query('select public.vagas_vitalicias_restantes()')
+    await db.query(`select * from public.simular_parcelas('mensal')`)
+    await db.query('select public.valor_parcelado(100, 3)')
+    ok('a página de vendas continua lendo vagas e parcelas sem login')
+  } catch (e) {
+    erro('página de vendas sem login', (e as Error).message)
+  }
+  await esperaErro('quem não entrou não chama o painel da oficina', `select * from public.painel(current_date - 30, current_date)`)
+  await esperaErro('nem o relógio de uma OS', `select * from public.tempo_da_os('${osId}')`)
+  await esperaErro('nem a situação de uma oficina', `select public.situacao_da_oficina('${ID.oficinaA}')`)
+
+  // Quem entrou continua igual ------------------------------------------------
+  await logarComo(ID.adminA)
+  try {
+    await db.query('select * from public.painel(current_date - 30, current_date)')
+    await db.query('select public.minha_situacao()')
+    ok('o dono da oficina continua chamando as funções de sempre')
+  } catch (e) {
+    erro('funções do dono depois da 0085', (e as Error).message)
+  }
+  await esperaLinhas('o dono vê o relógio da própria OS', `select count(*) as n from public.tempo_da_os('${osId}')`, 1)
+  await logarComo(ID.adminB)
+  await esperaLinhas(
+    'a oficina vizinha não vê o relógio (nem o nome do mecânico) de uma OS que não é dela',
+    `select count(*) as n from public.tempo_da_os('${osId}')`,
+    0,
+  )
+
+  // A fechadura barra a próxima porta aberta ----------------------------------
+  await comoAdministradorDoBanco()
+  await db.exec(`
+    create function public.porta_esquecida() returns int
+    language sql security definer set search_path = public as $$ select 1 $$;
+    grant execute on function public.porta_esquecida() to anon;`)
+  await esperaErro('a fechadura recusa função de dono aberta ao anônimo', 'select public.conferir_fechadura()')
+  await db.exec('drop function public.porta_esquecida()')
+  await esperaLinhas(
+    'função nova já nasce fechada para quem não entrou',
+    `select count(*) as n from (select 1) x
+      where (select has_function_privilege('anon', 'public.conferir_fechadura()', 'execute'))`,
+    0,
+  )
+  await db.exec(`create function public.funcao_nova_do_teste() returns int language sql set search_path = public as $$ select 1 $$`)
+  await esperaLinhas(
+    'e aberta para quem entrou e para o servidor',
+    `select (has_function_privilege('anon', 'public.funcao_nova_do_teste()', 'execute')::int * 100
+           + has_function_privilege('authenticated', 'public.funcao_nova_do_teste()', 'execute')::int * 10
+           + has_function_privilege('service_role', 'public.funcao_nova_do_teste()', 'execute')::int) as n`,
+    11,
+  )
+  await db.exec('drop function public.funcao_nova_do_teste()')
+
+  // O caderno do freio do cadastro (0086): só o servidor mexe -----------------
+  await logarComo(ID.adminA)
+  await esperaErro('quem entrou não lê as tentativas de cadastro', 'select count(*) from public.tentativas_de_cadastro')
+  await esperaErro(
+    'nem escreve nelas',
+    `insert into public.tentativas_de_cadastro (conexao) values ('x')`,
+  )
+  await db.exec('reset role; set role service_role;')
+  try {
+    await db.query(`insert into public.tentativas_de_cadastro (conexao) values ('teste')`)
+    await db.query(`delete from public.tentativas_de_cadastro where conexao = 'teste'`)
+    ok('a função de cadastro (chave de serviço) anota e apaga tentativas')
+  } catch (e) {
+    erro('tentativas pela chave de serviço', (e as Error).message)
+  }
   await logarComo(ID.adminA)
 }
 

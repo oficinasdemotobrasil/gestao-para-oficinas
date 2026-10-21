@@ -61,6 +61,15 @@ alter default privileges in schema public
 alter default privileges in schema public
   grant execute on functions to authenticated;
 
+-- O mesmo vale para o visitante anônimo (anon) e para a chave de serviço: no
+-- Supabase, tabela e função nova nascem concedidas aos dois. A auditoria de
+-- 21/10/2026 achou 27 funções `security definer` alcançáveis por quem nem
+-- entrou — invisíveis aqui enquanto este arquivo concedia só a authenticated.
+alter default privileges in schema public
+  grant select, insert, update, delete on tables to anon, service_role;
+alter default privileges in schema public
+  grant execute on functions to anon, service_role;
+
 -- ---------------------------------------------------------------------------
 -- Storage do Supabase, o mínimo para as políticas de anexo serem validadas.
 -- No projeto real isto tudo já existe; aqui é só o esqueleto.
