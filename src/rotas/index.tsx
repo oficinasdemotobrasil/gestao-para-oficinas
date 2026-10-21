@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate, Outlet, ScrollRestoration } from 'react-router-dom'
 import { RotaProtegida, RotaPublica, RotaPorPerfil } from '@/auth/RotaProtegida'
 import { EstruturaDoApp } from '@/componentes/layout/EstruturaDoApp'
+import { TelaDeErro } from '@/componentes/layout/TelaDeErro'
 import { Entrar } from '@/auth/paginas/Entrar'
 import { EsqueciSenha } from '@/auth/paginas/EsqueciSenha'
 import { RedefinirSenha } from '@/auth/paginas/RedefinirSenha'
@@ -60,6 +61,7 @@ function Raiz() {
 export const rotas = createBrowserRouter([
   {
     element: <Raiz />,
+    errorElement: <TelaDeErro />,
     children: [
   {
     element: <RotaPublica />,

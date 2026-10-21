@@ -67,7 +67,11 @@ export function traduzirErro(erro: unknown): string {
   const emIngles = mensagem.toLowerCase()
 
   if (emIngles.includes('failed to fetch') || emIngles.includes('networkerror')) {
-    return 'Sem conexão com a internet. Verifique o sinal e tente de novo.'
+    // O aparelho sabe se está sem rede. Com rede e sem resposta, o problema é
+    // do nosso lado — mandar a pessoa conferir o sinal seria culpar o Wi-Fi.
+    return typeof navigator !== 'undefined' && navigator.onLine === false
+      ? 'Sem conexão com a internet. Verifique o sinal e tente de novo.'
+      : 'Não conseguimos falar com o servidor agora. Tente de novo em alguns instantes — o que já estava salvo continua salvo.'
   }
 
   const ehRuido = RUIDO_DO_POSTGRES.some((p) => emIngles.includes(p))
