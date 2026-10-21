@@ -43,6 +43,61 @@ function responder(corpo: unknown, status = 200): Response {
   })
 }
 
+/*
+ * Freio contra robô (auditoria de 21/10/2026, tabela da migration 0086).
+ *
+ * Esta função usa a chave de serviço, que passa por cima dos limites do
+ * próprio Supabase: sem freio, um script criaria centenas de oficinas falsas e
+ * gastaria a cota de e-mails de boas-vindas. O limite é largo para gente de
+ * verdade — uma oficina se cadastra uma vez; mesmo quem cadastra clientes do
+ * próprio celular numa visita não chega a dez numa hora — e apertado para quem
+ * repete sem parar.
+ *
+ * O endereço de internet (IP) não é guardado: só um resumo dele, que serve
+ * para contar e não para identificar ninguém.
+ */
+const POR_CONEXAO_POR_HORA = 10
+const NO_TOTAL_POR_HORA = 60
+
+type Servico = ReturnType<typeof createClient>
+
+/** Devolve a mensagem de recusa, ou nulo para seguir. */
+async function freioDeCadastro(servico: Servico, req: Request): Promise<string | null> {
+  try {
+    const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'desconhecido'
+    const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`giro-cadastro:${ip}`))
+    const resumo = Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, '0')).join('')
+    const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+
+    const [daConexao, noTotal] = await Promise.all([
+      servico.from('tentativas_de_cadastro').select('id', { count: 'exact', head: true })
+        .eq('conexao', resumo).gte('criado_em', umaHoraAtras),
+      servico.from('tentativas_de_cadastro').select('id', { count: 'exact', head: true })
+        .gte('criado_em', umaHoraAtras),
+    ])
+    if (daConexao.error || noTotal.error) throw daConexao.error ?? noTotal.error
+
+    if ((daConexao.count ?? 0) >= POR_CONEXAO_POR_HORA) {
+      return 'Muitas tentativas de cadastro a partir desta conexão. Espere uma hora e tente de novo, ou fale com a gente.'
+    }
+    if ((noTotal.count ?? 0) >= NO_TOTAL_POR_HORA) {
+      return 'Estamos recebendo muitos cadastros agora. Tente de novo em alguns minutos.'
+    }
+
+    await servico.from('tentativas_de_cadastro').insert({ conexao: resumo })
+    // Faxina: tentativa com mais de um dia já não conta para nada.
+    await servico.from('tentativas_de_cadastro').delete()
+      .lt('criado_em', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+    return null
+  } catch (e) {
+    // Se a conferência falhar (a tabela ainda não existir, por exemplo), o
+    // cadastro segue: travar quem quer virar cliente por um problema nosso é
+    // pior do que deixar passar um robô por alguns minutos.
+    console.error('Freio do cadastro indisponível; seguindo sem ele.', e)
+    return null
+  }
+}
+
 /** "joao.silva@oficina.com" vira "Joao Silva": um chute que a pessoa corrige. */
 function nomeDoEmail(email: string): string {
   const antes = email.split('@')[0] ?? ''
@@ -137,6 +192,9 @@ Deno.serve(async (req: Request) => {
   }
 
   const servico = createClient(url, chaveServico, { auth: { persistSession: false } })
+
+  const recusa = await freioDeCadastro(servico, req)
+  if (recusa) return responder({ erro: recusa }, 429)
 
   // O plano de entrada e quantos dias ele dura vêm da tabela, não daqui.
   const { data: planoDeEntrada } = await servico
