@@ -74,11 +74,22 @@ echo "Cole o endereço de conexão do cofre (Session pooler, com a senha) e aper
 echo "Ele não aparece na tela:"
 read -rs ENDERECO
 echo
-ENDERECO="$(printf '%s' "$ENDERECO" | tr -d '[:space:]')"
-case "$ENDERECO" in
-  postgresql://*|postgres://*) ;;
-  *) echo "Isso não parece um endereço de conexão (começa com postgresql://)."; exit 1 ;;
-esac
+# O terminal do app embrulha o que se cola em códigos invisíveis (ESC[200~ …
+# ESC[201~), e às vezes vem espaço ou o endereço duas vezes. Em vez de exigir o
+# texto limpo, tira os códigos e acha o endereço dentro do que veio.
+colado="$ENDERECO"
+ENDERECO="$(printf '%s' "$colado" | tr -d '\000-\037\177' | sed -e 's/\[200~//g' -e 's/\[201~//g' -e 's#postgresql://#\
+postgresql://#g' |
+  { grep -oE 'postgres(ql)?://[^[:space:]]+' || true; } | head -1)"
+if [ -z "$ENDERECO" ]; then
+  echo "Não achei um endereço de conexão no que foi colado (o texto não é mostrado aqui)."
+  echo "  Tamanho do que chegou: ${#colado} caracteres."
+  case "$colado" in
+    *pooler.supabase.com*|*supabase.co*) echo "  Tem o nome do servidor, mas falta o começo \"postgresql://\": copie o endereço inteiro." ;;
+    *) echo "  Não parece o endereço do banco. Copie do cofre o endereço que começa com postgresql://" ;;
+  esac
+  exit 1
+fi
 case "$ENDERECO" in
   *YOUR-PASSWORD*) echo "Falta trocar [YOUR-PASSWORD] pela senha do banco."; exit 1 ;;
 esac
