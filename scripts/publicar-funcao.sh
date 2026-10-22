@@ -36,10 +36,18 @@ echo "Vai publicar a função \"$FUNCAO\" no projeto do GIRO ($PROJETO) $extra"
 echo "Cole o token de acesso do Supabase e aperte Enter (ele não aparece):"
 read -rs SUPABASE_ACCESS_TOKEN
 echo
-case "$SUPABASE_ACCESS_TOKEN" in
-  sbp_*) ;;
-  *) echo "Isso não parece um token de acesso do Supabase (começa com sbp_)."; exit 1 ;;
-esac
+# Colagem às vezes traz espaço, quebra de linha ou caractere invisível junto.
+SUPABASE_ACCESS_TOKEN="$(printf '%s' "$SUPABASE_ACCESS_TOKEN" | tr -cd 'A-Za-z0-9_')"
+# O formato que a linha de comando aceita: sbp_ e mais 40 letras/números.
+if ! printf '%s' "$SUPABASE_ACCESS_TOKEN" | grep -Eq '^sbp_(oauth_)?[a-f0-9]{40}$'; then
+  vezes=$(printf '%s' "$SUPABASE_ACCESS_TOKEN" | { grep -o 'sbp_' || true; } | wc -l | tr -d ' ')
+  echo "O que foi colado não tem o formato de um token (o token não é mostrado aqui)."
+  echo "  Tamanho: ${#SUPABASE_ACCESS_TOKEN} caracteres (um token tem 44)."
+  echo "  \"sbp_\" aparece $vezes vez(es) (deveria aparecer 1)."
+  [ "$vezes" -gt 1 ] && echo "  Parece que foi colado mais de uma vez. Cole UMA vez só e aperte Enter."
+  [ "$vezes" -eq 0 ] && echo "  Não parece um token. Copie de novo o token gerado (começa com sbp_)."
+  exit 1
+fi
 export SUPABASE_ACCESS_TOKEN
 
 cd "$raiz"
