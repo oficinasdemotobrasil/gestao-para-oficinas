@@ -50,6 +50,12 @@ esac
 case "$ENDERECO" in
   *YOUR-PASSWORD*) echo "Falta trocar [YOUR-PASSWORD] pela senha do banco."; exit 1 ;;
 esac
+# Este script é do GIRO Motos: endereço de outro projeto é recusado, para a
+# cópia de um banco nunca ser guardada com o nome de outro.
+case "$ENDERECO" in
+  *ilkwxilkwjinuktgzlaq*) ;;
+  *) echo "PAROU: esse endereço NÃO é do banco do GIRO Motos (ilkwxilkwjinuktgzlaq)."; exit 1 ;;
+esac
 
 mkdir -p "$PASTA"
 chmod 700 "$PASTA"
