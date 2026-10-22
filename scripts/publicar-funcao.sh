@@ -36,16 +36,23 @@ echo "Vai publicar a função \"$FUNCAO\" no projeto do GIRO ($PROJETO) $extra"
 echo "Cole o token de acesso do Supabase e aperte Enter (ele não aparece):"
 read -rs SUPABASE_ACCESS_TOKEN
 echo
-# Colagem às vezes traz espaço, quebra de linha ou caractere invisível junto.
-SUPABASE_ACCESS_TOKEN="$(printf '%s' "$SUPABASE_ACCESS_TOKEN" | tr -cd 'A-Za-z0-9_')"
-# O formato que a linha de comando aceita: sbp_ e mais 40 letras/números.
-if ! printf '%s' "$SUPABASE_ACCESS_TOKEN" | grep -Eq '^sbp_(oauth_)?[a-f0-9]{40}$'; then
-  vezes=$(printf '%s' "$SUPABASE_ACCESS_TOKEN" | { grep -o 'sbp_' || true; } | wc -l | tr -d ' ')
-  echo "O que foi colado não tem o formato de um token (o token não é mostrado aqui)."
-  echo "  Tamanho: ${#SUPABASE_ACCESS_TOKEN} caracteres (um token tem 44)."
-  echo "  \"sbp_\" aparece $vezes vez(es) (deveria aparecer 1)."
-  [ "$vezes" -gt 1 ] && echo "  Parece que foi colado mais de uma vez. Cole UMA vez só e aperte Enter."
-  [ "$vezes" -eq 0 ] && echo "  Não parece um token. Copie de novo o token gerado (começa com sbp_)."
+# A colagem às vezes traz coisa junto: espaço, quebra de linha, os códigos
+# invisíveis que o terminal põe em volta do que se cola, ou o token duas vezes.
+# Em vez de exigir o texto limpo, procura o token dentro do que veio. O formato
+# é o que a linha de comando aceita: sbp_ e mais 40 letras/números.
+colado="$SUPABASE_ACCESS_TOKEN"
+SUPABASE_ACCESS_TOKEN="$(printf '%s' "$colado" | { grep -oE 'sbp_(oauth_)?[a-f0-9]{40}' || true; } | head -1)"
+if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+  vezes=$(printf '%s' "$colado" | { grep -o 'sbp_' || true; } | wc -l | tr -d ' ')
+  echo "Não achei um token no que foi colado (o texto não é mostrado aqui)."
+  echo "  Tamanho do que chegou: ${#colado} caracteres (um token tem 44)."
+  if [ "$vezes" -eq 0 ]; then
+    echo "  Não tem \"sbp_\": parece que a área de transferência não estava com o token."
+    echo "  Copie o token de novo no site do Supabase e rode outra vez."
+  else
+    echo "  Tem \"sbp_\", mas o resto não bate: o token pode ter sido copiado pela metade."
+    echo "  Gere um token novo, use o botão de copiar ao lado dele e rode outra vez."
+  fi
   exit 1
 fi
 export SUPABASE_ACCESS_TOKEN
