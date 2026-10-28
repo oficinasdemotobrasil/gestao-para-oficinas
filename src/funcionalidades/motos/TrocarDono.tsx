@@ -114,7 +114,9 @@ export function JanelaTrocarDono({
           <div className="flex flex-col gap-1">
             <span className="text-rotulo text-em-superficie-2">Novo dono</span>
             <Botao
-              variante="contorno"
+              // Dentro da janela o fundo é branco: a variante "contorno" é a do
+              // fundo preto da tela, e deixava o nome escolhido invisível.
+              variante="contorno-no-card"
               largo
               icone={<User aria-hidden size={18} />}
               onClick={() => setBuscando(true)}
