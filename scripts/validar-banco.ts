@@ -3760,6 +3760,7 @@ async function main() {
     await testarDescontoNoPagamento()
     await testarTotalDoItemDaOs()
     await testarPortasFechadas()
+    await testarTrocaDeDono()
   } catch (e) {
     // Sem isto, um teste que aborta no meio termina com "0 falharam" e passa a
     // impressão de que correu tudo bem — foi o que aconteceu quando a coluna
@@ -4697,6 +4698,109 @@ async function testarPortasFechadas() {
   } catch (e) {
     erro('tentativas pela chave de serviço', (e as Error).message)
   }
+  await logarComo(ID.adminA)
+}
+
+async function testarTrocaDeDono() {
+  console.log('\n\x1b[1mTrocar o dono da moto (0087)\x1b[0m')
+  await logarComo(ID.adminA)
+
+  const novoCliente = async (nome: string) =>
+    (await db.query<{ id: string }>(`insert into public.clientes (nome) values ($1) returning id`, [nome])).rows[0].id
+  const vendedor = await novoCliente('João Vendedor da Moto')
+  const comprador = await novoCliente('Maria Compradora')
+  const engano = await novoCliente('Cliente Errado')
+  const moto = (
+    await db.query<{ id: string }>(
+      `select (public.criar_moto_com_proprietario($1, 'TRC1D23', 'Honda', 'CG 160', 2020, null, null, 1000)).id as id`,
+      [vendedor],
+    )
+  ).rows[0].id
+  const donoAtual = `select c.nome as n from public.moto_proprietarios mp join public.clientes c on c.id = mp.cliente_id
+                     where mp.moto_id = '${moto}' and mp.data_fim is null`
+  const quemEDono = async () => (await db.query<{ n: string }>(donoAtual)).rows.map((r) => r.n).join(',')
+  const donosAtuais = `select count(*) as n from public.moto_proprietarios where moto_id = '${moto}' and data_fim is null`
+
+  // Quem pode -----------------------------------------------------------------
+  await logarComo(ID.mecanicoA)
+  await esperaErro('o mecânico não troca o dono da moto', `select public.trocar_dono_da_moto('${moto}', '${comprador}')`)
+  await logarComo(ID.adminB)
+  await esperaErro('a oficina vizinha não troca o dono de uma moto que não é dela', `select public.trocar_dono_da_moto('${moto}', '${comprador}')`)
+
+  // As regras -----------------------------------------------------------------
+  await logarComo(ID.vendedorA)
+  await esperaErro('trocar para quem já é o dono é recusado', `select public.trocar_dono_da_moto('${moto}', '${vendedor}')`)
+  await esperaErro('data da troca no futuro é recusada',
+    `select public.trocar_dono_da_moto('${moto}', '${comprador}', public.hoje_no_brasil() + 2)`)
+  await esperaErro('data da troca antes do dono atual receber a moto é recusada',
+    `select public.trocar_dono_da_moto('${moto}', '${comprador}', public.hoje_no_brasil() - 400)`)
+  await esperaErro('cliente de outra oficina não vira dono', `select public.trocar_dono_da_moto('${moto}', '${ID.clienteB}')`)
+
+  // A troca -------------------------------------------------------------------
+  const r = await db.query<{ j: { anterior: string; novo: string } }>(
+    `select public.trocar_dono_da_moto('${moto}', '${comprador}') as j`,
+  )
+  r.rows[0].j.anterior === 'João Vendedor da Moto' && r.rows[0].j.novo === 'Maria Compradora'
+    ? ok('o balcão troca o dono, e a função diz de quem para quem')
+    : erro('troca de dono', JSON.stringify(r.rows[0].j))
+  ;(await quemEDono()) === 'Maria Compradora'
+    ? ok('a moto passa a ser da compradora')
+    : erro('dono depois da troca', await quemEDono())
+  await esperaLinhas('e continua com um dono só', donosAtuais, 1)
+  await esperaLinhas(
+    'o vendedor fica no histórico, com a posse encerrada no dia da troca',
+    `select count(*) as n from public.moto_proprietarios
+      where moto_id = '${moto}' and cliente_id = '${vendedor}' and data_fim is not null`,
+    1,
+  )
+  await esperaLinhas(
+    'e continua cliente, com a ficha inteira',
+    `select count(*) as n from public.clientes where id = '${vendedor}'`,
+    1,
+  )
+
+  // Desfazer o engano -----------------------------------------------------------
+  await db.query(`select public.trocar_dono_da_moto('${moto}', '${engano}')`)
+  await db.query(`select public.desfazer_troca_de_dono('${moto}')`)
+  ;(await quemEDono()) === 'Maria Compradora'
+    ? ok('desfazer a troca errada devolve a moto a quem era dona')
+    : erro('desfazer', await quemEDono())
+  await esperaLinhas(
+    'e a posse errada some do histórico',
+    `select count(*) as n from public.moto_proprietarios where moto_id = '${moto}' and cliente_id = '${engano}'`,
+    0,
+  )
+  await esperaLinhas('com um dono só', donosAtuais, 1)
+
+  // Depois de um orçamento, desfazer reescreveria história: é recusado.
+  await db.query(`select public.trocar_dono_da_moto('${moto}', '${engano}')`)
+  await logarComo(ID.adminA)
+  const itens = JSON.stringify([
+    { tipo: 'avulso', produto_id: null, servico_id: null, descricao: 'Revisão', quantidade: 1, valor_unitario: 100 },
+  ])
+  await db.query(
+    `select public.salvar_orcamento_com_itens(null, '${engano}', '${moto}', null, 7, 90, null, 0, null, $1::jsonb)`,
+    [itens],
+  )
+  await logarComo(ID.vendedorA)
+  await esperaErro('com orçamento feito depois da troca, desfazer é recusado', `select public.desfazer_troca_de_dono('${moto}')`)
+  const motoSemTroca = (
+    await db.query<{ id: string }>(
+      `select (public.criar_moto_com_proprietario($1, 'SEM1T00', 'Yamaha', 'Fazer', 2021, null, null, 0)).id as id`,
+      [vendedor],
+    )
+  ).rows[0].id
+  try {
+    await db.query(`select public.desfazer_troca_de_dono('${motoSemTroca}')`)
+    erro('moto que nunca trocou de dono', 'o desfazer foi aceito')
+  } catch (e) {
+    const m = (e as Error).message
+    m.includes('Não há troca de dono para desfazer')
+      ? ok(`moto que nunca trocou de dono não tem o que desfazer (${m})`)
+      : erro('moto que nunca trocou de dono', `mensagem inesperada: ${m}`)
+  }
+  await logarComo(ID.mecanicoA)
+  await esperaErro('o mecânico não desfaz troca', `select public.desfazer_troca_de_dono('${moto}')`)
   await logarComo(ID.adminA)
 }
 
