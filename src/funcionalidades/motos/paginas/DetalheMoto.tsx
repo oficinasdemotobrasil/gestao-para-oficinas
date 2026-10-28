@@ -61,6 +61,7 @@ export function DetalheMoto() {
   const [editandoKm, setEditandoKm] = useState(false)
   const [trocandoDono, setTrocandoDono] = useState(false)
   const [desfazendoTroca, setDesfazendoTroca] = useState(false)
+  const [verAnteriores, setVerAnteriores] = useState(false)
   const [pdfPronto, setPdfPronto] = useState(moduloPdf !== null)
 
   useEffect(() => {
@@ -190,6 +191,97 @@ export function DetalheMoto() {
           <Linha rotulo="Cor" valor={moto.cor ?? '—'} />
           <Linha rotulo="Chassi" valor={moto.chassi ?? '—'} />
         </Card>
+
+        {/* De quem é a moto vem logo depois dos dados dela: é a primeira
+            pergunta do balcão, e o "Trocar dono" precisa estar à vista — no fim
+            da tela, depois de um histórico comprido, ninguém achava. */}
+        <TituloSecao
+          acao={
+            p.editarMotos ? (
+              <Botao
+                variante="texto"
+                icone={<ArrowLeftRight aria-hidden size={18} />}
+                onClick={() => setTrocandoDono(true)}
+              >
+                Trocar dono
+              </Botao>
+            ) : undefined
+          }
+        >
+          Proprietários
+        </TituloSecao>
+        <ListaCard>
+          {donoAtual && (
+            <LinhaLista
+              inicio={
+                <IconeCirculo>
+                  <User aria-hidden size={20} />
+                </IconeCirculo>
+              }
+              titulo={donoAtual.cliente?.nome ?? 'Cliente removido'}
+              // Só a data: ao lado do badge sobra pouca largura, e o telefone
+              // cortado pela metade não serve para ninguém. Ele aparece inteiro
+              // na tela do cliente, que é para onde esta linha leva.
+              descricao={`Desde ${data(donoAtual.data_inicio)}`}
+              fim={<Badge tom="sucesso">Dono atual</Badge>}
+              aoTocar={
+                donoAtual.cliente && p.verClientes
+                  ? () => navegar(`/clientes/${donoAtual.cliente!.id}`)
+                  : undefined
+              }
+            />
+          )}
+
+          {(verAnteriores ? anteriores : anteriores.slice(0, 1)).map((prop) => (
+            <LinhaLista
+              key={prop.id}
+              inicio={
+                <IconeCirculo>
+                  <History aria-hidden size={20} />
+                </IconeCirculo>
+              }
+              titulo={prop.cliente?.nome ?? 'Cliente removido'}
+              descricao={`De ${data(prop.data_inicio)} a ${data(prop.data_fim)}`}
+              fim={<Badge>Anterior</Badge>}
+              aoTocar={
+                prop.cliente && p.verClientes
+                  ? () => navegar(`/clientes/${prop.cliente!.id}`)
+                  : undefined
+              }
+            />
+          ))}
+
+          {!donoAtual && anteriores.length === 0 && (
+            <LinhaLista titulo="Sem proprietário registrado" comSeta={false} />
+          )}
+        </ListaCard>
+
+        {/* No computador esta coluna acompanha a rolagem: com a lista inteira de
+            donos ela cresceria além da tela de um notebook e o fim sumiria.
+            O dono atual e o anterior mais recente bastam no dia a dia. */}
+        {anteriores.length > 1 && (
+          <div className="pt-1">
+            <Botao variante="texto" onClick={() => setVerAnteriores((v) => !v)}>
+              {verAnteriores
+                ? 'Mostrar menos'
+                : anteriores.length === 2
+                  ? 'Ver o dono mais antigo'
+                  : `Ver os ${anteriores.length - 1} donos mais antigos`}
+            </Botao>
+          </div>
+        )}
+
+        {podeDesfazer && (
+          <div className="pt-2">
+            <Botao
+              variante="texto"
+              icone={<Undo2 aria-hidden size={18} />}
+              onClick={() => setDesfazendoTroca(true)}
+            >
+              Desfazer a troca de hoje
+            </Botao>
+          </div>
+        )}
     </>
   )
 
@@ -302,79 +394,6 @@ export function DetalheMoto() {
           <SecaoPecas pecas={ficha.data.pecas} />
           <SecaoNotas dados={ficha.data.notas} />
         </>
-      )}
-
-      <TituloSecao
-        acao={
-          p.editarMotos ? (
-            <Botao
-              variante="texto"
-              icone={<ArrowLeftRight aria-hidden size={18} />}
-              onClick={() => setTrocandoDono(true)}
-            >
-              Trocar dono
-            </Botao>
-          ) : undefined
-        }
-      >
-        Proprietários
-      </TituloSecao>
-      <ListaCard>
-        {donoAtual && (
-          <LinhaLista
-            inicio={
-              <IconeCirculo>
-                <User aria-hidden size={20} />
-              </IconeCirculo>
-            }
-            titulo={donoAtual.cliente?.nome ?? 'Cliente removido'}
-            // Só a data: ao lado do badge sobra pouca largura, e o telefone
-            // cortado pela metade não serve para ninguém. Ele aparece inteiro
-            // na tela do cliente, que é para onde esta linha leva.
-            descricao={`Desde ${data(donoAtual.data_inicio)}`}
-            fim={<Badge tom="sucesso">Dono atual</Badge>}
-            aoTocar={
-              donoAtual.cliente && p.verClientes
-                ? () => navegar(`/clientes/${donoAtual.cliente!.id}`)
-                : undefined
-            }
-          />
-        )}
-
-        {anteriores.map((prop) => (
-          <LinhaLista
-            key={prop.id}
-            inicio={
-              <IconeCirculo>
-                <History aria-hidden size={20} />
-              </IconeCirculo>
-            }
-            titulo={prop.cliente?.nome ?? 'Cliente removido'}
-            descricao={`De ${data(prop.data_inicio)} a ${data(prop.data_fim)}`}
-            fim={<Badge>Anterior</Badge>}
-            aoTocar={
-              prop.cliente && p.verClientes
-                ? () => navegar(`/clientes/${prop.cliente!.id}`)
-                : undefined
-            }
-          />
-        ))}
-
-        {!donoAtual && anteriores.length === 0 && (
-          <LinhaLista titulo="Sem proprietário registrado" comSeta={false} />
-        )}
-      </ListaCard>
-
-      {podeDesfazer && (
-        <div className="pt-2">
-          <Botao
-            variante="texto"
-            icone={<Undo2 aria-hidden size={18} />}
-            onClick={() => setDesfazendoTroca(true)}
-          >
-            Desfazer a troca de hoje
-          </Botao>
-        </div>
       )}
 
       <JanelaTrocarDono
