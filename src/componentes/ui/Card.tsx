@@ -29,7 +29,8 @@ interface PropsLinha {
   /** Ícone em círculo, ou a placa em destaque. */
   inicio?: ReactNode
   titulo: string
-  descricao?: string
+  /** Texto de apoio. Aceita um trecho em destaque (ex.: "Dono atual" em verde). */
+  descricao?: ReactNode
   fim?: ReactNode
   aoTocar?: () => void
   /** Esconde a seta quando a linha não leva a lugar nenhum. */

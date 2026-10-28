@@ -8,7 +8,6 @@ import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
 import { Detalhe } from '@/componentes/layout/Detalhe'
 import { Card, ListaCard, LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
 import { Botao } from '@/componentes/ui/Botao'
-import { Badge } from '@/componentes/ui/Badge'
 import { Campo } from '@/componentes/ui/Campo'
 import { Modal } from '@/componentes/ui/Modal'
 import { Carregando, EsqueletoLista } from '@/componentes/ui/Carregando'
@@ -219,11 +218,15 @@ export function DetalheMoto() {
                 </IconeCirculo>
               }
               titulo={donoAtual.cliente?.nome ?? 'Cliente removido'}
-              // Só a data: ao lado do badge sobra pouca largura, e o telefone
-              // cortado pela metade não serve para ninguém. Ele aparece inteiro
-              // na tela do cliente, que é para onde esta linha leva.
-              descricao={`Desde ${data(donoAtual.data_inicio)}`}
-              fim={<Badge tom="sucesso">Dono atual</Badge>}
+              // "Dono atual" embaixo do nome, e não num selo ao lado: na coluna
+              // estreita do computador o selo cortava o nome ("Ed Pereira de M…").
+              // O telefone fica na tela do cliente, para onde esta linha leva.
+              descricao={
+                <>
+                  <span className="font-medium text-sucesso-forte">Dono atual</span>
+                  {` · desde ${data(donoAtual.data_inicio)}`}
+                </>
+              }
               aoTocar={
                 donoAtual.cliente && p.verClientes
                   ? () => navegar(`/clientes/${donoAtual.cliente!.id}`)
@@ -241,8 +244,7 @@ export function DetalheMoto() {
                 </IconeCirculo>
               }
               titulo={prop.cliente?.nome ?? 'Cliente removido'}
-              descricao={`De ${data(prop.data_inicio)} a ${data(prop.data_fim)}`}
-              fim={<Badge>Anterior</Badge>}
+              descricao={`Anterior · de ${data(prop.data_inicio)} a ${data(prop.data_fim)}`}
               aoTocar={
                 prop.cliente && p.verClientes
                   ? () => navegar(`/clientes/${prop.cliente!.id}`)
@@ -308,7 +310,10 @@ export function DetalheMoto() {
       {/* Quilometragem é o dado que mais muda e o que o mecânico mais pergunta:
           fica em destaque, com atualização em um toque. */}
 
+      {/* No celular este cartão vem logo depois dos proprietários, sem título
+          no meio para dar o respiro; no computador ele abre a coluna. */}
       {ficha.data && (
+        <div className="pt-6 desktop:pt-0">
         <ResumoDaFicha
           servicos={ficha.data.resumo.servicos}
           totalGasto={ficha.data.resumo.total_gasto}
@@ -316,6 +321,7 @@ export function DetalheMoto() {
           emAndamento={ficha.data.resumo.em_andamento}
           garantiaAte={ficha.data.resumo.garantia_ate}
         />
+        </div>
       )}
 
       {/* O histórico pertence à placa, não ao dono. Quem chega aqui vê tudo o
