@@ -81,3 +81,30 @@ export async function motosDoCliente(clienteId: string): Promise<Moto[]> {
     .flatMap((linha) => (linha as unknown as { motos: Moto | null }).motos ?? [])
     .sort((a, b) => a.placa.localeCompare(b.placa))
 }
+
+export interface MotoQueFoiDoCliente {
+  moto: Pick<Moto, 'id' | 'placa' | 'marca' | 'modelo'>
+  data_inicio: string
+  data_fim: string
+}
+
+/**
+ * Motos que já foram do cliente e passaram para outro dono (0087). Ele não
+ * perde nada com a venda: os serviços continuam na ficha dele, e aqui fica de
+ * qual moto era cada um.
+ */
+export async function motosQueJaForamDoCliente(clienteId: string): Promise<MotoQueFoiDoCliente[]> {
+  const { data, error } = await supabase
+    .from('moto_proprietarios')
+    .select('data_inicio, data_fim, motos(id, placa, marca, modelo)')
+    .eq('cliente_id', clienteId)
+    .not('data_fim', 'is', null)
+    .order('data_fim', { ascending: false })
+
+  if (error) throw error
+
+  type Linha = { data_inicio: string; data_fim: string; motos: MotoQueFoiDoCliente['moto'] | null }
+  return ((data ?? []) as unknown as Linha[])
+    .filter((l) => l.motos)
+    .map((l) => ({ moto: l.motos!, data_inicio: l.data_inicio, data_fim: l.data_fim }))
+}

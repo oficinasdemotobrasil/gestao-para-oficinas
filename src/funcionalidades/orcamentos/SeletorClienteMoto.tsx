@@ -7,9 +7,15 @@ import { Modal } from '@/componentes/ui/Modal'
 import { FolhaDeBusca, type OpcaoDeBusca } from '@/componentes/ui/FolhaDeBusca'
 import { useToast } from '@/componentes/ui/Toast'
 import { traduzirErro } from '@/lib/erros'
-import { exibirPlaca, telefone as formatarTelefone, mascararTelefone, normalizarPlaca } from '@/lib/formato'
+import {
+  exibirPlaca,
+  telefone as formatarTelefone,
+  mascararTelefone,
+  normalizarPlaca,
+  hojeNoAparelho,
+} from '@/lib/formato'
 import { listarClientes, criarCliente } from '@/funcionalidades/clientes/api'
-import { criarMoto } from '@/funcionalidades/motos/api'
+import { criarMoto, motoPorPlaca, trocarDono, type MotoComDono } from '@/funcionalidades/motos/api'
 import { supabase } from '@/lib/supabase'
 
 export interface EscolhaClienteMoto {
@@ -199,7 +205,8 @@ export function SeletorClienteMoto({ escolha, aoEscolher, somenteLeitura = false
         }}
         vazio={{
           titulo: 'Este cliente não tem moto',
-          descricao: 'Cadastre a moto dele aqui mesmo, sem sair do orçamento.',
+          descricao:
+            'Cadastre a moto dele aqui mesmo. Se a placa já estiver no nome de outra pessoa (moto comprada), o GIRO oferece trocar o dono.',
         }}
       />
 
@@ -223,6 +230,7 @@ export function SeletorClienteMoto({ escolha, aoEscolher, somenteLeitura = false
         aberto={criandoMoto}
         aoFechar={() => setCriandoMoto(false)}
         clienteId={escolha.clienteId ?? ''}
+        clienteNome={escolha.clienteNome ?? 'este cliente'}
         aoCriar={(moto) => {
           aoEscolher({
             motoId: moto.id,
@@ -238,7 +246,7 @@ export function SeletorClienteMoto({ escolha, aoEscolher, somenteLeitura = false
 }
 
 /** Só o essencial: no meio de um orçamento, nome e telefone bastam. */
-function ModalClienteRapido({
+export function ModalClienteRapido({
   aberto,
   aoFechar,
   aoCriar,
@@ -327,11 +335,13 @@ function ModalMotoRapida({
   aberto,
   aoFechar,
   clienteId,
+  clienteNome,
   aoCriar,
 }: {
   aberto: boolean
   aoFechar: () => void
   clienteId: string
+  clienteNome: string
   aoCriar: (moto: { id: string; placa: string; descricao: string; km: number }) => void
 }) {
   const [placa, setPlaca] = useState('')
@@ -339,8 +349,51 @@ function ModalMotoRapida({
   const [modelo, setModelo] = useState('')
   const [km, setKm] = useState('')
   const [erro, setErro] = useState<string | null>(null)
+  // A placa já existe no nome de outra pessoa: a moto foi comprada (0087).
+  const [jaExiste, setJaExiste] = useState<MotoComDono | null>(null)
   const cache = useQueryClient()
   const toast = useToast()
+
+  function limpar() {
+    setPlaca('')
+    setMarca('')
+    setModelo('')
+    setKm('')
+    setJaExiste(null)
+  }
+
+  function escolher(m: {
+    id: string
+    placa: string
+    marca: string | null
+    modelo: string | null
+    km_atual: number
+  }) {
+    aoCriar({
+      id: m.id,
+      placa: m.placa,
+      descricao: [m.marca, m.modelo].filter(Boolean).join(' '),
+      km: Number(m.km_atual),
+    })
+  }
+
+  const passarParaCliente = useMutation({
+    mutationFn: () => trocarDono(jaExiste!.id, clienteId, hojeNoAparelho()),
+    onSuccess: (r) => {
+      for (const chave of ['moto', 'motos', 'cliente', 'clientes', 'ficha-do-cliente', 'ficha-da-moto']) {
+        void cache.invalidateQueries({ queryKey: [chave] })
+      }
+      toast.sucesso(
+        r.anterior
+          ? `A moto passou para ${r.novo}. ${r.anterior} fica no histórico como dono anterior.`
+          : `A moto ficou no nome de ${r.novo}.`,
+      )
+      const m = jaExiste!
+      limpar()
+      escolher(m)
+    },
+    onError: (e) => setErro(traduzirErro(e)),
+  })
 
   const salvar = useMutation({
     mutationFn: () =>
@@ -356,41 +409,100 @@ function ModalMotoRapida({
     onSuccess: (m) => {
       void cache.invalidateQueries({ queryKey: ['motos'] })
       toast.sucesso('Moto cadastrada.')
-      setPlaca('')
-      setMarca('')
-      setModelo('')
-      setKm('')
-      aoCriar({
-        id: m.id,
-        placa: m.placa,
-        descricao: [m.marca, m.modelo].filter(Boolean).join(' '),
-        km: Number(m.km_atual),
-      })
+      limpar()
+      escolher(m)
     },
-    onError: (e) => setErro(traduzirErro(e)),
+    onError: async (e) => {
+      // Placa repetida quase sempre é moto que mudou de mãos: em vez de só
+      // recusar, mostra de quem ela é e oferece passar para este cliente.
+      if (String((e as { message?: string }).message ?? '').includes('motos_placa_por_oficina')) {
+        try {
+          const existente = await motoPorPlaca(placa)
+          if (existente && existente.dono?.id === clienteId) {
+            limpar()
+            escolher(existente)
+            return
+          }
+          if (existente) {
+            setJaExiste(existente)
+            return
+          }
+        } catch {
+          // Sem conseguir olhar, fica a mensagem de sempre.
+        }
+      }
+      setErro(traduzirErro(e))
+    },
   })
 
   return (
     <Modal
       aberto={aberto}
-      aoFechar={aoFechar}
-      titulo="Moto nova"
+      aoFechar={() => {
+        setJaExiste(null)
+        aoFechar()
+      }}
+      titulo={jaExiste ? 'Essa moto já está no GIRO' : 'Moto nova'}
       rodape={
-        <Botao
-          largo
-          carregando={salvar.isPending}
-          onClick={() => {
-            setErro(null)
-            if (normalizarPlaca(placa).length !== 7) {
-              return setErro('Placa incompleta. Use o formato ABC1234 ou ABC1D23.')
-            }
-            salvar.mutate()
-          }}
-        >
-          Cadastrar e continuar
-        </Botao>
+        jaExiste ? (
+          <Botao
+            largo
+            carregando={passarParaCliente.isPending}
+            onClick={() => {
+              setErro(null)
+              passarParaCliente.mutate()
+            }}
+          >
+            Passar para {clienteNome} e continuar
+          </Botao>
+        ) : (
+          <Botao
+            largo
+            carregando={salvar.isPending}
+            onClick={() => {
+              setErro(null)
+              if (normalizarPlaca(placa).length !== 7) {
+                return setErro('Placa incompleta. Use o formato ABC1234 ou ABC1D23.')
+              }
+              salvar.mutate()
+            }}
+          >
+            Cadastrar e continuar
+          </Botao>
+        )
       }
     >
+      {jaExiste ? (
+        <div className="flex flex-col gap-4 pb-2">
+          <p className="text-corpo text-em-superficie">
+            A placa <strong>{exibirPlaca(jaExiste.placa)}</strong>
+            {[jaExiste.marca, jaExiste.modelo].filter(Boolean).length > 0 &&
+              ` (${[jaExiste.marca, jaExiste.modelo].filter(Boolean).join(' ')})`}{' '}
+            já está cadastrada
+            {jaExiste.dono ? (
+              <>
+                {' '}no nome de <strong>{jaExiste.dono.nome}</strong>
+              </>
+            ) : (
+              ' sem dono registrado'
+            )}
+            .
+          </p>
+          <p className="text-corpo text-em-superficie-2">
+            {jaExiste.dono
+              ? `Se a moto foi vendida para ${clienteNome}, passe para o nome deste cliente e siga com o orçamento. ${jaExiste.dono.nome} continua no histórico como dono anterior, e o histórico de serviços da moto continua todo guardado.`
+              : `Passe a moto para o nome de ${clienteNome} e siga com o orçamento. O histórico de serviços da moto continua todo guardado.`}
+          </p>
+          <Botao variante="texto" onClick={() => setJaExiste(null)}>
+            Voltar e corrigir a placa
+          </Botao>
+          {erro && (
+            <p role="alert" className="rounded-controle bg-erro-fundo px-4 py-3 text-corpo text-erro-forte">
+              {erro}
+            </p>
+          )}
+        </div>
+      ) : (
       <div className="flex flex-col gap-4 pb-2">
         <Campo
           rotulo="Placa"
@@ -433,6 +545,7 @@ function ModalMotoRapida({
           </p>
         )}
       </div>
+      )}
     </Modal>
   )
 }

@@ -1036,6 +1036,18 @@ export type Database = {
         Returns: ContaReceber
       }
       cancelar_conta_receber: { Args: { p_conta_id: string }; Returns: undefined }
+      trocar_dono_da_moto: {
+        Args: { p_moto_id: string; p_novo_cliente_id: string; p_data?: string | null }
+        Returns: { anterior: string | null; novo: string; data: string }
+      }
+      desfazer_troca_de_dono: {
+        Args: { p_moto_id: string }
+        Returns: { dono: string | null }
+      }
+      hoje_no_brasil: {
+        Args: Record<string, never>
+        Returns: string
+      }
       dar_desconto: {
         Args: {
           p_conta_id: string

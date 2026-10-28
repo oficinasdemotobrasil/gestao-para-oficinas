@@ -1,15 +1,16 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Bike, Pencil, Plus } from 'lucide-react'
+import { Bike, History, Pencil, Plus } from 'lucide-react'
 import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
 import { Detalhe } from '@/componentes/layout/Detalhe'
 import { Card, ListaCard, LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
 import { Botao } from '@/componentes/ui/Botao'
+import { Badge } from '@/componentes/ui/Badge'
 import { Carregando, EsqueletoLista } from '@/componentes/ui/Carregando'
 import { EstadoErro } from '@/componentes/ui/EstadoVazio'
 import { telefone, cpfCnpj, exibirPlaca, quilometragem, data } from '@/lib/formato'
 import { usePermissoes } from '@/auth/usePermissoes'
-import { obterCliente, motosDoCliente } from '../api'
+import { obterCliente, motosDoCliente, motosQueJaForamDoCliente } from '../api'
 import { fichaDoCliente } from '@/funcionalidades/ficha/api'
 import {
   ResumoDaFicha,
@@ -49,6 +50,12 @@ export function DetalheCliente() {
   const { data: motos } = useQuery({
     queryKey: ['cliente', id, 'motos'],
     queryFn: () => motosDoCliente(id!),
+    enabled: Boolean(cliente),
+  })
+
+  const { data: jaForam } = useQuery({
+    queryKey: ['cliente', id, 'motos-anteriores'],
+    queryFn: () => motosQueJaForamDoCliente(id!),
     enabled: Boolean(cliente),
   })
 
@@ -136,7 +143,10 @@ export function DetalheCliente() {
       {!motos || motos.length === 0 ? (
         <Card escuro>
           <p className="text-corpo text-em-fundo-2">
-            Nenhuma moto vinculada a este cliente ainda.
+            {/* Quem vendeu a moto não é cliente "sem moto ainda". */}
+            {jaForam && jaForam.length > 0
+              ? 'Nenhuma moto no nome deste cliente hoje.'
+              : 'Nenhuma moto vinculada a este cliente ainda.'}
           </p>
         </Card>
       ) : (
@@ -159,6 +169,39 @@ export function DetalheCliente() {
           ))}
         </ListaCard>
       )}
+
+      {(() => {
+        // Recomprou a moto? Ela já aparece em cima, entre as de hoje.
+        const atuais = new Set((motos ?? []).map((m) => m.id))
+        const anteriores = (jaForam ?? []).filter((x) => !atuais.has(x.moto.id))
+        if (anteriores.length === 0) return null
+        return (
+          <>
+            <TituloSecao>Motos que já foram deste cliente</TituloSecao>
+            <ListaCard>
+              {anteriores.map((x) => (
+                <LinhaLista
+                  key={`${x.moto.id}-${x.data_fim}`}
+                  inicio={
+                    <IconeCirculo>
+                      <History aria-hidden size={20} />
+                    </IconeCirculo>
+                  }
+                  titulo={exibirPlaca(x.moto.placa)}
+                  descricao={[
+                    [x.moto.marca, x.moto.modelo].filter(Boolean).join(' '),
+                    `de ${data(x.data_inicio)} a ${data(x.data_fim)}`,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                  fim={<Badge>Anterior</Badge>}
+                  aoTocar={() => navegar(`/motos/${x.moto.id}`)}
+                />
+              ))}
+            </ListaCard>
+          </>
+        )
+      })()}
 
       {/* Tudo o que está ligado a este cliente, cruzado numa chamada só:
           ordens, orçamentos, notas e o que ele deve. */}

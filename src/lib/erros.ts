@@ -84,7 +84,7 @@ export function traduzirErro(erro: unknown): string {
 
   if (codigo === '23505') {
     if (mensagem.includes('motos_placa_por_oficina')) {
-      return 'Já existe uma moto com essa placa cadastrada na oficina.'
+      return 'Já existe uma moto com essa placa cadastrada na oficina. Se ela mudou de dono, abra a moto e toque em "Trocar dono".'
     }
     if (mensagem.includes('produtos_codigo_por_oficina')) {
       return 'Já existe um produto com esse código.'

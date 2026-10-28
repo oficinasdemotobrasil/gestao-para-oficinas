@@ -373,7 +373,23 @@ export const GUIAS: Guia[] = [
       'A quilometragem é a de hoje: ela serve de base para o próximo serviço.',
     ],
     atencao:
-      'Se a moto trocar de dono, não cadastre outra: registre a troca de proprietário. O histórico continua com a placa.',
+      'Se a moto trocar de dono, não cadastre outra: abra a moto e toque em "Trocar dono". O histórico continua com a placa.',
+    visivel: (p) => p.editarMotos,
+  },
+  {
+    id: 'trocar-dono',
+    secao: 'Cadastros',
+    titulo: 'Trocar o dono da moto',
+    resumo: 'A moto foi vendida: passe para o nome do comprador sem perder o histórico dela.',
+    passos: [
+      'Se o comprador ainda não é cliente, cadastre-o (Clientes → "Novo cliente") — ou faça isso direto na troca.',
+      'Abra a moto (Motos → toque na placa) e, em Proprietários, toque em "Trocar dono".',
+      'Escolha o novo dono e confira a data da troca (se a venda foi antes, escolha o dia da venda).',
+      'Toque em "Trocar dono". Pronto: no orçamento, a moto já aparece para o novo dono.',
+      'No meio de um orçamento? Escolha o comprador como cliente e cadastre a placa: o GIRO avisa que ela já existe e oferece passar para ele.',
+    ],
+    atencao:
+      'O dono antigo continua cliente, com toda a ficha, e aparece na moto como dono anterior. Orçamentos, ordens e contas antigas continuam no nome de quem pediu. Trocou para a pessoa errada? No mesmo dia, toque em "Desfazer a troca de hoje" — enquanto não houver orçamento novo da moto.',
     visivel: (p) => p.editarMotos,
   },
   {

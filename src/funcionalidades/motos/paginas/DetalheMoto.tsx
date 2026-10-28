@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { resolverZod } from '@/lib/formulario'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pencil, Gauge, ClipboardList, User, History } from 'lucide-react'
+import { Pencil, Gauge, ClipboardList, User, History, ArrowLeftRight, Undo2 } from 'lucide-react'
 import { Tela, CabecalhoInterno, TituloSecao } from '@/componentes/layout/Tela'
 import { Detalhe } from '@/componentes/layout/Detalhe'
 import { Card, ListaCard, LinhaLista, IconeCirculo } from '@/componentes/ui/Card'
@@ -15,7 +15,7 @@ import { Carregando, EsqueletoLista } from '@/componentes/ui/Carregando'
 import { EstadoErro } from '@/componentes/ui/EstadoVazio'
 import { useToast } from '@/componentes/ui/Toast'
 import { traduzirErro } from '@/lib/erros'
-import { exibirPlaca, quilometragem, data, moeda } from '@/lib/formato'
+import { exibirPlaca, quilometragem, data, moeda, hojeNoAparelho } from '@/lib/formato'
 import { usePermissoes } from '@/auth/usePermissoes'
 import {
   esquemaKm,
@@ -25,6 +25,7 @@ import {
 import { useAuth } from '@/auth/ProvedorAuth'
 import { historicoDaPlaca } from '@/funcionalidades/painel/api'
 import { obterMoto, proprietariosDaMoto, atualizarKm } from '../api'
+import { JanelaTrocarDono, JanelaDesfazerTroca } from '../TrocarDono'
 import { fichaDaMoto } from '@/funcionalidades/ficha/api'
 import {
   ResumoDaFicha,
@@ -58,6 +59,8 @@ export function DetalheMoto() {
   const p = usePermissoes()
   const { oficina } = useAuth()
   const [editandoKm, setEditandoKm] = useState(false)
+  const [trocandoDono, setTrocandoDono] = useState(false)
+  const [desfazendoTroca, setDesfazendoTroca] = useState(false)
   const [pdfPronto, setPdfPronto] = useState(moduloPdf !== null)
 
   useEffect(() => {
@@ -136,6 +139,16 @@ export function DetalheMoto() {
 
   const donoAtual = proprietarios?.find((prop) => prop.data_fim === null)
   const anteriores = proprietarios?.filter((prop) => prop.data_fim !== null) ?? []
+  // A troca de hoje ainda pode ser desfeita (o banco confere o resto: nada de
+  // orçamento ou ordem desta moto depois dela). Mais tarde, o caminho é trocar de novo.
+  const trocadoDe = donoAtual
+    ? anteriores.find((a) => a.data_fim === donoAtual.data_inicio && a.criado_em < donoAtual.criado_em)
+    : undefined
+  const podeDesfazer =
+    p.editarMotos &&
+    Boolean(trocadoDe) &&
+    donoAtual !== undefined &&
+    new Date(donoAtual.criado_em).toLocaleDateString('sv-SE') === hojeNoAparelho()
 
   // A coluna de apoio no computador: os primeiros blocos da tela, na ordem em
   // que já estavam no celular.
@@ -291,7 +304,21 @@ export function DetalheMoto() {
         </>
       )}
 
-      <TituloSecao>Proprietários</TituloSecao>
+      <TituloSecao
+        acao={
+          p.editarMotos ? (
+            <Botao
+              variante="texto"
+              icone={<ArrowLeftRight aria-hidden size={18} />}
+              onClick={() => setTrocandoDono(true)}
+            >
+              Trocar dono
+            </Botao>
+          ) : undefined
+        }
+      >
+        Proprietários
+      </TituloSecao>
       <ListaCard>
         {donoAtual && (
           <LinhaLista
@@ -337,6 +364,36 @@ export function DetalheMoto() {
           <LinhaLista titulo="Sem proprietário registrado" comSeta={false} />
         )}
       </ListaCard>
+
+      {podeDesfazer && (
+        <div className="pt-2">
+          <Botao
+            variante="texto"
+            icone={<Undo2 aria-hidden size={18} />}
+            onClick={() => setDesfazendoTroca(true)}
+          >
+            Desfazer a troca de hoje
+          </Botao>
+        </div>
+      )}
+
+      <JanelaTrocarDono
+        aberto={trocandoDono}
+        aoFechar={() => setTrocandoDono(false)}
+        moto={{ id: moto.id, placa: moto.placa }}
+        donoAtual={
+          donoAtual?.cliente ? { id: donoAtual.cliente.id, nome: donoAtual.cliente.nome } : null
+        }
+      />
+      {trocadoDe && donoAtual && (
+        <JanelaDesfazerTroca
+          aberto={desfazendoTroca}
+          aoFechar={() => setDesfazendoTroca(false)}
+          motoId={moto.id}
+          anterior={trocadoDe.cliente?.nome ?? 'o dono anterior'}
+          atual={donoAtual.cliente?.nome ?? 'o dono atual'}
+        />
+      )}
 
       <Modal
         aberto={editandoKm}
